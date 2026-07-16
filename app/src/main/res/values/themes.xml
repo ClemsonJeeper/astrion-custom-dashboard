@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Minimal Material3-compatible base theme; Compose supplies the real styling. -->
+    <style name="Theme.Astrion" parent="android:Theme.Material.NoActionBar" />
+</resources>

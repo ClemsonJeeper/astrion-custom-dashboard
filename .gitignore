@@ -1,0 +1,8 @@
+.claude/
+backups/
+.gradle/
+.kotlin/
+build/
+local.properties
+secrets.properties
+recordings/
