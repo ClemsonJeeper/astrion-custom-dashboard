@@ -25,6 +25,10 @@ The app ships with **no Home Assistant credentials baked in** — every install 
 
 Saving connection settings restarts the app to reconnect; uploading `dashboard.json` reloads the dashboard live.
 
+### Dashboard editor
+
+Building `dashboard.json` by hand is optional — the [**online dashboard editor**](https://dckiller51.github.io/astrion-dashboard/) lets you add pages, cards, and hotkeys through forms and generates the JSON for you (or lets you load and edit an existing file). Download the result and upload it from the local `:8080` configuration page above, no adb needed.
+
 ### Updates
 
 The same local page can check this repository's [GitHub Releases](https://github.com/dckiller51/astrion-dashboard/releases) for a newer build and download + launch the system installer for it — no adb required for updates either. Android requires manually approving "install unknown apps" for Astrion Custom the first time (the page will prompt for it and tell you to try again once granted); after that, updating is just two taps.
@@ -53,6 +57,7 @@ Two separate mechanisms, designed so the community can add a language without to
 ```bash
 adb uninstall com.custom.astrion
 ```
+
 The remote falls back to the stock **HaRemote** launcher.
 
 ## Building from source
@@ -62,11 +67,12 @@ The remote falls back to the stock **HaRemote** launcher.
 adb uninstall com.custom.astrion   # avoids signature conflicts with a previous install
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
+
 No `secrets.properties` or any other pre-build configuration is needed — every instance is configured after install through the local `:8080` page above.
 
 ## Repository structure
 
-```
+```txt
 src/main/
   assets/ha_labels/        Home Assistant state translations (JSON, per language)
   java/com/custom/astrion/

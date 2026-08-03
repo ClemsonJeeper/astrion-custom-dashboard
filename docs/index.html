@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astrion Custom — dashboard.json Editor</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
+  h1 { font-size: 1.3rem; color: #00E5FF; margin: 0 0 4px; }
+  .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
+  .layout { display: flex; gap: 20px; align-items: flex-start; }
+  .editor-pane, .preview-pane { flex: 1; background: #1e1e1e; border: 1px solid #333; border-radius: 12px; padding: 20px; min-width: 0; }
+  .preview-pane { position: sticky; top: 20px; background: #181818; }
+  h2 { color: #00E5FF; font-size: 1.05rem; margin: 24px 0 10px; }
+  h2:first-child { margin-top: 0; }
+  label { font-size: 0.8rem; color: #aaa; display: block; margin: 8px 0 4px; }
+  input, select, textarea { width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #444; color: #fff; border-radius: 6px; box-sizing: border-box; font-size: 0.88rem; }
+  textarea { font-family: monospace; resize: vertical; }
+  button { background: #00E5FF; color: #121212; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; margin-top: 8px; }
+  button:hover { background: #00b8cc; }
+  button.secondary { background: #333; color: #eee; }
+  button.secondary:hover { background: #444; }
+  button.danger { background: #3a2222; color: #ff8a8a; }
+  button.danger:hover { background: #4a2a2a; }
+  .section-box { background: #252525; padding: 14px; border-radius: 8px; border: 1px solid #383838; margin-bottom: 14px; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 6px; }
+  .tab { background: #2d2d2d; border: 1px solid #444; padding: 6px 12px; cursor: pointer; border-radius: 6px; color: #fff; white-space: nowrap; font-size: 0.85rem; }
+  .tab.active { background: #00E5FF; color: #121212; font-weight: bold; border-color: #00E5FF; }
+  .card { background: #222; border: 1px solid #333; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .card-title { font-size: 0.7rem; color: #888; text-transform: uppercase; margin-bottom: 5px; display: flex; justify-content: space-between; }
+  .list-item { background: #1c1c1c; border: 1px solid #333; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; gap: 8px; }
+  .list-item .remove { color: #ff8a8a; cursor: pointer; font-weight: bold; flex-shrink: 0; }
+  .hotkeys-badge { background: #0d2b30; border: 1px solid #00E5FF; padding: 8px 10px; border-radius: 6px; margin-bottom: 10px; font-size: 0.78rem; }
+  .hint { font-size: 0.75rem; color: #777; margin-top: 4px; }
+  #jsonOutput { height: 260px; margin-top: 8px; color: #00ff66; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-row button { margin-top: 0; }
+
+  .preview-apple-remote, .preview-tv-remote { background: #161616; border-radius: 24px; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 18px; max-width: 260px; margin: 0 auto; }
+  .preview-trackpad { width: 160px; height: 160px; background: #232323; border-radius: 50%; position: relative; display: flex; align-items: center; justify-content: center; }
+  .preview-inner-select { width: 46px; height: 46px; background: #303030; border-radius: 50%; }
+  .preview-row-buttons { display: flex; justify-content: space-around; width: 100%; gap: 10px; }
+  .preview-pill { background: #2a2a2a; border-radius: 50px; padding: 8px 16px; font-size: 12px; color: #e6e6e6; }
+  .preview-play-btn { width: 44px; height: 44px; background: #2a2a2a; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #e6e6e6; }
+  .preview-grid { display: grid; gap: 8px; }
+  .preview-tile { background: #2a2a2a; border-radius: 8px; padding: 10px; font-size: 0.82rem; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>Astrion Custom — dashboard.json Editor</h1>
+<div class="subtitle">Build your dashboard visually, no hand-written JSON required. Matches the exact schema the app reads.</div>
+
+<div class="layout">
+  <!-- LEFT PANE -->
+  <div class="editor-pane">
+
+    <h2>Load an existing dashboard.json (optional)</h2>
+    <div class="section-box">
+      <textarea id="importBox" rows="4" placeholder="Paste your current dashboard.json here to edit it, or leave empty to start fresh."></textarea>
+      <div class="btn-row">
+        <button onclick="importJson()">Load</button>
+        <button class="secondary" onclick="resetAll()">Start over</button>
+      </div>
+    </div>
+
+    <h2>1. Pages</h2>
+    <div class="section-box">
+      <label>Add a page</label>
+      <input type="text" id="newPageName" placeholder="e.g., Living Room, Apple TV...">
+      <button onclick="addPage()">Add page</button>
+      <div id="pagesList" style="margin-top:10px"></div>
+      <label style="margin-top:14px">Start page (shown on launch)</label>
+      <select id="startPageSelect" onchange="setStartPage()"></select>
+    </div>
+
+    <h2>2. Cards</h2>
+    <div class="section-box">
+      <label>Target page</label>
+      <select id="pageSelect" onchange="onPageChange()"></select>
+
+      <label>Card type</label>
+      <select id="cardTypeSelect" onchange="updateCardFormInputs()">
+        <optgroup label="Common">
+          <option value="bubble_light">Light — dimmable (bubble_light)</option>
+          <option value="light">Light — simple toggle (light)</option>
+          <option value="switch">Switch (switch)</option>
+          <option value="cover">Cover / Shutter (cover)</option>
+          <option value="fan">Fan (fan)</option>
+          <option value="climate">Climate (climate)</option>
+          <option value="source_select">Source selector (source_select)</option>
+        </optgroup>
+        <optgroup label="Grids">
+          <option value="button_grid">Button grid (button_grid)</option>
+          <option value="scene_grid">Scene grid (scene_grid)</option>
+        </optgroup>
+        <optgroup label="Remotes">
+          <option value="apple_tv_remote">Apple TV remote (apple_tv_remote)</option>
+          <option value="tv_remote">TV / media remote (tv_remote)</option>
+        </optgroup>
+        <optgroup label="Advanced (raw options)">
+          <option value="clock_weather">Clock &amp; weather (clock_weather)</option>
+          <option value="custom_ir">Custom IR buttons (custom_ir)</option>
+          <option value="media_player">Media player (media_player)</option>
+          <option value="speaker_group">Speaker group (speaker_group)</option>
+          <option value="monitor">System monitor (monitor)</option>
+          <option value="picture_elements">Picture elements (picture_elements)</option>
+          <option value="plex">Plex (plex)</option>
+          <option value="row">Row layout (row)</option>
+          <option value="vacuum">Vacuum (vacuum)</option>
+          <option value="custom">Other / custom type…</option>
+        </optgroup>
+      </select>
+
+      <div id="dynamicCardInputs"></div>
+      <div class="btn-row">
+        <button id="addCardBtn" onclick="addCardToPage()">Add card to page</button>
+        <button id="cancelCardEditBtn" class="secondary" style="display:none" onclick="cancelCardEdit()">Cancel edit</button>
+      </div>
+    </div>
+
+    <h2>3. Hotkeys</h2>
+    <div class="section-box">
+      <label>Scope</label>
+      <select id="hkScope">
+        <option value="page">This page only (overrides global while page is active)</option>
+        <option value="global">Global (every page)</option>
+      </select>
+
+      <label>Press type</label>
+      <select id="hkType">
+        <option value="hotkeys">Single press</option>
+        <option value="longHotkeys">Long press (~500ms hold)</option>
+      </select>
+
+      <label>Physical key</label>
+      <select id="hkKey">
+        <option>BACK</option><option>HOME</option><option>POWER</option>
+        <option>VOLUME_UP</option><option>VOLUME_DOWN</option><option>MUTE</option>
+        <option>PAGE_UP</option><option>PAGE_DOWN</option>
+        <option>UP</option><option>DOWN</option><option>LEFT</option><option>RIGHT</option><option>CENTER</option>
+        <option>VOICE</option><option>MAIN</option>
+        <option>REWIND</option><option>PLAY</option><option>STOP</option><option>FASTFORWARD</option>
+        <option>RED_BUTTON</option><option>GREEN_BUTTON</option><option>BLUE_BUTTON</option><option>YELLOW_BUTTON</option>
+      </select>
+
+      <label>Action</label>
+      <select id="hkAction" onchange="updateHotkeyActionInputs()">
+        <option value="page">Go to page</option>
+        <option value="service">Home Assistant service call</option>
+        <option value="harmonyCommand">Harmony IR command (direct to hub)</option>
+        <option value="harmonyActivity">Harmony activity (direct to hub)</option>
+      </select>
+
+      <div id="dynamicHotkeyInputs"></div>
+      <div class="btn-row">
+        <button id="addHotkeyBtn" onclick="addHotkey()">Add hotkey</button>
+        <button id="cancelHotkeyEditBtn" class="secondary" style="display:none" onclick="cancelHotkeyEdit()">Cancel edit</button>
+      </div>
+      <div id="hotkeysList" style="margin-top:12px"></div>
+    </div>
+
+    <h2>4. Generated JSON</h2>
+    <textarea id="jsonOutput" readonly></textarea>
+    <div class="btn-row">
+      <button onclick="copyJson()">Copy JSON</button>
+      <button class="secondary" onclick="downloadJson()">Download dashboard.json</button>
+    </div>
+  </div>
+
+  <!-- RIGHT PANE -->
+  <div class="preview-pane">
+    <h2 style="margin-top:0">Preview</h2>
+    <div id="tabs" class="tabs"></div>
+    <div id="content"></div>
+  </div>
+</div>
+
+<script>
+let dashboardData = { startPage: 0, pages: [ { name: "Home", cards: [], hotkeys: [], longHotkeys: [] } ], hotkeys: [], longHotkeys: [] };
+let currentActivePage = 0;
+let editingCard = null;    // index of the card being edited within the current page, or null
+let editingHotkey = null;  // { scope, listType, i } of the hotkey being edited, or null
+
+function resetAll() {
+  dashboardData = { startPage: 0, pages: [ { name: "Home", cards: [], hotkeys: [], longHotkeys: [] } ], hotkeys: [], longHotkeys: [] };
+  currentActivePage = 0;
+  document.getElementById('importBox').value = '';
+  initEditor();
+}
+
+function importJson() {
+  const raw = document.getElementById('importBox').value.trim();
+  if (!raw) return;
+  try {
+    const parsed = JSON.parse(raw);
+    dashboardData = {
+      startPage: parsed.startPage || 0,
+      pages: (parsed.pages || []).map(p => ({
+        name: p.name || 'Page',
+        cards: p.cards || [],
+        hotkeys: p.hotkeys || [],
+        longHotkeys: p.longHotkeys || [],
+      })),
+      hotkeys: parsed.hotkeys || [],
+      longHotkeys: parsed.longHotkeys || [],
+    };
+    if (dashboardData.pages.length === 0) dashboardData.pages.push({ name: "Home", cards: [], hotkeys: [], longHotkeys: [] });
+    currentActivePage = 0;
+    initEditor();
+    alert('dashboard.json loaded — you can now edit it below.');
+  } catch (e) {
+    alert('Invalid JSON: ' + e.message);
+  }
+}
+
+function initEditor() {
+  editingCard = null;
+  editingHotkey = null;
+  renderPageSelect();
+  renderStartPageSelect();
+  renderPagesList();
+  renderTabs();
+  renderPreview();
+  renderHotkeysList();
+  updateJsonOutput();
+  updateCardFormInputs();
+  updateHotkeyActionInputs();
+}
+
+// ---- Pages: rename / delete -------------------------------------------------
+
+function renderPagesList() {
+  const container = document.getElementById('pagesList');
+  if (!container) return;
+  container.innerHTML = '';
+  dashboardData.pages.forEach((page, i) => {
+    const row = document.createElement('div');
+    row.className = 'list-item';
+    row.innerHTML = `
+      <input type="text" value="${page.name.replace(/"/g, '&quot;')}" style="margin:0" onchange="renamePage(${i}, this.value)">
+      <span class="remove" onclick="deletePage(${i})">✕</span>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function renamePage(i, newName) {
+  newName = newName.trim();
+  if (!newName) { renderPagesList(); return; }
+  dashboardData.pages[i].name = newName;
+  renderPageSelect(); renderStartPageSelect(); renderTabs(); renderPreview(); updateJsonOutput();
+}
+
+function deletePage(i) {
+  if (dashboardData.pages.length <= 1) { alert('You need at least one page.'); return; }
+  if (!confirm(`Delete page "${dashboardData.pages[i].name}" and everything on it (cards, page hotkeys)?`)) return;
+  dashboardData.pages.splice(i, 1);
+  if (currentActivePage >= dashboardData.pages.length) currentActivePage = dashboardData.pages.length - 1;
+  if (dashboardData.startPage >= dashboardData.pages.length) dashboardData.startPage = 0;
+  editingCard = null; editingHotkey = null;
+  renderPageSelect(); renderStartPageSelect(); renderPagesList(); renderTabs();
+  renderPreview(); renderHotkeysList(); updateJsonOutput(); updateCardFormInputs();
+}
+
+function renderPageSelect() {
+  const select = document.getElementById('pageSelect');
+  select.innerHTML = '';
+  dashboardData.pages.forEach((page, index) => {
+    const opt = document.createElement('option');
+    opt.value = index; opt.innerText = page.name;
+    if (index === currentActivePage) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+function renderStartPageSelect() {
+  const select = document.getElementById('startPageSelect');
+  select.innerHTML = '';
+  dashboardData.pages.forEach((page, index) => {
+    const opt = document.createElement('option');
+    opt.value = index; opt.innerText = page.name;
+    if (index === dashboardData.startPage) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+function setStartPage() {
+  dashboardData.startPage = parseInt(document.getElementById('startPageSelect').value, 10);
+  updateJsonOutput();
+}
+
+function onPageChange() {
+  currentActivePage = parseInt(document.getElementById('pageSelect').value, 10);
+  cancelCardEdit();
+  renderTabs();
+  renderPreview();
+  renderHotkeysList();
+  updateCardFormInputs();
+}
+
+function addPage() {
+  const nameInput = document.getElementById('newPageName');
+  if (!nameInput.value.trim()) return;
+  dashboardData.pages.push({ name: nameInput.value.trim(), cards: [], hotkeys: [], longHotkeys: [] });
+  nameInput.value = '';
+  currentActivePage = dashboardData.pages.length - 1;
+  renderPageSelect(); renderStartPageSelect(); renderPagesList(); renderTabs(); renderPreview(); renderHotkeysList(); updateJsonOutput();
+}
+
+// ---- Cards ---------------------------------------------------------------
+
+const NAME_ENTITY_TYPES = ['bubble_light', 'light', 'switch', 'cover', 'fan', 'source_select'];
+
+function updateCardFormInputs() {
+  const type = document.getElementById('cardTypeSelect').value;
+  const container = document.getElementById('dynamicCardInputs');
+
+  if (NAME_ENTITY_TYPES.includes(type)) {
+    container.innerHTML = `
+      <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room">
+      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., light.living_room">
+      <label>Icon (optional, PNG path)</label><input type="text" id="optIcon" placeholder="/sdcard/astrion/icons/xxx.png">
+    `;
+  } else if (type === 'climate') {
+    container.innerHTML = `
+      <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room AC">
+      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., climate.living_room">
+      <label>Fan modes override (optional, comma-separated)</label><input type="text" id="optFanModes" placeholder="low,medium,high">
+    `;
+  } else if (type === 'button_grid' || type === 'scene_grid') {
+    const label = type === 'button_grid' ? 'Button' : 'Scene';
+    container.innerHTML = `
+      <label>Columns</label><input type="number" id="optColumns" value="2" min="1">
+      <div id="gridItemsList"></div>
+      <div class="section-box" style="margin-top:8px">
+        <label>${label} name</label><input type="text" id="giName" placeholder="e.g., ${type === 'button_grid' ? 'Netflix' : 'Movie Night'}">
+        ${type === 'button_grid' ? `
+          <label>Service (domain.service)</label><input type="text" id="giService" placeholder="e.g., media_player.play_media">
+          <label>Entity ID (optional)</label><input type="text" id="giEntityId" placeholder="e.g., media_player.tv">
+          <label>Extra data (optional, JSON)</label><input type="text" id="giData" placeholder='{"media_content_type":"app"}'>
+        ` : `
+          <label>Entity ID (activates a scene/script) — OR —</label><input type="text" id="giEntityId" placeholder="e.g., scene.night">
+          <label>Page to open instead</label><input type="text" id="giPage" placeholder="e.g., Apple TV">
+        `}
+        <label>Icon (optional, PNG path)</label><input type="text" id="giIcon" placeholder="/sdcard/astrion/icons/xxx.png">
+        <button type="button" class="secondary" onclick="addGridItem('${type}')">+ Add ${label.toLowerCase()} to this card</button>
+      </div>
+      <div class="hint">Add every ${label.toLowerCase()}, then click "Add card to page" once below.</div>
+    `;
+    window._pendingGridItems = window._pendingGridItems || [];
+    renderGridItemsList(type);
+  } else if (type === 'apple_tv_remote') {
+    container.innerHTML = `<label>Device ID (Harmony)</label><input type="text" id="optDeviceId" placeholder="e.g., 62846050">`;
+  } else if (type === 'tv_remote') {
+    container.innerHTML = `
+      <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room TV">
+      <label>Remote entity ID</label><input type="text" id="optRemoteEntity" placeholder="e.g., remote.living_room_tv">
+      <label>Media entity ID (optional)</label><input type="text" id="optMediaEntity" placeholder="e.g., media_player.tv">
+      <label>Mute entity ID (optional)</label><input type="text" id="optMuteEntity" placeholder="e.g., media_player.soundbar">
+    `;
+  } else {
+    // Advanced / custom: raw options JSON, and free type name if "custom"
+    container.innerHTML = `
+      ${type === 'custom' ? `<label>Card type string</label><input type="text" id="optCustomType" placeholder="e.g., my_new_card">` : ''}
+      <label>Options (raw JSON — see the card's Kotlin file for its exact fields)</label>
+      <textarea id="optRawJson" rows="4" placeholder='{"entity_id": "..."}'>{}</textarea>
+      <div class="hint">This card type isn't fully modeled in the builder yet — paste the options object directly.</div>
+    `;
+  }
+}
+
+function renderGridItemsList(type) {
+  const list = document.getElementById('gridItemsList');
+  if (!list) return;
+  list.innerHTML = '';
+  (window._pendingGridItems || []).forEach((item, i) => {
+    const el = document.createElement('div');
+    el.className = 'list-item';
+    el.innerHTML = `<span>${item.name || '(unnamed)'}</span><span class="remove" onclick="removeGridItem(${i})">✕</span>`;
+    list.appendChild(el);
+  });
+}
+
+function addGridItem(type) {
+  const name = document.getElementById('giName').value.trim();
+  const icon = document.getElementById('giIcon').value.trim();
+  let item = { name };
+  if (icon) item.icon = icon;
+  if (type === 'button_grid') {
+    item.service = document.getElementById('giService').value.trim();
+    const entityId = document.getElementById('giEntityId').value.trim();
+    if (entityId) item.entity_id = entityId;
+    const rawData = document.getElementById('giData').value.trim();
+    if (rawData) {
+      try { item.data = JSON.parse(rawData); } catch (e) { alert('Extra data must be valid JSON'); return; }
+    }
+  } else {
+    const entityId = document.getElementById('giEntityId').value.trim();
+    const page = document.getElementById('giPage').value.trim();
+    if (entityId) item.entity_id = entityId;
+    if (page) item.page = page;
+  }
+  window._pendingGridItems = window._pendingGridItems || [];
+  window._pendingGridItems.push(item);
+  document.getElementById('giName').value = '';
+  renderGridItemsList(type);
+}
+
+function removeGridItem(i) {
+  window._pendingGridItems.splice(i, 1);
+  updateCardFormInputs();
+}
+
+function editCard(idx) {
+  const card = dashboardData.pages[currentActivePage].cards[idx];
+  editingCard = idx;
+  document.getElementById('pageSelect').value = currentActivePage;
+
+  const select = document.getElementById('cardTypeSelect');
+  const known = Array.from(select.options).map(o => o.value).filter(v => v !== 'custom');
+  select.value = known.includes(card.type) ? card.type : 'custom';
+  updateCardFormInputs();
+  fillCardForm(card);
+
+  document.getElementById('addCardBtn').innerText = 'Save changes';
+  document.getElementById('cancelCardEditBtn').style.display = 'inline-block';
+  document.getElementById('dynamicCardInputs').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function fillCardForm(card) {
+  const type = card.type;
+  const o = card.options || {};
+  if (NAME_ENTITY_TYPES.includes(type)) {
+    document.getElementById('optName').value = o.name || '';
+    document.getElementById('optEntityId').value = o.entity_id || '';
+    document.getElementById('optIcon').value = o.icon || '';
+  } else if (type === 'climate') {
+    document.getElementById('optName').value = o.name || '';
+    document.getElementById('optEntityId').value = o.entity_id || '';
+    document.getElementById('optFanModes').value = (o.fan_modes || []).join(',');
+  } else if (type === 'button_grid' || type === 'scene_grid') {
+    document.getElementById('optColumns').value = o.columns || 2;
+    window._pendingGridItems = JSON.parse(JSON.stringify(o.buttons || o.scenes || []));
+    renderGridItemsList(type);
+  } else if (type === 'apple_tv_remote') {
+    document.getElementById('optDeviceId').value = o.deviceId || '';
+  } else if (type === 'tv_remote') {
+    document.getElementById('optName').value = o.name || '';
+    document.getElementById('optRemoteEntity').value = o.remote_entity || '';
+    document.getElementById('optMediaEntity').value = o.media_entity || '';
+    document.getElementById('optMuteEntity').value = o.mute_entity || '';
+  } else {
+    const customField = document.getElementById('optCustomType');
+    if (customField) customField.value = type;
+    document.getElementById('optRawJson').value = JSON.stringify(o, null, 2);
+  }
+}
+
+function cancelCardEdit() {
+  editingCard = null;
+  window._pendingGridItems = [];
+  document.getElementById('addCardBtn').innerText = 'Add card to page';
+  document.getElementById('cancelCardEditBtn').style.display = 'none';
+  updateCardFormInputs();
+}
+
+function addCardToPage() {
+  const pageIndex = document.getElementById('pageSelect').value;
+  const type = document.getElementById('cardTypeSelect').value;
+  let newCard = { type: type, options: {} };
+
+  if (NAME_ENTITY_TYPES.includes(type)) {
+    newCard.options.name = document.getElementById('optName').value || 'Component';
+    newCard.options.entity_id = document.getElementById('optEntityId').value || 'domain.entity';
+    const icon = document.getElementById('optIcon').value.trim();
+    if (icon) newCard.options.icon = icon;
+  } else if (type === 'climate') {
+    newCard.options.name = document.getElementById('optName').value || 'Climate';
+    newCard.options.entity_id = document.getElementById('optEntityId').value || 'climate.entity';
+    const fanModes = document.getElementById('optFanModes').value.trim();
+    if (fanModes) newCard.options.fan_modes = fanModes.split(',').map(s => s.trim()).filter(Boolean);
+  } else if (type === 'button_grid') {
+    newCard.options.columns = parseInt(document.getElementById('optColumns').value, 10) || 2;
+    newCard.options.buttons = window._pendingGridItems || [];
+    window._pendingGridItems = [];
+  } else if (type === 'scene_grid') {
+    newCard.options.columns = parseInt(document.getElementById('optColumns').value, 10) || 2;
+    newCard.options.scenes = window._pendingGridItems || [];
+    window._pendingGridItems = [];
+  } else if (type === 'apple_tv_remote') {
+    newCard.options.deviceId = document.getElementById('optDeviceId').value || '';
+  } else if (type === 'tv_remote') {
+    newCard.options.name = document.getElementById('optName').value || 'TV';
+    newCard.options.remote_entity = document.getElementById('optRemoteEntity').value || '';
+    const mediaEntity = document.getElementById('optMediaEntity').value.trim();
+    const muteEntity = document.getElementById('optMuteEntity').value.trim();
+    if (mediaEntity) newCard.options.media_entity = mediaEntity;
+    if (muteEntity) newCard.options.mute_entity = muteEntity;
+  } else {
+    if (type === 'custom') newCard.type = document.getElementById('optCustomType').value.trim() || 'custom';
+    try {
+      newCard.options = JSON.parse(document.getElementById('optRawJson').value || '{}');
+    } catch (e) { alert('Options must be valid JSON'); return; }
+  }
+
+  if (editingCard !== null) {
+    dashboardData.pages[pageIndex].cards[editingCard] = newCard;
+    cancelCardEdit();
+  } else {
+    dashboardData.pages[pageIndex].cards.push(newCard);
+    updateCardFormInputs();
+  }
+  renderPreview(); updateJsonOutput();
+}
+
+// ---- Hotkeys --------------------------------------------------------------
+
+function updateHotkeyActionInputs() {
+  const action = document.getElementById('hkAction').value;
+  const container = document.getElementById('dynamicHotkeyInputs');
+  if (action === 'page') {
+    container.innerHTML = `<label>Target page name</label><input type="text" id="hkPage" placeholder="e.g., Media">`;
+  } else if (action === 'service') {
+    container.innerHTML = `
+      <label>Service (domain.service)</label><input type="text" id="hkService" placeholder="e.g., light.toggle">
+      <label>Entity ID (optional)</label><input type="text" id="hkEntityId" placeholder="e.g., light.living_room">
+      <label>Extra data (optional, JSON)</label><input type="text" id="hkData" placeholder='{"brightness": 255}'>
+    `;
+  } else if (action === 'harmonyCommand') {
+    container.innerHTML = `
+      <label>Harmony device ID</label><input type="text" id="hkDevice" placeholder="e.g., 62845789">
+      <label>Harmony command</label><input type="text" id="hkCommand" placeholder="e.g., VolumeUp">
+    `;
+  } else if (action === 'harmonyActivity') {
+    container.innerHTML = `<label>Harmony activity ID</label><input type="text" id="hkActivityId" placeholder="e.g., 12345678 (or -1 for Power Off)">`;
+  }
+}
+
+function describeHotkey(h) {
+  if (h.page) return `→ page "${h.page}"`;
+  if (h.service) return `→ ${h.service}${h.entityId ? ' (' + h.entityId + ')' : ''}`;
+  if (h.harmonyCommand) return `→ Harmony ${h.harmonyDevice || '?'} / ${h.harmonyCommand}`;
+  if (h.harmonyActivity) return `→ Harmony activity ${h.harmonyActivity}`;
+  return '';
+}
+
+function renderHotkeysList() {
+  const container = document.getElementById('hotkeysList');
+  if (!container) return;
+  container.innerHTML = '';
+  const page = dashboardData.pages[currentActivePage];
+
+  const addRows = (list, scope, listType, label) => {
+    (list || []).forEach((h, i) => {
+      const row = document.createElement('div');
+      row.className = 'list-item';
+      row.innerHTML = `
+        <span>[${label}] <b>${h.key}</b> ${describeHotkey(h)}</span>
+        <span>
+          <span class="remove" style="color:#00E5FF" onclick="editHotkey('${scope}','${listType}',${i})">✎</span>
+          <span class="remove" onclick="removeHotkey('${scope}','${listType}',${i})">✕</span>
+        </span>
+      `;
+      container.appendChild(row);
+    });
+  };
+
+  addRows(dashboardData.hotkeys, 'global', 'hotkeys', 'Global');
+  addRows(dashboardData.longHotkeys, 'global', 'longHotkeys', 'Global, long');
+  addRows(page.hotkeys, 'page', 'hotkeys', 'Page');
+  addRows(page.longHotkeys, 'page', 'longHotkeys', 'Page, long');
+
+  if (!container.innerHTML.trim()) container.innerHTML = '<div class="hint">No hotkeys yet.</div>';
+}
+
+function editHotkey(scope, listType, i) {
+  const target = scope === 'global' ? dashboardData : dashboardData.pages[currentActivePage];
+  const h = target[listType][i];
+  editingHotkey = { scope, listType, i };
+
+  document.getElementById('hkScope').value = scope;
+  document.getElementById('hkType').value = listType;
+  document.getElementById('hkKey').value = h.key;
+  const action = h.page ? 'page' : h.service ? 'service' : h.harmonyCommand ? 'harmonyCommand' : 'harmonyActivity';
+  document.getElementById('hkAction').value = action;
+  updateHotkeyActionInputs();
+
+  if (action === 'page') {
+    document.getElementById('hkPage').value = h.page || '';
+  } else if (action === 'service') {
+    document.getElementById('hkService').value = h.service || '';
+    document.getElementById('hkEntityId').value = h.entityId || '';
+    document.getElementById('hkData').value = h.data ? JSON.stringify(h.data) : '';
+  } else if (action === 'harmonyCommand') {
+    document.getElementById('hkDevice').value = h.harmonyDevice || '';
+    document.getElementById('hkCommand').value = h.harmonyCommand || '';
+  } else if (action === 'harmonyActivity') {
+    document.getElementById('hkActivityId').value = h.harmonyActivity || '';
+  }
+
+  document.getElementById('addHotkeyBtn').innerText = 'Save changes';
+  document.getElementById('cancelHotkeyEditBtn').style.display = 'inline-block';
+}
+
+function removeHotkey(scope, listType, i) {
+  const target = scope === 'global' ? dashboardData : dashboardData.pages[currentActivePage];
+  target[listType].splice(i, 1);
+  if (editingHotkey && editingHotkey.scope === scope && editingHotkey.listType === listType && editingHotkey.i === i) {
+    cancelHotkeyEdit();
+  }
+  renderHotkeysList(); renderPreview(); updateJsonOutput();
+}
+
+function cancelHotkeyEdit() {
+  editingHotkey = null;
+  document.getElementById('addHotkeyBtn').innerText = 'Add hotkey';
+  document.getElementById('cancelHotkeyEditBtn').style.display = 'none';
+}
+
+function addHotkey() {
+  const scope = document.getElementById('hkScope').value;
+  const hkType = document.getElementById('hkType').value;
+  const key = document.getElementById('hkKey').value;
+  const action = document.getElementById('hkAction').value;
+
+  let hkObj = { key };
+  if (action === 'page') {
+    hkObj.page = document.getElementById('hkPage').value.trim();
+  } else if (action === 'service') {
+    hkObj.service = document.getElementById('hkService').value.trim();
+    const entityId = document.getElementById('hkEntityId').value.trim();
+    if (entityId) hkObj.entityId = entityId;
+    const rawData = document.getElementById('hkData').value.trim();
+    if (rawData) {
+      try { hkObj.data = JSON.parse(rawData); } catch (e) { alert('Extra data must be valid JSON'); return; }
+    }
+  } else if (action === 'harmonyCommand') {
+    hkObj.harmonyDevice = document.getElementById('hkDevice').value.trim();
+    hkObj.harmonyCommand = document.getElementById('hkCommand').value.trim();
+  } else if (action === 'harmonyActivity') {
+    hkObj.harmonyActivity = document.getElementById('hkActivityId').value.trim();
+  }
+
+  if (editingHotkey) {
+    const oldTarget = editingHotkey.scope === 'global' ? dashboardData : dashboardData.pages[currentActivePage];
+    oldTarget[editingHotkey.listType].splice(editingHotkey.i, 1);
+    cancelHotkeyEdit();
+  }
+
+  const target = scope === 'global' ? dashboardData : dashboardData.pages[currentActivePage];
+  if (!target[hkType]) target[hkType] = [];
+  target[hkType].push(hkObj);
+
+  renderHotkeysList(); renderPreview(); updateJsonOutput();
+}
+
+// ---- JSON output ------------------------------------------------------------
+
+function updateJsonOutput() {
+  document.getElementById('jsonOutput').value = JSON.stringify(dashboardData, null, 2);
+}
+
+function copyJson() {
+  navigator.clipboard.writeText(document.getElementById('jsonOutput').value);
+  alert('JSON copied!');
+}
+
+function downloadJson() {
+  const blob = new Blob([document.getElementById('jsonOutput').value], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'dashboard.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---- Preview ----------------------------------------------------------------
+
+function renderTabs() {
+  const tabsContainer = document.getElementById('tabs');
+  tabsContainer.innerHTML = '';
+  dashboardData.pages.forEach((page, index) => {
+    const tab = document.createElement('div');
+    tab.className = `tab ${index === currentActivePage ? 'active' : ''}`;
+    tab.innerText = page.name;
+    tab.onclick = () => {
+      currentActivePage = index;
+      document.getElementById('pageSelect').value = index;
+      cancelCardEdit();
+      renderTabs(); renderPreview(); renderHotkeysList();
+    };
+    tabsContainer.appendChild(tab);
+  });
+}
+
+function renderPreview() {
+  const contentContainer = document.getElementById('content');
+  contentContainer.innerHTML = '';
+  const page = dashboardData.pages[currentActivePage];
+  if (!page) return;
+
+  const globalKeys = (dashboardData.hotkeys || []).length + (dashboardData.longHotkeys || []).length;
+  const pageKeys = (page.hotkeys || []).length + (page.longHotkeys || []).length;
+  if (globalKeys + pageKeys > 0) {
+    let hkHtml = `<div class="hotkeys-badge"><strong>⚡ Hotkeys active on this page:</strong><br>`;
+    const describe = (h) => h.page ? `→ page "${h.page}"` : h.service ? `→ ${h.service}` : h.harmonyCommand ? `→ Harmony ${h.harmonyCommand}` : h.harmonyActivity ? `→ Harmony activity ${h.harmonyActivity}` : '';
+    (dashboardData.hotkeys || []).forEach(h => hkHtml += `• [Global] <b>${h.key}</b> ${describe(h)}<br>`);
+    (dashboardData.longHotkeys || []).forEach(h => hkHtml += `• [Global, long] <b>${h.key}</b> ${describe(h)}<br>`);
+    (page.hotkeys || []).forEach(h => hkHtml += `• [Page] <b>${h.key}</b> ${describe(h)}<br>`);
+    (page.longHotkeys || []).forEach(h => hkHtml += `• [Page, long] <b>${h.key}</b> ${describe(h)}<br>`);
+    hkHtml += `</div>`;
+    contentContainer.innerHTML += hkHtml;
+  }
+
+  if (!page.cards || page.cards.length === 0) {
+    contentContainer.innerHTML += `<p style="color:#666; font-style:italic;">No cards on this page yet.</p>`;
+    return;
+  }
+
+  page.cards.forEach((card, idx) => {
+    const cardEl = document.createElement('div');
+
+    if (card.type === 'apple_tv_remote' || card.type === 'tv_remote') {
+      cardEl.innerHTML = `
+        <div class="card">
+          <div class="card-title"><span>${card.type}</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
+          <div class="preview-apple-remote">
+            <div class="preview-trackpad">
+              <div style="position:absolute; top:10px;">▲</div><div style="position:absolute; bottom:10px;">▼</div>
+              <div style="position:absolute; left:10px;">◀</div><div style="position:absolute; right:10px;">▶</div>
+              <div class="preview-inner-select"></div>
+            </div>
+            <div class="preview-row-buttons"><div class="preview-pill">☰ Menu</div><div class="preview-pill">Home</div></div>
+            <div class="preview-play-btn">⏯</div>
+          </div>
+        </div>`;
+    } else if (card.type === 'button_grid' || card.type === 'scene_grid') {
+      const items = card.options?.buttons || card.options?.scenes || [];
+      const cols = card.options?.columns || 2;
+      let tiles = items.map(i => `<div class="preview-tile">${i.name || '?'}</div>`).join('');
+      cardEl.innerHTML = `
+        <div class="card">
+          <div class="card-title"><span>${card.type} (${items.length} items)</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
+          <div class="preview-grid" style="grid-template-columns: repeat(${cols}, 1fr)">${tiles}</div>
+        </div>`;
+    } else {
+      cardEl.className = 'card';
+      cardEl.innerHTML = `
+        <div class="card-title"><span>${card.type}</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
+        <div><strong>${card.options?.name || card.options?.entity_id || card.type}</strong><br>
+        <small style="color:#888">${card.options?.entity_id || card.options?.remote_entity || ''}</small></div>`;
+    }
+    contentContainer.appendChild(cardEl);
+  });
+}
+
+function removeCard(idx) {
+  dashboardData.pages[currentActivePage].cards.splice(idx, 1);
+  if (editingCard === idx) cancelCardEdit();
+  renderPreview(); updateJsonOutput();
+}
+
+initEditor();
+</script>
+</body>
+</html>
