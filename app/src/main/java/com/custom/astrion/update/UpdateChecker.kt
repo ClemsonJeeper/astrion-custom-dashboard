@@ -25,7 +25,7 @@ object UpdateChecker {
     // Public repo hosting signed release APKs — not a secret, just where
     // prebuilt community releases get published. MUST be your own
     // "owner/repo" — the placeholder below will always report "no update".
-    private const val REPO = "dckiller51/astrion-dashboard"
+    private const val REPO = "dckiller51/astrion-custom-dashboard"
     private const val API_URL = "https://api.github.com/repos/$REPO/releases/latest"
 
     data class UpdateInfo(val version: String, val notes: String, val apkUrl: String)

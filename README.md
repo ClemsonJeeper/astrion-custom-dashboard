@@ -27,11 +27,11 @@ Saving connection settings restarts the app to reconnect; uploading `dashboard.j
 
 ### Dashboard editor
 
-Building `dashboard.json` by hand is optional — the [**online dashboard editor**](https://dckiller51.github.io/astrion-dashboard/) lets you add pages, cards, and hotkeys through forms and generates the JSON for you (or lets you load and edit an existing file). Download the result and upload it from the local `:8080` configuration page above, no adb needed.
+Building `dashboard.json` by hand is optional — the [**online dashboard editor**](https://dckiller51.github.io/astrion-custom-dashboard/) lets you add pages, cards, and hotkeys through forms and generates the JSON for you (or lets you load and edit an existing file). Download the result and upload it from the local `:8080` configuration page above, no adb needed.
 
 ### Updates
 
-The same local page can check this repository's [GitHub Releases](https://github.com/dckiller51/astrion-dashboard/releases) for a newer build and download + launch the system installer for it — no adb required for updates either. Android requires manually approving "install unknown apps" for Astrion Custom the first time (the page will prompt for it and tell you to try again once granted); after that, updating is just two taps.
+The same local page can check this repository's [GitHub Releases](https://github.com/dckiller51/astrion-custom-dashboard/releases) for a newer build and download + launch the system installer for it — no adb required for updates either. Android requires manually approving "install unknown apps" for Astrion Custom the first time (the page will prompt for it and tell you to try again once granted); after that, updating is just two taps.
 
 ### Translations
 
