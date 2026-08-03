@@ -7,14 +7,24 @@ import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -23,6 +33,8 @@ import okhttp3.WebSocketListener
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Minimal, dependency-light Home Assistant WebSocket client.
@@ -42,17 +54,19 @@ import java.util.concurrent.atomic.AtomicInteger
  * and a long-lived access token.
  *
  * Deliberately small: one socket, a StateFlow of the entity map, a StateFlow of
- * connection status, and callService(). No Sanytron `astrion/...` events are used
- * here (those are only needed if you later want the local IR-blaster path).
+ * connection status, and callService().
  */
+@Suppress("SpellCheckingInspection")
 class HaClient(
     private val baseUrl: String,   // e.g. "http://10.0.1.10:8123" or "https://ha.example.com"
     private val token: String,     // long-lived access token
 ) {
     companion object {
         private const val TAG = "HaClient"
-        private const val PING_INTERVAL_MS = 30_000L
-        private const val PUBLISH_INTERVAL_MS = 120L
+        private val PING_INTERVAL = 30.seconds
+        private val PUBLISH_INTERVAL = 120.milliseconds
+        private val RECONNECT_DELAY = 3.seconds
+        private val RESPONSE_TIMEOUT = 8.seconds
     }
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -70,6 +84,7 @@ class HaClient(
         .build()
 
     private var socket: WebSocket? = null
+    private var heartbeatJob: Job? = null
 
     /** Outstanding request/response commands (e.g. browse_media), keyed by id. */
     private val pending = ConcurrentHashMap<Int, CompletableDeferred<JsonObject>>()
@@ -82,7 +97,7 @@ class HaClient(
     val entities: StateFlow<EntityMap> = _entities.asStateFlow()
 
     // Working store updated on every event; published to _entities at most once
-    // per PUBLISH_INTERVAL_MS so a chatty sensor (e.g. mmWave radar at several
+    // per PUBLISH_INTERVAL so a chatty sensor (e.g. mmWave radar at several
     // Hz) can't force the whole UI to repaint faster than the SoC can handle.
     private val entityStore = ConcurrentHashMap<String, EntityState>()
     @Volatile private var entitiesDirty = false
@@ -91,6 +106,11 @@ class HaClient(
     // ---- public API ---------------------------------------------------------
 
     fun connect() {
+        if (baseUrl.isBlank()) {
+            Log.w(TAG, "connect() called with no base URL — not configured yet")
+            _connection.value = ConnectionState.DISCONNECTED
+            return
+        }
         _connection.value = ConnectionState.CONNECTING
         val wsUrl = toWebSocketUrl(baseUrl)
         Log.i(TAG, "Connecting to $wsUrl")
@@ -99,12 +119,14 @@ class HaClient(
     }
 
     fun disconnect() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
         socket?.close(1000, "client closing")
         socket = null
         _connection.value = ConnectionState.DISCONNECTED
     }
 
-    /** Fire a HA service call, e.g. light.toggle on light.kitchen. */
+    /** Fire an HA service call, e.g. light.toggle on light.kitchen. */
     fun callService(call: ServiceCall) {
         val target = buildJsonObject {
             call.entityId?.let { put("entity_id", it) }
@@ -169,9 +191,9 @@ class HaClient(
             contentType?.let { put("media_content_type", it) }
         }
         send(msg)
-        val reply = withTimeoutOrNull(8_000) { deferred.await() }
+        val reply = withTimeoutOrNull(RESPONSE_TIMEOUT) { deferred.await() }
         pending.remove(id)
-        return reply?.get("result") as? JsonObject
+        return reply?.get("result")?.jsonObject
     }
 
     /**
@@ -193,10 +215,10 @@ class HaClient(
             put("return_response", true)
         }
         send(msg)
-        val reply = withTimeoutOrNull(8_000) { deferred.await() }
+        val reply = withTimeoutOrNull(RESPONSE_TIMEOUT) { deferred.await() }
         pending.remove(id)
         val response = reply?.get("result")?.jsonObject?.get("response")?.jsonObject ?: return null
-        return response[entityId]?.jsonObject?.get("forecast") as? JsonArray
+        return response[entityId]?.jsonObject?.get("forecast")?.jsonArray
     }
 
     /** Play a specific media item on a player. */
@@ -276,7 +298,7 @@ class HaClient(
         publisherStarted = true
         scope.launch {
             while (true) {
-                kotlinx.coroutines.delay(PUBLISH_INTERVAL_MS)
+                delay(PUBLISH_INTERVAL)
                 if (entitiesDirty) {
                     entitiesDirty = false
                     _entities.value = HashMap(entityStore)
@@ -303,9 +325,10 @@ class HaClient(
     }
 
     private fun startHeartbeat() {
-        scope.launch {
+        heartbeatJob?.cancel()
+        heartbeatJob = scope.launch {
             while (_connection.value == ConnectionState.CONNECTED) {
-                kotlinx.coroutines.delay(PING_INTERVAL_MS)
+                delay(PING_INTERVAL)
                 val ping = buildJsonObject {
                     put("id", idCounter.getAndIncrement())
                     put("type", "ping")
@@ -317,14 +340,14 @@ class HaClient(
 
     /** Result of get_states arrives as an array in the `result` field. */
     private fun onResult(obj: JsonObject) {
-        val result = obj["result"] as? JsonArray ?: return
+        val result = obj["result"]?.jsonArray ?: return
         for (el in result) {
             val e = el.jsonObject
             val entityId = e["entity_id"]?.jsonPrimitive?.content ?: continue
             entityStore[entityId] = EntityState(
                 entityId = entityId,
                 state = e["state"]?.jsonPrimitive?.content ?: "unknown",
-                attributes = e["attributes"] as? JsonObject ?: JsonObject(emptyMap()),
+                attributes = e["attributes"]?.jsonObject ?: JsonObject(emptyMap()),
                 lastChanged = e["last_changed"]?.jsonPrimitive?.content,
                 lastUpdated = e["last_updated"]?.jsonPrimitive?.content,
             )
@@ -336,12 +359,12 @@ class HaClient(
     /** state_changed events carry event.data.new_state. */
     private fun onEvent(obj: JsonObject) {
         val data = obj["event"]?.jsonObject?.get("data")?.jsonObject ?: return
-        val newState = data["new_state"] as? JsonObject ?: return
+        val newState = data["new_state"]?.jsonObject ?: return
         val entityId = newState["entity_id"]?.jsonPrimitive?.content ?: return
         entityStore[entityId] = EntityState(
             entityId = entityId,
             state = newState["state"]?.jsonPrimitive?.content ?: "unknown",
-            attributes = newState["attributes"] as? JsonObject ?: JsonObject(emptyMap()),
+            attributes = newState["attributes"]?.jsonObject ?: JsonObject(emptyMap()),
             lastChanged = newState["last_changed"]?.jsonPrimitive?.content,
             lastUpdated = newState["last_updated"]?.jsonPrimitive?.content,
         )
@@ -354,7 +377,7 @@ class HaClient(
 
     private fun scheduleReconnect() {
         scope.launch {
-            kotlinx.coroutines.delay(3_000)
+            delay(RECONNECT_DELAY)
             if (_connection.value == ConnectionState.ERROR) connect()
         }
     }

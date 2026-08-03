@@ -1,8 +1,33 @@
-.claude/
-backups/
+# ==============================================================================
+# Android & Gradle Build Artifacts
+# ==============================================================================
 .gradle/
-.kotlin/
 build/
+app/build/
+.kotlin/
+
+# ==============================================================================
+# IDE & Environment Specific Files
+# ==============================================================================
+# Android Studio / IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# ==============================================================================
+# Local Configuration & Secrets (CRITICAL: DO NOT COMMIT)
+# ==============================================================================
+# Local SDK paths and local overrides
 local.properties
-secrets.properties
+dashboard.json
+
+# ==============================================================================
+# Project-Specific Exclusions
+# ==============================================================================
+# Local output recordings / media files
 recordings/

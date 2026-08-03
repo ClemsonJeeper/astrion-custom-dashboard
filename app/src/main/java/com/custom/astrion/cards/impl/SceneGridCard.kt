@@ -3,7 +3,15 @@ package com.custom.astrion.cards.impl
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -22,21 +30,26 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 
 /**
- * Example scene grid — the kind of custom layout HaRemote won't let you build.
+ * Scene, activity, or navigation grid tile.
  *
- * Instead of one-scene-per-row, this packs N scene buttons into a configurable
- * grid. Demonstrates that a "card type" here can be an arbitrarily complex
- * multi-entity layout, not just a single-entity tile.
+ * Each tile triggers an action based on its fields:
+ * - "entity_id": activates a scene or script via Home Assistant.
+ * - "activityId": triggers a Harmony activity directly on the hub.
+ * - "page": navigates to a specific dashboard page (ctx.navigateToPage).
  *
  * Config shape:
- *   CardConfig("scene_grid", mapOf(
- *       "columns" to 2,
- *       "scenes" to listOf(
- *           mapOf("entity_id" to "scene.movie", "name" to "Movie"),
- *           mapOf("entity_id" to "scene.night", "name" to "Night"),
- *           ...
- *       ),
- *   ))
+ * ```json
+ * {
+ *   "type": "scene_grid",
+ *   "options": {
+ *     "layout": "row",
+ *     "scenes": [
+ *       { "page": "Apple TV", "name": "Apple TV" },
+ *       { "entity_id": "scene.night", "name": "Night" }
+ *     ]
+ *   }
+ * }
+ * ```
  */
 class SceneGridCard : CardRenderer {
     override val type = "scene_grid"
@@ -49,17 +62,27 @@ class SceneGridCard : CardRenderer {
         val row = config.string("layout") == "row"
 
         fun activate(entityId: String) {
-            // scene.* → scene.turn_on, script.* → script.turn_on, etc.
             val domain = entityId.substringBefore('.')
             ctx.client.callService(ServiceCall(domain = domain, service = "turn_on", entityId = entityId))
         }
-        fun nameOf(scene: Map<String, Any?>, entityId: String) =
-            scene["name"] as? String ?: ctx.entities[entityId]?.friendlyName ?: entityId
+
+        fun onTap(scene: Map<String, Any?>) {
+            (scene["entity_id"] as? String)?.let(::activate)
+            (scene["activityId"] as? String)?.let(ctx.startHarmonyActivity)
+            (scene["page"] as? String)?.let(ctx.navigateToPage)
+        }
+
+        fun nameOf(scene: Map<String, Any?>): String {
+            (scene["name"] as? String)?.let { return it }
+            val entityId = scene["entity_id"] as? String
+            if (entityId != null) return ctx.entities[entityId]?.friendlyName ?: entityId
+            return scene["page"] as? String ?: "?"
+        }
+
         fun colorOf(scene: Map<String, Any?>): Color =
             (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFF2A4954)
 
         if (row) {
-            // Horizontally scrollable / swipeable single row of fixed-width tiles.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -67,12 +90,11 @@ class SceneGridCard : CardRenderer {
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 scenes.forEach { scene ->
-                    val entityId = scene["entity_id"] as? String ?: return@forEach
                     SceneButton(
-                        name = nameOf(scene, entityId),
+                        name = nameOf(scene),
                         color = colorOf(scene),
                         modifier = Modifier.width(104.dp),
-                    ) { activate(entityId) }
+                    ) { onTap(scene) }
                 }
             }
         } else {
@@ -80,14 +102,12 @@ class SceneGridCard : CardRenderer {
                 scenes.chunked(columns).forEach { chunk ->
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         chunk.forEach { scene ->
-                            val entityId = scene["entity_id"] as? String ?: return@forEach
                             SceneButton(
-                                name = nameOf(scene, entityId),
+                                name = nameOf(scene),
                                 color = colorOf(scene),
                                 modifier = Modifier.weight(1f),
-                            ) { activate(entityId) }
+                            ) { onTap(scene) }
                         }
-                        // Pad the final short row so tiles keep equal width.
                         repeat(columns - chunk.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
@@ -95,17 +115,21 @@ class SceneGridCard : CardRenderer {
         }
     }
 
-    /** Parse "#AARRGGBB" (or RRGGBB) to a Color. */
-    private fun parseHexColor(s: String): Color? =
-        s.removePrefix("#").toLongOrNull(16)?.let { Color(it) }
+    private fun parseHexColor(s: String): Color? {
+        val cleanHex = s.removePrefix("#")
+        val parsed = cleanHex.toLongOrNull(16) ?: return null
+        return if (cleanHex.length <= 6) {
+            Color(0xFF000000 or parsed)
+        } else {
+            Color(parsed)
+        }
+    }
 
-    /** Perceived luminance of the base RGB (0..1) — used to pick a readable text colour. */
     private fun luminance(c: Color): Float =
         0.2126f * c.red + 0.7152f * c.green + 0.0722f * c.blue
 
     @Composable
     private fun SceneButton(name: String, color: Color, modifier: Modifier, onClick: () -> Unit) {
-        // Dark text on light tiles (e.g. the white scene), light text otherwise.
         val textColor = if (luminance(color) > 0.75f) Color(0xFF141414) else Color(0xFFF0F2F6)
         Box(
             modifier = modifier

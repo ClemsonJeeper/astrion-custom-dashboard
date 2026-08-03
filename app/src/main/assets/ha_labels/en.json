@@ -1,0 +1,6 @@
+{
+  "hvac_mode": { "off": "Off", "heat": "Heat", "cool": "Cool", "heat_cool": "Auto", "auto": "Auto", "dry": "Dry", "fan_only": "Fan" },
+  "fan_mode": { "auto": "Auto", "low": "Low", "medium": "Medium", "high": "High", "silent": "Silent", "turbo": "Turbo" },
+  "weather_condition": { "clear-night": "Clear night", "cloudy": "Cloudy", "partlycloudy": "Partly cloudy", "sunny": "Sunny", "rainy": "Rainy", "pouring": "Heavy rain", "snowy": "Snowy", "windy": "Windy", "fog": "Fog", "lightning": "Lightning" },
+  "vacuum_state": { "cleaning": "Cleaning", "docked": "Docked", "idle": "Idle", "paused": "Paused", "returning": "Returning to dock", "error": "Error" }
+}

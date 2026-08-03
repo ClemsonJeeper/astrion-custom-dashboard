@@ -68,7 +68,7 @@ class BubbleLightCard : CardRenderer {
         // Local drag state so the fill responds instantly, then commits to HA.
         var dragLevel by remember(level) { mutableStateOf(level) }
 
-        // Long-press opens the colour/brightness detail popup.
+        // Long-press opens the color/brightness detail popup.
         var showDetail by remember { mutableStateOf(false) }
 
         fun commit(fraction: Float) {
@@ -82,8 +82,8 @@ class BubbleLightCard : CardRenderer {
             }
         }
 
-        // Reflect the light's real colour when it reports one (rgb_color);
-        // otherwise a neutral blue-grey. Icon stays yellow-when-on as the
+        // Reflect the light's real color when it reports one (rgb_color);
+        // otherwise a neutral blue-gray. Icon stays yellow-when-on as the
         // on/off indicator.
         val rgb = e?.attr("rgb_color") as? kotlinx.serialization.json.JsonArray
         val lightColor: Color? = if (on && rgb != null && rgb.size >= 3) {

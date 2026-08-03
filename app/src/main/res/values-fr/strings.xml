@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Paramètres</string>
+    <string name="wifi_network">Réseau Wi-Fi</string>
+    <string name="android_system">Système Android</string>
+    <string name="wake_on_motion">Réveil au mouvement</string>
+    <string name="brightness">Luminosité</string>
+    <string name="allow_brightness_write">Autoriser la modification (appuyer)</string>
+    <string name="connected">Connecté</string>
+    <string name="disconnected">Déconnecté</string>
+    <string name="close">Fermer</string>
+    <string name="web_config_title">Astrion Custom — Configuration locale</string>
+    <string name="web_config_ha_harmony_heading">Home Assistant &amp; Harmony Hub</string>
+    <string name="web_config_ha_url_label">URL Home Assistant</string>
+    <string name="web_config_ha_token_label">Jeton d\'accès longue durée Home Assistant</string>
+    <string name="web_config_harmony_ip_label">IP du Harmony Hub (optionnel)</string>
+    <string name="web_config_harmony_id_label">ID du Harmony Hub (optionnel)</string>
+    <string name="web_config_save_button">Enregistrer &amp; reconnecter</string>
+    <string name="web_config_save_note">L\'application redémarre automatiquement pour se reconnecter après l\'enregistrement.</string>
+    <string name="web_config_dashboard_heading">dashboard.json</string>
+    <string name="web_config_dashboard_download">Télécharger le dashboard.json actuel</string>
+    <string name="web_config_dashboard_upload_button">Envoyer &amp; recharger le tableau de bord</string>
+    <string name="web_config_icons_heading">Icônes</string>
+    <string name="web_config_icons_upload_button">Envoyer une icône</string>
+    <string name="web_config_icons_note">Enregistrée dans /sdcard/astrion/icons/&lt;nom&gt; — à référencer dans dashboard.json en tant que \"/sdcard/astrion/icons/&lt;nom&gt;\".</string>
+    <string name="web_config_saved_reconnecting">Paramètres enregistrés — reconnexion</string>
+    <string name="web_config_dashboard_updated">dashboard.json mis à jour</string>
+    <string name="web_config_icon_uploaded">Icône envoyée</string>
+    <string name="web_config_updates_heading">Mises à jour</string>
+    <string name="web_config_current_version">Version actuelle</string>
+    <string name="web_config_check_update_link">Vérifier les mises à jour</string>
+    <string name="web_config_update_found">Mise à jour disponible : v%1$s</string>
+    <string name="web_config_update_none">Déjà à jour</string>
+    <string name="web_config_install_update_button">Télécharger &amp; installer</string>
+    <string name="web_config_update_installing">Installation lancée — validez l\'invite sur l\'écran du panneau</string>
+    <string name="web_config_update_needs_permission">Autorisez « Installer des applications inconnues » pour cette app sur l\'écran qui vient de s\'ouvrir, puis appuyez de nouveau sur Télécharger &amp; installer.</string>
+    <string name="web_config_update_failed">Échec de la vérification : %1$s</string>
+</resources>

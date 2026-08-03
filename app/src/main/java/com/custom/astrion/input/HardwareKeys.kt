@@ -11,21 +11,21 @@ package com.custom.astrion.input
  *
  * The dedicated shortcut buttons (light / curtain / scene / ac / custom_1..4)
  * are the real prize: you can bind each of them to any action you want, instead
- * of HaRemote's fixed behaviour.
+ * of HaRemote's fixed behavior.
  */
+@Suppress("SpellCheckingInspection")
 enum class HardwareKey {
     BACK, HOME, POWER,
-    VOLUME_UP, VOLUME_DOWN, MUTE,
+    VOLUME_UP, VOLUME_DOWN,
     PAGE_UP, PAGE_DOWN,
     UP, DOWN, LEFT, RIGHT, CENTER,
-    VOICE,
-    LIGHT, CURTAIN, SCENE, AC,
-    CUSTOM_1, CUSTOM_2, CUSTOM_3, CUSTOM_4,
+    MUTE, VOICE, MAIN,
+    REWIND, PLAY, STOP, FASTFORWARD,
+    RED_BUTTON, GREEN_BUTTON, BLUE_BUTTON, YELLOW_BUTTON,
     UNKNOWN;
 
     companion object {
         // Android keycode -> logical button, straight from device_key_code.json (HA100).
-        // Note: 82 and 91 both map to "mute" in the stock config; kept as MUTE here.
         private val MAP: Map<Int, HardwareKey> = mapOf(
             4 to BACK,
             131 to HOME,
@@ -39,17 +39,17 @@ enum class HardwareKey {
             21 to LEFT,
             22 to RIGHT,
             23 to CENTER,
-            91 to MUTE,
-            82 to MUTE,
+            82 to MAIN,
+            164 to MUTE,
             133 to VOICE,
-            134 to LIGHT,
-            135 to CURTAIN,
-            136 to SCENE,
-            137 to AC,
-            138 to CUSTOM_1,
-            139 to CUSTOM_2,
-            140 to CUSTOM_3,
-            141 to CUSTOM_4,
+            134 to REWIND,
+            135 to PLAY,
+            136 to STOP,
+            137 to FASTFORWARD,
+            138 to RED_BUTTON,
+            139 to GREEN_BUTTON,
+            140 to BLUE_BUTTON,
+            141 to YELLOW_BUTTON,
         )
 
         fun fromKeyCode(code: Int): HardwareKey = MAP[code] ?: UNKNOWN

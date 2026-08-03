@@ -1,0 +1,6 @@
+{
+  "hvac_mode": { "off": "Arrêt", "heat": "Chauffage", "cool": "Froid", "heat_cool": "Auto", "auto": "Auto", "dry": "Déshumidification", "fan_only": "Ventilation" },
+  "fan_mode": { "auto": "Auto", "low": "Faible", "medium": "Moyen", "high": "Fort", "silent": "Silencieux", "turbo": "Turbo" },
+  "weather_condition": { "clear-night": "Nuit dégagée", "cloudy": "Nuageux", "partlycloudy": "Partiellement nuageux", "sunny": "Ensoleillé", "rainy": "Pluvieux", "pouring": "Pluie forte", "snowy": "Neigeux", "windy": "Venteux", "fog": "Brouillard", "lightning": "Orage" },
+  "vacuum_state": { "cleaning": "Nettoyage", "docked": "À la base", "idle": "Inactif", "paused": "En pause", "returning": "Retour à la base", "error": "Erreur" }
+}

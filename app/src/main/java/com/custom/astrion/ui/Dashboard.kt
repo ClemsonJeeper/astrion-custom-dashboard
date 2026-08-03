@@ -2,7 +2,16 @@ package com.custom.astrion.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -12,12 +21,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,13 +40,29 @@ import com.custom.astrion.config.PageConfig
 import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.HaClient
+import com.custom.astrion.ha.HaLabels
+import com.custom.astrion.harmony.HarmonyHubClient
 import kotlinx.coroutines.launch
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
+import com.custom.astrion.R
 
 /**
  * Swipeable, paginated dashboard. Each config page is a horizontally-swipeable
  * screen; a row of dots at the bottom shows how many pages there are and which
- * one you're on. Swipe left/right to move between them (Lights ← Main → TV by
- * default), or jump via a physical shortcut button (see MainActivity hotkeys).
+ * one you're on. Swipe left/right to move between them, jump via a physical
+ * shortcut button (see MainActivity hotkeys), OR tap a card that calls
+ * ctx.navigateToPage("Page Name") — e.g. an Activities menu card.
+ *
+ * Swiping down from the very top edge opens the settings overlay — imitates
+ * HaRemote's hidden gesture to reach settings, since the real status bar is
+ * hidden (kiosk fullscreen).
  *
  * Sized for the HA100 panel (480x800, portrait). Each page scrolls vertically
  * on its own; the pager stays light for the 1GB / MT6580 hardware.
@@ -43,6 +70,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun Dashboard(
     client: HaClient,
+    harmonyClient: HarmonyHubClient,
     entitiesState: State<EntityMap>,
     connectionState: State<ConnectionState>,
     config: AppConfig,
@@ -50,10 +78,20 @@ fun Dashboard(
     /** Page index requested by a hardware button; consumed via onNavHandled. */
     navTarget: Int? = null,
     onNavHandled: () -> Unit = {},
+    /** Called whenever the visible page changes (swipe, dot, hardware nav, or
+     * a card's navigateToPage) — MainActivity uses this to rebind hardware
+     * hotkeys to the newly-visible page's own bindings. */
+    onPageChanged: (Int) -> Unit = {},
+    wakeOnMotionEnabled: Boolean = true,
+    setWakeOnMotionEnabled: (Boolean) -> Unit = {},
 ) {
     val entities by entitiesState
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        HaLabels.init(context)
+    }
     val connection by connectionState
-    val ctx = CardContext(entities = entities, client = client)
+    val harmonyConnected by harmonyClient.connected.collectAsState()
     val scope = rememberCoroutineScope()
 
     val pageCount = config.pages.size.coerceAtLeast(1)
@@ -62,42 +100,115 @@ fun Dashboard(
         pageCount = { pageCount },
     )
 
+    // Card-driven navigation: any card can call this with a page name (as it
+    // appears in dashboard.json's "pages[].name", case-insensitive) to jump
+    // there — same mechanism physical hotkeys use, just triggered by a tap.
+    val navigateToPage: (String) -> Unit = { pageName ->
+        val idx = config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
+        if (idx >= 0) {
+            scope.launch { pagerState.animateScrollToPage(idx) }
+        }
+    }
+
+    val ctx = CardContext(
+        entities = entities,
+        client = client,
+        navigateToPage = navigateToPage,
+        startHarmonyActivity = { activityId -> harmonyClient.startActivity(activityId) },
+        sendHarmonyCommand = { deviceId, command -> harmonyClient.sendCommand(deviceId, command) },
+        wakeOnMotionEnabled = wakeOnMotionEnabled,
+        setWakeOnMotionEnabled = setWakeOnMotionEnabled,
+        harmonyConnected = harmonyConnected,
+    )
+
     // Hardware-button navigation: animate to the requested page, then clear it.
     LaunchedEffect(navTarget) {
-        val t = navTarget ?: return@LaunchedEffect
-        if (t in 0 until pageCount) pagerState.animateScrollToPage(t)
+        val target = navTarget ?: return@LaunchedEffect
+        if (target in 0 until pageCount) pagerState.animateScrollToPage(target)
         onNavHandled()
     }
 
+    // Tell MainActivity which page is visible now, so it can rebind hardware
+    // hotkeys to that page's own bindings (swipe, dot tap, hardware nav, or a
+    // card's navigateToPage all funnel through pagerState.currentPage).
+    LaunchedEffect(pagerState.currentPage) {
+        onPageChanged(pagerState.currentPage)
+    }
+
+    var showSettings by remember { mutableStateOf(false) }
+    BackHandler(enabled = showSettings) { showSettings = false }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF0E2229)),
+        ) {
+            TopStatusBar(onSwipeDownToSettings = { showSettings = true })
+            ConnectionBanner(connection)
+            if (configNotice != null) ConfigNoticeBanner(configNotice)
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) { pageIndex ->
+                PageContent(config.pages[pageIndex], ctx)
+            }
+
+            PageIndicator(
+                pages = config.pages,
+                current = pagerState.currentPage,
+                onDotClick = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+            )
+        }
+
+        if (showSettings) {
+            SettingsOverlay(ctx = ctx, onClose = { showSettings = false })
+        }
+    }
+}
+
+/**
+ * Full-screen settings overlay, reached only by swiping down from the top
+ * edge (see [TopStatusBar]) — deliberately NOT part of `config.pages`, so it
+ * never shows up in the horizontal pager or the page-indicator dots.
+ * Dismissed by an upward swipe, the system back button, or the close row.
+ */
+@Composable
+private fun SettingsOverlay(ctx: CardContext, onClose: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0E2229)),
+            .background(Color(0xFF0E2229))
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { change, dragAmount ->
+                    change.consume()
+                    if (dragAmount < -25f) onClose()
+                }
+            }
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        ConnectionBanner(connection)
-        if (configNotice != null) ConfigNoticeBanner(configNotice)
-
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-        ) { pageIndex ->
-            PageContent(config.pages[pageIndex], ctx)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Text(
+                "✕ " + stringResource(R.string.close),
+                color = Color(0xFF93AFB6),
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { onClose() }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
         }
-
-        PageIndicator(
-            pages = config.pages,
-            current = pagerState.currentPage,
-            onDotClick = { i -> scope.launch { pagerState.animateScrollToPage(i) } },
-        )
+        SettingsMenu(ctx)
     }
 }
 
 @Composable
 private fun PageContent(page: PageConfig, ctx: CardContext) {
-    // Cards with options["pin"] == "bottom" float at the bottom, always visible;
-    // the rest scroll above them.
     val pinned = page.cards.filter { it.options["pin"] == "bottom" }
     val scrolling = page.cards.filter { it.options["pin"] != "bottom" }
 
@@ -149,20 +260,20 @@ private fun PageIndicator(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        pages.forEachIndexed { i, _ ->
-            val active = i == current
+        pages.forEachIndexed { index, _ ->
+            val active = index == current
             Box(
                 modifier = Modifier
                     .padding(horizontal = 5.dp)
                     .size(if (active) 10.dp else 8.dp)
                     .clip(CircleShape)
                     .background(if (active) Color(0xFF6EA8FE) else Color(0xFF33525E))
-                    .clickable { onDotClick(i) },
+                    .clickable { onDotClick(index) },
             )
         }
         Spacer(Modifier.width(10.dp))
         Text(
-            pages.getOrNull(current)?.name ?: "",
+            text = pages.getOrNull(current)?.name ?: "",
             color = Color(0xFF93AFB6),
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
@@ -187,7 +298,7 @@ private fun ConnectionBanner(connection: ConnectionState) {
             .padding(12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = Color.White, fontSize = 14.sp)
+        Text(text = label, color = Color.White, fontSize = 14.sp)
     }
 }
 
@@ -199,7 +310,7 @@ private fun ConfigNoticeBanner(text: String) {
             .background(Color(0xFF4A3B1E))
             .padding(10.dp),
     ) {
-        Text(text, color = Color(0xFFE8C77B), fontSize = 12.sp)
+        Text(text = text, color = Color(0xFFE8C77B), fontSize = 12.sp)
     }
 }
 
@@ -211,6 +322,6 @@ private fun UnknownCard(type: String) {
             .background(Color(0xFF2A2030))
             .padding(14.dp),
     ) {
-        Text("Unknown card type: \"$type\"", color = Color(0xFFE0A0A0), fontSize = 13.sp)
+        Text(text = "Unknown card type: \"$type\"", color = Color(0xFFE0A0A0), fontSize = 13.sp)
     }
 }

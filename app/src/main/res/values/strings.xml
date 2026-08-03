@@ -1,4 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Astrion Custom</string>
+    <string name="settings_title">Settings</string>
+    <string name="wifi_network">Wi-Fi network</string>
+    <string name="android_system">Android system</string>
+    <string name="wake_on_motion">Wake on motion</string>
+    <string name="brightness">Brightness</string>
+    <string name="allow_brightness_write">Allow brightness control (tap)</string>
+    <string name="connected">Connected</string>
+    <string name="disconnected">Disconnected</string>
+    <string name="close">Close</string>
+    <string name="web_config_title">Astrion Custom — Local configuration</string>
+    <string name="web_config_ha_harmony_heading">Home Assistant &amp; Harmony Hub</string>
+    <string name="web_config_ha_url_label">Home Assistant URL</string>
+    <string name="web_config_ha_token_label">Home Assistant long-lived access token</string>
+    <string name="web_config_harmony_ip_label">Harmony Hub IP (optional)</string>
+    <string name="web_config_harmony_id_label">Harmony Hub ID (optional)</string>
+    <string name="web_config_save_button">Save &amp; reconnect</string>
+    <string name="web_config_save_note">The app restarts itself to reconnect after saving.</string>
+    <string name="web_config_dashboard_heading">dashboard.json</string>
+    <string name="web_config_dashboard_download">Download current dashboard.json</string>
+    <string name="web_config_dashboard_upload_button">Upload &amp; reload dashboard</string>
+    <string name="web_config_icons_heading">Icons</string>
+    <string name="web_config_icons_upload_button">Upload icon</string>
+    <string name="web_config_icons_note">Saved to /sdcard/astrion/icons/&lt;filename&gt; — reference it in dashboard.json as \"/sdcard/astrion/icons/&lt;filename&gt;\".</string>
+    <string name="web_config_saved_reconnecting">Settings saved — reconnecting</string>
+    <string name="web_config_dashboard_updated">dashboard.json updated</string>
+    <string name="web_config_icon_uploaded">Icon uploaded</string>
+    <string name="web_config_updates_heading">Updates</string>
+    <string name="web_config_current_version">Current version</string>
+    <string name="web_config_check_update_link">Check for updates</string>
+    <string name="web_config_update_found">Update available: v%1$s</string>
+    <string name="web_config_update_none">Already up to date</string>
+    <string name="web_config_install_update_button">Download &amp; install</string>
+    <string name="web_config_update_installing">Installer launched — approve the install prompt on the panel screen</string>
+    <string name="web_config_update_needs_permission">Allow "Install unknown apps" for this app on the screen that just opened, then tap Download &amp; install again.</string>
+    <string name="web_config_update_failed">Update check failed: %1$s</string>
 </resources>

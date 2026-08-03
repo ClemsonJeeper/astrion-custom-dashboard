@@ -1,51 +1,77 @@
 #!/bin/bash
-# record_screen_all.sh
+
+# Exit on error in subshells, treat unset variables as error
+set -euo pipefail
 
 OUTPUT_DIR="recordings"
 mkdir -p "$OUTPUT_DIR"
 
-# 1. Maintain safety: ensure recordings are ignored by git
-if ! grep -q "$OUTPUT_DIR/" .gitignore; then
-    echo "$OUTPUT_DIR/" >> .gitignore
+# 1. Maintain safety: ensure recordings directory is ignored by git
+if [ -f .gitignore ]; then
+    if ! grep -q "^${OUTPUT_DIR}/" .gitignore; then
+        echo -e "\n# Local recording files\n${OUTPUT_DIR}/" >> .gitignore
+        echo "🔒 Added ${OUTPUT_DIR}/ to .gitignore"
+    fi
 fi
 
-# 2. Get list of connected devices
-DEVICES=$(adb devices | grep -w "device" | awk '{print $1}')
+# 2. Get list of active connected devices (excluding "unauthorized" or "offline")
+DEVICES=$(adb devices | grep -v "List" | grep -w "device" | awk '{print $1}')
 
 if [ -z "$DEVICES" ]; then
-    echo "❌ No devices found. Check your ADB connection."
+    echo "❌ No active devices found. Check your ADB connection."
     exit 1
 fi
 
-echo "🎥 Starting recording on all detected devices..."
+echo "🎥 Starting recording (15s limit) on all detected devices..."
 
 # 3. Record all devices simultaneously in the background
 for dev in $DEVICES; do
-    SAFE_ID=$(echo $dev | sed 's/[:.]/_/g')
+    SAFE_ID=$(echo "$dev" | sed 's/[:.]/_/g')
     echo "-> Recording device: $dev"
-    adb -s "$dev" shell screenrecord --time-limit 15 "/sdcard/rec_$SAFE_ID.mp4" &
+    # Run screenrecord in background
+    adb -s "$dev" shell screenrecord --time-limit 15 "/sdcard/rec_${SAFE_ID}.mp4" &
 done
 
+# Wait for all background screenrecord processes to complete
 wait
-echo "✅ Recordings finished. Pulling files..."
+echo "✅ Recordings finished on all devices. Pulling files..."
 
-# 4. Pull files and clean up devices
+# 4. Pull files and clean up temporary storage on devices
 for dev in $DEVICES; do
-    SAFE_ID=$(echo $dev | sed 's/[:.]/_/g')
-    adb -s "$dev" pull "/sdcard/rec_$SAFE_ID.mp4" "$OUTPUT_DIR/"
-    adb -s "$dev" shell rm "/sdcard/rec_$SAFE_ID.mp4"
+    SAFE_ID=$(echo "$dev" | sed 's/[:.]/_/g')
+    REMOTE_FILE="/sdcard/rec_${SAFE_ID}.mp4"
+    LOCAL_FILE="${OUTPUT_DIR}/rec_${SAFE_ID}.mp4"
+
+    echo "⬇️ Pulling recording from $dev..."
+    if adb -s "$dev" pull "$REMOTE_FILE" "$LOCAL_FILE" > /dev/null 2>&1; then
+        adb -s "$dev" shell rm -f "$REMOTE_FILE"
+        echo "  ↳ Saved to: $LOCAL_FILE"
+    else
+        echo "⚠️ Failed to pull recording from $dev"
+    fi
 done
 
-# 5. Convert to GIF (only if ffmpeg is installed)
+# 5. Convert MP4 to GIF (only if ffmpeg is available)
 if command -v ffmpeg &> /dev/null; then
-    echo "🎨 Converting to GIFs..."
+    echo "🎨 Converting MP4 recordings to optimized GIFs..."
     for dev in $DEVICES; do
-        SAFE_ID=$(echo $dev | sed 's/[:.]/_/g')
-        ffmpeg -y -i "$OUTPUT_DIR/rec_$SAFE_ID.mp4" -vf "fps=10,scale=320:-1:flags=lanczos" "$OUTPUT_DIR/rec_$SAFE_ID.gif" > /dev/null 2>&1
+        SAFE_ID=$(echo "$dev" | sed 's/[:.]/_/g')
+        MP4_INPUT="${OUTPUT_DIR}/rec_${SAFE_ID}.mp4"
+        GIF_OUTPUT="${OUTPUT_DIR}/rec_${SAFE_ID}.gif"
+
+        if [ -f "$MP4_INPUT" ]; then
+            # High-quality palette generation for crisp GIFs
+            ffmpeg -y -i "$MP4_INPUT" \
+                -vf "fps=10,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" \
+                "$GIF_OUTPUT" > /dev/null 2>&1
+            echo "  ↳ Created GIF: $GIF_OUTPUT"
+        fi
     done
-    echo "✅ GIFs created."
+    echo "✅ GIF conversion complete!"
 else
-    echo "⚠️ ffmpeg not found, skipping GIF conversion. Install it via 'sudo apt install ffmpeg' to enable this feature."
+    echo "⚠️ 'ffmpeg' not installed. Skipping GIF conversion."
+    echo "   (Install via 'sudo apt install ffmpeg' or 'brew install ffmpeg')"
 fi
 
-echo "🎉 All files saved to /$OUTPUT_DIR"
+echo "------------------------------------------------"
+echo "🎉 Process complete! All files saved to ./${OUTPUT_DIR}/"

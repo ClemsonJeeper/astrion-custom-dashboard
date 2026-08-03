@@ -46,8 +46,8 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Robot vacuum card: the map (from a Roborock/Xiaomi map image entity, which
- * already renders the robot moving), start/pause/dock/locate controls, a fan-
- * speed (cleaning-mode) dropdown, and room buttons that start a segment clean.
+ * already renders the robot moving), start/pause/dock/locate controls, a
+ * fan-speed (cleaning-mode) dropdown, and room buttons that start a segment clean.
  *
  * Room buttons fire `vacuum.send_command app_segment_clean` with the segment
  * id (the Roborock room id from your map). The map image is fetched from the

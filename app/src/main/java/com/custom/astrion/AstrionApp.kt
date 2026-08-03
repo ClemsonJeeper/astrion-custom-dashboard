@@ -2,11 +2,13 @@ package com.custom.astrion
 
 import android.app.Application
 import com.custom.astrion.cards.CardRegistry
+import com.custom.astrion.cards.impl.AppleTvRemoteCard
 import com.custom.astrion.cards.impl.BubbleLightCard
 import com.custom.astrion.cards.impl.ButtonGridCard
 import com.custom.astrion.cards.impl.ClimateCard
 import com.custom.astrion.cards.impl.ClockWeatherCard
 import com.custom.astrion.cards.impl.CoverCard
+import com.custom.astrion.cards.impl.CustomIrCard
 import com.custom.astrion.cards.impl.FanCard
 import com.custom.astrion.cards.impl.LightCard
 import com.custom.astrion.cards.impl.MediaPlayerCard
@@ -20,6 +22,7 @@ import com.custom.astrion.cards.impl.SpeakerGroupCard
 import com.custom.astrion.cards.impl.SwitchCard
 import com.custom.astrion.cards.impl.TvRemoteCard
 import com.custom.astrion.cards.impl.VacuumCard
+import com.custom.astrion.ha.HaLabels
 
 /**
  * App entry point. Register all card types here once at startup.
@@ -32,29 +35,33 @@ import com.custom.astrion.cards.impl.VacuumCard
  * That's the whole extension model — no re-patching anyone's APK, no fixed
  * taxonomy of 11 types.
  */
+@Suppress("SpellCheckingInspection")
 class AstrionApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        HaLabels.init(this)
         CardRegistry.register(
-            LightCard(),
-            SceneGridCard(),
+            AppleTvRemoteCard(),
             BubbleLightCard(),
-            TvRemoteCard(),
-            MediaPlayerCard(),
-            ClimateCard(),
-            CoverCard(),
-            FanCard(),
-            SwitchCard(),
-            ClockWeatherCard(),
-            PictureElementsCard(),
-            RowCard(),
-            MonitorCard(),
             ButtonGridCard(),
+            ClimateCard(),
+            ClockWeatherCard(),
+            CoverCard(),
+            CustomIrCard(),
+            FanCard(),
+            LightCard(),
+            MediaPlayerCard(),
+            MonitorCard(),
+            PictureElementsCard(),
             PlexCard(),
-            SpeakerGroupCard(),
+            RowCard(),
+            SceneGridCard(),
             SourceSelectCard(),
+            SpeakerGroupCard(),
+            SwitchCard(),
+            TvRemoteCard(),
             VacuumCard(),
-            // ← register your own card types here
+            // ← Register your own card types here
         )
     }
 }

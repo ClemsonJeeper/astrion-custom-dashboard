@@ -11,10 +11,9 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 
 /**
- * Converts between kotlinx.serialization JsonElement trees and the plain
- * Kotlin values (String / Int / Double / Boolean / List / Map) that
- * CardConfig.options carried when the layout was hardcoded — so renderers'
- * `as? String` / `as? Number` casts keep working on file-loaded config.
+ * Converts between `kotlinx.serialization` [JsonElement] trees and plain Kotlin
+ * values (String, Number, Boolean, List, Map). This preserves compatibility with
+ * card option casts like `as? String` or `as? Number`.
  */
 object JsonPlain {
 

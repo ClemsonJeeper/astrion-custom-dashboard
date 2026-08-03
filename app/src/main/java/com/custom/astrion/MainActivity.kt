@@ -1,7 +1,7 @@
 package com.custom.astrion
 
 import android.Manifest
-import android.content.Context
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -13,9 +13,8 @@ import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import android.view.KeyEvent
+import android.view.View
 import android.widget.Toast
-import kotlin.math.abs
-import kotlin.math.sqrt
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,45 +26,44 @@ import com.custom.astrion.config.DashboardConfig
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HotkeyConfig
 import com.custom.astrion.config.JsonPlain
+import com.custom.astrion.config.RemoteSettings
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.harmony.HarmonyHubClient
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.ui.Dashboard
+import com.custom.astrion.web.ConfigServer
+import fi.iki.elonen.NanoHTTPD
+import kotlin.math.abs
+import kotlin.math.sqrt
 
 /**
- * Single-activity host. Owns the HA client, wires physical buttons to the
- * config's hotkeys, and renders the swipeable dashboard.
+ * Single-activity host. Owns the HA client, the direct Harmony hub client,
+ * wires physical buttons to the config's hotkeys, and renders the swipeable
+ * dashboard.
  *
  * IMPORTANT — configure your connection in `secrets.properties` (see
- * secrets.properties.example) before building — HA_URL / HA_TOKEN are
- * injected as BuildConfig fields so a real token never lands in source.
+ * secrets.properties.example) before building — HA_URL / HA_TOKEN /
+ * HARMONY_HUB_IP / HARMONY_HUB_ID are injected as BuildConfig fields so
+ * nothing sensitive lands in source.
  */
+@Suppress("SpellCheckingInspection")
 class MainActivity : ComponentActivity() {
 
     private companion object {
-        // Temporary: on-screen toast + logcat for any button not yet mapped,
-        // so unknown keycodes (e.g. power/menu on this unit) can be identified.
         const val DEBUG_KEYS = true
         const val KEY_TAG = "AstrionKeys"
-
-        // Hold this long for a button's long-press action to fire.
         const val LONG_PRESS_MS = 1500L
-
-        // Motion-wake tuning: accel magnitude delta (m/s²) that counts as
-        // "moved", and a cooldown so a single lift fires one wake.
         const val MOTION_THRESHOLD = 0.9f
         const val WAKE_COOLDOWN_MS = 2000L
     }
 
-    // Long-press timing state.
     private val keyHandler = Handler(Looper.getMainLooper())
     private var pendingLong: Runnable? = null
     private var activeLongKey = -1
     private var longFired = false
 
-    // Motion-wake: a wake-up accelerometer wakes the screen when the remote is
-    // lifted/moved. Only wakes the CPU on actual motion, so it's cheap at rest.
     private var sensorManager: SensorManager? = null
     private var motionSensor: Sensor? = null
     private var lastMagnitude = 0f
@@ -83,13 +81,24 @@ class MainActivity : ComponentActivity() {
     }
 
     private lateinit var client: HaClient
+
+    /** Talks directly to the Harmony hub over its local WebSocket API — used
+     * for hotkeys that specify harmonyDevice/harmonyCommand, bypassing HA. */
+    private lateinit var harmonyClient: HarmonyHubClient
+    private lateinit var configServer: ConfigServer
     private val keyRouter = HardwareKeyRouter()
-
-    /** Current layout: starts as the compiled-in defaults, replaced from disk. */
     private var dashboard by mutableStateOf(DashboardLoader.Result(DashboardConfig.default, null))
-
-    /** Page index requested by a hardware button; consumed by the Dashboard. */
     private var navTarget by mutableStateOf<Int?>(null)
+
+    /** Which page is currently visible — used to know which page-scoped
+     * hotkeys should currently be layered on top of the global ones. */
+    private var currentPageIndex = 0
+
+    private val prefs by lazy { getSharedPreferences("astrion_settings", MODE_PRIVATE) }
+
+    /** Backing state for the settings page's "Wake on movement" switch —
+     * persisted, and toggled live via setWakeOnMotion() without a restart. */
+    private var wakeOnMotionEnabled by mutableStateOf(true)
 
     private val storagePermission = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -98,17 +107,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Kiosk-style fullscreen: reclaim the status bar's height for the
-        // dashboard (physical buttons make the nav bar redundant too).
+        // Enable full-screen immersive sticky mode for dedicated wall/remote tablet mode
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = (
-            android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
-                or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            )
+                View.SYSTEM_UI_FLAG_FULLSCREEN
+                        or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                )
 
-        // /sdcard/astrion/dashboard.json lives on shared storage, so classic
-        // runtime storage permissions are needed (Android 8.1 on the HA100).
         if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             storagePermission.launch(
                 arrayOf(
@@ -118,10 +124,26 @@ class MainActivity : ComponentActivity() {
             )
         }
 
+        wakeOnMotionEnabled = prefs.getBoolean("wake_on_motion_enabled", true)
         setupMotionWake()
 
-        client = HaClient(baseUrl = BuildConfig.HA_URL, token = BuildConfig.HA_TOKEN)
-        bindHotkeys(dashboard.config.hotkeys, dashboard.config.longHotkeys)
+        client = HaClient(baseUrl = RemoteSettings.haUrl(this), token = RemoteSettings.haToken(this))
+        harmonyClient = HarmonyHubClient(
+            hubIp = RemoteSettings.harmonyIp(this),
+            hubId = RemoteSettings.harmonyId(this),
+            onError = { msg -> Log.e("HarmonyHubClient", msg) },
+        )
+        configServer = ConfigServer(
+            context = this,
+            onConnectionSaved = { runOnUiThread { recreate() } },      // rebuild HaClient/HarmonyHubClient with new settings
+            onDashboardUpdated = { runOnUiThread { reloadDashboard() } }, // reuses the existing reload path
+        )
+        runCatching { configServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false) }
+            .onFailure { Log.e("ConfigServer", "failed to start on :8080", it) }
+        harmonyClient.connect()
+
+        currentPageIndex = dashboard.config.startPage
+        rebindHotkeysForCurrentPage()
         client.connect()
 
         setContent {
@@ -129,33 +151,55 @@ class MainActivity : ComponentActivity() {
             val connection = client.connection.collectAsState()
             Dashboard(
                 client = client,
+                harmonyClient = harmonyClient,
                 entitiesState = entities,
                 connectionState = connection,
                 config = dashboard.config,
                 configNotice = dashboard.notice,
                 navTarget = navTarget,
                 onNavHandled = { navTarget = null },
+                onPageChanged = { pageIndex ->
+                    currentPageIndex = pageIndex
+                    rebindHotkeysForCurrentPage()
+                },
+                wakeOnMotionEnabled = wakeOnMotionEnabled,
+                setWakeOnMotionEnabled = { enabled -> setWakeOnMotion(enabled) },
             )
         }
     }
 
     override fun onResume() {
         super.onResume()
-        // Re-read the config file on every foreground, so edits (adb push, file
-        // manager) apply without a rebuild or restart.
         reloadDashboard()
     }
 
-    /** Load config from disk and (re)bind hotkeys. Synchronous — the file is tiny. */
     private fun reloadDashboard() {
         val result = DashboardLoader.load()
         dashboard = result
-        bindHotkeys(result.config.hotkeys, result.config.longHotkeys)
+        currentPageIndex = currentPageIndex.coerceIn(0, result.config.pages.size - 1)
+        rebindHotkeysForCurrentPage()
     }
 
-    // ---- hotkeys ------------------------------------------------------------
+    /** Merge the global hotkeys with the current page's own hotkeys — a
+     * page-scoped binding for a given key wins over the global one for that
+     * same key while that page is visible; keys the page doesn't touch keep
+     * their global behavior (e.g. volume always targets the soundbar). */
+    private fun rebindHotkeysForCurrentPage() {
+        val page = dashboard.config.pages.getOrNull(currentPageIndex)
+        val mergedShort = mergeHotkeys(dashboard.config.hotkeys, page?.hotkeys.orEmpty())
+        val mergedLong = mergeHotkeys(dashboard.config.longHotkeys, page?.longHotkeys.orEmpty())
+        bindHotkeys(mergedShort, mergedLong)
+    }
 
-    /** Rebind the physical buttons to the config's short- and long-press hotkeys. */
+    private fun mergeHotkeys(global: List<HotkeyConfig>, pageSpecific: List<HotkeyConfig>): List<HotkeyConfig> {
+        val byKey = LinkedHashMap<String, HotkeyConfig>()
+        global.forEach { byKey[it.key.uppercase()] = it }
+        pageSpecific.forEach { byKey[it.key.uppercase()] = it } // Page overrides global for the same key
+        return byKey.values.toList()
+    }
+
+    // ---- Hotkeys ------------------------------------------------------------
+
     private fun bindHotkeys(short: List<HotkeyConfig>, long: List<HotkeyConfig>) {
         keyRouter.clear()
         short.forEach { hk ->
@@ -170,7 +214,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Execute one hotkey: page navigation, or a HA service call. */
+    /**
+     * Execute one hotkey, in priority order:
+     *  1. Page navigation
+     *  2. Harmony Activity by id
+     *  3. Direct Harmony hub command (harmonyDevice + harmonyCommand) — no HA involved
+     *  4. Home Assistant service call
+     */
     private fun runHotkey(hk: HotkeyConfig): Boolean {
         hk.page?.let { pageName ->
             val idx = dashboard.config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
@@ -178,6 +228,19 @@ class MainActivity : ComponentActivity() {
             navTarget = idx
             return true
         }
+
+        hk.harmonyActivity?.let { activityId ->
+            harmonyClient.startActivity(activityId)
+            return true
+        }
+
+        val device = hk.harmonyDevice
+        val command = hk.harmonyCommand
+        if (device != null && command != null) {
+            harmonyClient.sendCommand(device, command)
+            return true
+        }
+
         val service = hk.service ?: return false
         val domain = service.substringBefore('.')
         val svc = service.substringAfter('.')
@@ -186,20 +249,12 @@ class MainActivity : ComponentActivity() {
         return true
     }
 
-    /**
-     * Physical buttons arrive as standard KeyEvents. We intercept here to run
-     * tap-vs-hold logic:
-     *  - keys with a long-press binding fire their SHORT action on release (if
-     *    released before LONG_PRESS_MS) or their LONG action once held past it;
-     *  - keys without a long binding fire immediately on each down (so volume
-     *    etc. still repeat while held).
-     */
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val code = event.keyCode
         val shortH = keyRouter.shortHandler(code)
         val longH = keyRouter.longHandler(code)
 
-        // Unmapped: log/toast for diagnosis, then let the OS handle it.
         if (shortH == null && longH == null) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 Log.i(KEY_TAG, "keyCode=$code (${KeyEvent.keyCodeToString(code)})")
@@ -211,7 +266,6 @@ class MainActivity : ComponentActivity() {
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
                 if (longH != null) {
-                    // Long-capable: start the hold timer on first press, ignore repeats.
                     if (event.repeatCount == 0) {
                         cancelPendingLong()
                         longFired = false
@@ -224,7 +278,6 @@ class MainActivity : ComponentActivity() {
                         keyHandler.postDelayed(r, LONG_PRESS_MS)
                     }
                 } else {
-                    // Short-only: fire on every down (preserves hold-to-repeat).
                     shortH?.invoke()
                 }
                 return true
@@ -233,7 +286,6 @@ class MainActivity : ComponentActivity() {
                 if (longH != null && code == activeLongKey) {
                     cancelPendingLong()
                     activeLongKey = -1
-                    // Released before the hold threshold → it was a tap.
                     if (!longFired) shortH?.invoke()
                 }
                 return true
@@ -247,33 +299,52 @@ class MainActivity : ComponentActivity() {
         pendingLong = null
     }
 
-    // ---- motion wake --------------------------------------------------------
+    // ---- Motion Wake --------------------------------------------------------
 
     private fun setupMotionWake() {
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
-        // Prefer a wake-up accelerometer so events still arrive with the screen
-        // off; fall back to the normal one (which only helps while awake).
-        motionSensor = sensorManager?.getSensorList(Sensor.TYPE_ACCELEROMETER)
-            ?.firstOrNull { it.isWakeUpSensor }
-            ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        motionSensor?.let {
-            sensorManager?.registerListener(motionListener, it, SensorManager.SENSOR_DELAY_NORMAL)
+        val sm = getSystemService(SENSOR_SERVICE) as? SensorManager ?: return
+        sensorManager = sm
+
+        motionSensor = sm.getSensorList(Sensor.TYPE_ACCELEROMETER)
+            .firstOrNull { it.isWakeUpSensor }
+            ?: sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+        if (wakeOnMotionEnabled) registerMotionListener()
+    }
+
+    private fun registerMotionListener() {
+        val sm = sensorManager ?: return
+        motionSensor?.let { sensor ->
+            sm.registerListener(motionListener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
         }
     }
 
+    /** Called from the settings page switch — persists the choice and
+     * registers/unregisters the sensor listener immediately, no restart needed. */
+    private fun setWakeOnMotion(enabled: Boolean) {
+        wakeOnMotionEnabled = enabled
+        prefs.edit().putBoolean("wake_on_motion_enabled", enabled).apply()
+        if (enabled) {
+            registerMotionListener()
+        } else {
+            sensorManager?.unregisterListener(motionListener)
+        }
+    }
+
+    @Suppress("DEPRECATION")
     private fun wakeScreen() {
-        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
-        if (pm.isInteractive) return // already on — nothing to do
+        val pm = getSystemService(POWER_SERVICE) as? PowerManager ?: return
+        if (pm.isInteractive) return
         val now = System.currentTimeMillis()
         if (now - lastWakeMs < WAKE_COOLDOWN_MS) return
         lastWakeMs = now
-        @Suppress("DEPRECATION")
-        val wl = pm.newWakeLock(
-            PowerManager.SCREEN_BRIGHT_WAKE_LOCK
-                or PowerManager.ACQUIRE_CAUSES_WAKEUP
-                or PowerManager.ON_AFTER_RELEASE,
-            "astrion:motionwake",
-        )
+
+        // Suppressed deprecation for older Android 8.1 (HA100 remote) compatibility
+        val flags = PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
+                PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                PowerManager.ON_AFTER_RELEASE
+
+        val wl = pm.newWakeLock(flags, "astrion:motionwake")
         wl.acquire(4000)
         keyHandler.postDelayed({ if (wl.isHeld) wl.release() }, 3500)
     }
@@ -281,6 +352,8 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         sensorManager?.unregisterListener(motionListener)
         client.disconnect()
+        harmonyClient.disconnect()
+        configServer.stop()
         super.onDestroy()
     }
 }

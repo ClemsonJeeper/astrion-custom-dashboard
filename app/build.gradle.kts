@@ -1,4 +1,4 @@
-import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
@@ -7,30 +7,16 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
-// Local HA connection details live in a gitignored secrets.properties (see
-// secrets.properties.example) so a real token/host never lands in source
-// control. Falls back to placeholders so a fresh clone still compiles.
-val secrets = Properties().apply {
-    val f = rootProject.file("secrets.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
-}
-fun secret(key: String, default: String) = (secrets.getProperty(key) ?: default)
-
 android {
     namespace = "com.custom.astrion"
     compileSdk = 34
 
     defaultConfig {
         applicationId = "com.custom.astrion"
-        // Astrion HA100 runs Android 8.1 (API 27). minSdk 26 keeps a little
-        // headroom while covering the device; targetSdk stays modern.
         minSdk = 26
         targetSdk = 34
         versionCode = 1
-        versionName = "0.1.0"
-
-        buildConfigField("String", "HA_URL", "\"${secret("haUrl", "http://YOUR_HA_IP:8123")}\"")
-        buildConfigField("String", "HA_TOKEN", "\"${secret("haToken", "YOUR_LONG_LIVED_ACCESS_TOKEN")}\"")
+        versionName = "0.2.0"
     }
 
     buildTypes {
@@ -44,8 +30,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
     }
 
     buildFeatures {
@@ -63,12 +51,10 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
-    // Extended icon set (FastRewind, PowerSettingsNew, etc.) used by cards.
     implementation("androidx.compose.material:material-icons-extended")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-
-    // OkHttp provides the WebSocket transport.
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

@@ -2,7 +2,14 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -16,30 +23,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
 
 /**
- * Climate / thermostat card.
+ * Climate / thermostat card renderer.
  *
- * Big setpoint readout with +/- steppers, current temperature, and a row of
- * HVAC mode chips read live from the entity's `hvac_modes` attribute.
- *
- * Uses:
- *   climate.set_temperature { entity_id, temperature }
- *   climate.set_hvac_mode   { entity_id, hvac_mode }
+ * Displays target setpoint with steppers, current temperature, and HVAC/fan mode chips.
+ * Uses `climate.set_temperature`, `climate.set_hvac_mode`, and `climate.set_fan_mode`.
  *
  * Config shape:
- *   CardConfig("climate", mapOf(
- *       "entity_id" to "climate.lounge",
- *       "step" to 0.5,          // optional, default 0.5
- *   ))
+ * ```json
+ * {
+ *   "type": "climate",
+ *   "options": {
+ *     "entity_id": "climate.lounge",
+ *     "step": 0.5
+ *   }
+ * }
+ * ```
  */
+@Suppress("SpellCheckingInspection")
 class ClimateCard : CardRenderer {
     override val type = "climate"
 
@@ -149,7 +160,7 @@ class ClimateCard : CardRenderer {
                 ) {
                     modes.take(4).forEach { m ->
                         ModeChip(
-                            label = m.replaceFirstChar { it.uppercase() },
+                            label = HaLabels.hvacMode(m),
                             selected = m == mode,
                             modifier = Modifier.weight(1f),
                         ) { setMode(m) }
@@ -165,7 +176,7 @@ class ClimateCard : CardRenderer {
                 ) {
                     fanModes.forEach { f ->
                         ModeChip(
-                            label = f.replaceFirstChar { it.uppercase() },
+                            label = HaLabels.fanMode(f),
                             selected = fanMode?.equals(f, ignoreCase = true) == true,
                             modifier = Modifier.weight(1f),
                         ) { setFan(f) }
@@ -180,7 +191,7 @@ class ClimateCard : CardRenderer {
 
     @Composable
     private fun Stepper(
-        icon: androidx.compose.ui.graphics.vector.ImageVector,
+        icon: ImageVector,
         onClick: () -> Unit,
     ) {
         Box(

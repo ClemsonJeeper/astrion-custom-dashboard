@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.Composable
@@ -29,7 +30,7 @@ import com.custom.astrion.ha.ServiceCall
  * Reuses your existing Home Assistant `remote.*` command map — the same
  * mechanism your working aiks-tv-card uses. Each button fires:
  *   remote.send_command  with { entity_id, command }
- * against your Android TV remote entity, e.g. remote.android_tv_10_0_1_248.
+ * against your Android TV remote entity, e.g. `remote.android_tv_10_0_1_248`.
  *
  * Unlike the stock card, the layout is fully yours: a D-pad cluster, a transport
  * row, and volume — all native Compose, resized for the 480x800 panel.
@@ -133,7 +134,7 @@ class TvRemoteCard : CardRenderer {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                RoundIconButton(Icons.Filled.ArrowBack) { send(c("back", "BACK")) }
+                RoundIconButton(Icons.AutoMirrored.Filled.ArrowBack) { send(c("back", "BACK")) }
                 RoundIconButton(Icons.Filled.Home) { send(c("home", "HOME")) }
                 RoundIconButton(Icons.Filled.Menu) { send(c("menu", "MENU")) }
             }
@@ -205,11 +206,11 @@ class TvRemoteCard : CardRenderer {
             }
             // Left
             Box(Modifier.align(Alignment.CenterStart).padding(start = 12.dp)) {
-                RoundIconButton(Icons.Filled.KeyboardArrowLeft, onClick = onLeft)
+                RoundIconButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, onClick = onLeft)
             }
             // Right
             Box(Modifier.align(Alignment.CenterEnd).padding(end = 12.dp)) {
-                RoundIconButton(Icons.Filled.KeyboardArrowRight, onClick = onRight)
+                RoundIconButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, onClick = onRight)
             }
             // Center / OK
             Box(

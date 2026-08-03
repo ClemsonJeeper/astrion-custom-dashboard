@@ -6,22 +6,24 @@ import com.custom.astrion.cards.CardConfig
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.io.File
 
 /**
  * Loads the whole app layout (swipeable pages + hardware-button bindings) from
- * a JSON file on shared storage, falling back to the compiled-in
- * DashboardConfig.default when the file is missing or malformed — the app never
- * crashes over a bad config, it just shows a notice banner.
+ * a JSON file on shared storage. If the file is missing or malformed, it falls
+ * back to DashboardConfig.default. The app never crashes over a bad config; it
+ * simply displays an onscreen notice.
  *
- * Path: /sdcard/astrion/dashboard.json. Shared storage keeps the file editable
- * over `adb push` or any file manager; MainActivity requests the storage
- * permission at runtime (Android 8.1 on the HA100).
+ * Path: [Environment.getExternalStorageDirectory]/astrion/dashboard.json. Shared
+ * storage keeps the file editable over `adb push` or any file manager; MainActivity
+ * requests the storage permission at runtime (Android 8.1 on the HA100).
  *
  * JSON shape:
  * {
@@ -34,7 +36,8 @@ import java.io.File
  *   "hotkeys": [
  *     { "key": "UP", "service": "remote.send_command",
  *       "entityId": "remote.the_club_tvv", "data": { "command": "DPAD_UP" } },
- *     { "key": "LIGHT", "page": "Lights" }
+ *     { "key": "LIGHT", "page": "Lights" },
+ *     { "key": "VOLUME_UP", "harmonyDevice": "62845789", "harmonyCommand": "VolumeUp" }
  *   ]
  * }
  *
@@ -73,20 +76,22 @@ object DashboardLoader {
     private fun parse(text: String): AppConfig {
         return when (val root = json.parseToJsonElement(text)) {
             is JsonArray -> AppConfig(
-                pages = listOf(PageConfig("Main", root.map { parseCard(it as JsonObject) })),
+                pages = listOf(PageConfig("Main", root.map { parseCard(it.jsonObject) })),
             )
             is JsonObject -> {
-                val pagesArr = root["pages"] as? JsonArray ?: error("missing \"pages\" array")
+                val pagesArr = root["pages"]?.jsonArray ?: error("missing \"pages\" array")
                 val pages = pagesArr.map { p ->
-                    val obj = p as? JsonObject ?: error("each page must be an object")
-                    val name = (obj["name"] as? JsonPrimitive)?.content ?: "Page"
-                    val cards = (obj["cards"] as? JsonArray)?.map { parseCard(it as JsonObject) } ?: emptyList()
-                    PageConfig(name, cards)
+                    val obj = p.jsonObject
+                    val name = obj["name"]?.jsonPrimitive?.content ?: "Page"
+                    val cards = obj["cards"]?.jsonArray?.map { parseCard(it.jsonObject) } ?: emptyList()
+                    val pageHotkeys = obj["hotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
+                    val pageLongHotkeys = obj["longHotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
+                    PageConfig(name, cards, pageHotkeys, pageLongHotkeys)
                 }
                 if (pages.isEmpty()) error("\"pages\" is empty")
-                val start = (root["startPage"] as? JsonPrimitive)?.intOrNull ?: 0
-                val hotkeys = (root["hotkeys"] as? JsonArray)?.map { parseHotkey(it as JsonObject) } ?: emptyList()
-                val longHotkeys = (root["longHotkeys"] as? JsonArray)?.map { parseHotkey(it as JsonObject) } ?: emptyList()
+                val start = root["startPage"]?.jsonPrimitive?.intOrNull ?: 0
+                val hotkeys = root["hotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
+                val longHotkeys = root["longHotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
                 AppConfig(pages, start.coerceIn(0, pages.size - 1), hotkeys, longHotkeys)
             }
             else -> error("top level must be an object or array")
@@ -94,23 +99,26 @@ object DashboardLoader {
     }
 
     private fun parseCard(obj: JsonObject): CardConfig {
-        val type = (obj["type"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+        val type = obj["type"]?.jsonPrimitive?.takeIf { it.isString }?.content
             ?: error("card missing \"type\" string")
-        val options = (obj["options"] as? JsonObject)
+        val options = obj["options"]?.jsonObject
             ?.entries?.associate { (k, v) -> k to JsonPlain.toPlain(v) }
             ?: emptyMap()
         return CardConfig(type, options)
     }
 
     private fun parseHotkey(obj: JsonObject): HotkeyConfig {
-        val key = (obj["key"] as? JsonPrimitive)?.content ?: error("hotkey missing \"key\"")
-        val page = (obj["page"] as? JsonPrimitive)?.content
-        val service = (obj["service"] as? JsonPrimitive)?.content
-        val entityId = (obj["entityId"] as? JsonPrimitive)?.content
-        val data = (obj["data"] as? JsonObject)
+        val key = obj["key"]?.jsonPrimitive?.content ?: error("hotkey missing \"key\"")
+        val page = obj["page"]?.jsonPrimitive?.content
+        val service = obj["service"]?.jsonPrimitive?.content
+        val entityId = obj["entityId"]?.jsonPrimitive?.content
+        val data = obj["data"]?.jsonObject
             ?.entries?.associate { (k, v) -> k to JsonPlain.toPlain(v) }
             ?: emptyMap()
-        return HotkeyConfig(key, page, service, entityId, data)
+        val harmonyDevice = obj["harmonyDevice"]?.jsonPrimitive?.content
+        val harmonyCommand = obj["harmonyCommand"]?.jsonPrimitive?.content
+        val harmonyActivity = obj["harmonyActivity"]?.jsonPrimitive?.content
+        return HotkeyConfig(key, page, service, entityId, data, harmonyDevice, harmonyCommand, harmonyActivity)
     }
 
     // ---- serialize defaults -------------------------------------------------
@@ -139,6 +147,8 @@ object DashboardLoader {
                             })
                         }
                     })
+                    if (page.hotkeys.isNotEmpty()) put("hotkeys", encodeHotkeys(page.hotkeys))
+                    if (page.longHotkeys.isNotEmpty()) put("longHotkeys", encodeHotkeys(page.longHotkeys))
                 })
             }
         })
@@ -154,6 +164,9 @@ object DashboardLoader {
                 hk.service?.let { put("service", it) }
                 hk.entityId?.let { put("entityId", it) }
                 if (hk.data.isNotEmpty()) put("data", JsonPlain.toJson(hk.data))
+                hk.harmonyDevice?.let { put("harmonyDevice", it) }
+                hk.harmonyCommand?.let { put("harmonyCommand", it) }
+                hk.harmonyActivity?.let { put("harmonyActivity", it) }
             })
         }
     }

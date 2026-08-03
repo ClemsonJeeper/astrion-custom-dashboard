@@ -1,9 +1,13 @@
 package com.custom.astrion.ha
 
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * A single Home Assistant entity's live state.
@@ -11,8 +15,9 @@ import kotlinx.serialization.json.doubleOrNull
  * Mirrors the object HA returns from `get_states` and inside `state_changed`
  * events. We keep attributes as a raw JsonObject so individual cards can pull
  * out whatever domain-specific fields they need (brightness, hvac_mode,
- * current_temperature, media_title, etc.) without us modelling every domain.
+ * current_temperature, media_title, etc.) without us modeling every domain.
  */
+@Suppress("Unused")
 data class EntityState(
     val entityId: String,
     val state: String,
@@ -24,29 +29,36 @@ data class EntityState(
 
     /** Convenience: friendly_name attribute, falling back to the entity id. */
     val friendlyName: String
-        get() = (attributes["friendly_name"] as? kotlinx.serialization.json.JsonPrimitive)
-            ?.content ?: entityId
+        get() = attrString("friendly_name") ?: entityId
 
     fun attr(key: String): JsonElement? = attributes[key]
 
     /** Attribute as String, or null if absent/not a primitive. */
     fun attrString(key: String): String? =
-        (attributes[key] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+        attributes[key]?.jsonPrimitive?.contentOrNull
 
     /** Attribute as Double, or null. Handles ints and numeric strings too. */
     fun attrDouble(key: String): Double? =
-        (attributes[key] as? kotlinx.serialization.json.JsonPrimitive)?.let {
-            it.doubleOrNull ?: it.contentOrNull?.toDoubleOrNull()
+        attributes[key]?.jsonPrimitive?.let { prim ->
+            prim.doubleOrNull ?: prim.contentOrNull?.toDoubleOrNull()
         }
 
     /** Attribute as Int, or null. */
     fun attrInt(key: String): Int? = attrDouble(key)?.toInt()
 
+    /** Attribute as Boolean, or null. Handles boolean primitives and boolean strings ("true"/"false"). */
+    fun attrBoolean(key: String): Boolean? =
+        attributes[key]?.jsonPrimitive?.let { prim ->
+            prim.booleanOrNull ?: prim.contentOrNull?.toBooleanStrictOrNull()
+        }
+
     /** Attribute as a list of strings (e.g. media_player source lists, hvac_modes). */
     fun attrStringList(key: String): List<String> =
-        (attributes[key] as? kotlinx.serialization.json.JsonArray)
-            ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull }
-            ?: emptyList()
+        try {
+            attributes[key]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
 
     val isOn: Boolean get() = state == "on"
     val isUnavailable: Boolean get() = state == "unavailable" || state == "unknown"
@@ -81,7 +93,7 @@ data class ServiceCall(
         /**
          * Build a ServiceCall from plain values (String / Number / Boolean),
          * wrapping them as JSON primitives. Keeps card code readable:
-         *   ServiceCall.of("light","turn_on","light.kitchen", "brightness_pct" to 60)
+         *   ServiceCall.of("light", "turn_on", "light.kitchen", "brightness_pct" to 60)
          */
         fun of(
             domain: String,
@@ -89,18 +101,27 @@ data class ServiceCall(
             entityId: String? = null,
             vararg data: Pair<String, Any?>,
         ): ServiceCall {
-            val mapped: Map<String, JsonElement> = data.mapNotNull { (k, v) ->
-                val el: JsonElement? = when (v) {
-                    null -> null
-                    is JsonElement -> v
-                    is Boolean -> kotlinx.serialization.json.JsonPrimitive(v)
-                    is Number -> kotlinx.serialization.json.JsonPrimitive(v)
-                    is String -> kotlinx.serialization.json.JsonPrimitive(v)
-                    else -> kotlinx.serialization.json.JsonPrimitive(v.toString())
+            val mapped = buildMap {
+                for ((k, v) in data) {
+                    val el: JsonElement? = when (v) {
+                        null -> null
+                        is JsonElement -> v
+                        is Boolean -> JsonPrimitive(v)
+                        is Number -> JsonPrimitive(v)
+                        is String -> JsonPrimitive(v)
+                        else -> JsonPrimitive(v.toString())
+                    }
+                    if (el != null) put(k, el)
                 }
-                el?.let { k to it }
-            }.toMap()
+            }
             return ServiceCall(domain, service, entityId, mapped)
         }
+
+        /** Overload convenience when no entityId is specified directly. */
+        fun of(
+            domain: String,
+            service: String,
+            vararg data: Pair<String, Any?>,
+        ): ServiceCall = of(domain, service, entityId = null, data = data)
     }
 }
