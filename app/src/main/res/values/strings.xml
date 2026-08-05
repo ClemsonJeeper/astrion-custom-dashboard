@@ -36,4 +36,9 @@
     <string name="web_config_update_installing">Installer launched — approve the install prompt on the panel screen</string>
     <string name="web_config_update_needs_permission">Allow "Install unknown apps" for this app on the screen that just opened, then tap Download &amp; install again.</string>
     <string name="web_config_update_failed">Update check failed: %1$s</string>
+    <!-- ClimateCard -->
+    <string name="climate_current_temp">Now %1$s°</string>
+    <string name="climate_hvac_caption">Mode</string>
+    <string name="climate_fan_caption">Fan</string>
+    <string name="climate_swing_caption">Swing</string>
 </resources>

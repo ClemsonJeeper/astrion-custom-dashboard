@@ -35,4 +35,9 @@
     <string name="web_config_update_installing">Installation lancée — validez l\'invite sur l\'écran du panneau</string>
     <string name="web_config_update_needs_permission">Autorisez « Installer des applications inconnues » pour cette app sur l\'écran qui vient de s\'ouvrir, puis appuyez de nouveau sur Télécharger &amp; installer.</string>
     <string name="web_config_update_failed">Échec de la vérification : %1$s</string>
+    <!-- ClimateCard -->
+    <string name="climate_current_temp">Actuellement %1$s°</string>
+    <string name="climate_hvac_caption">Mode</string>
+    <string name="climate_fan_caption">Ventilation</string>
+    <string name="climate_swing_caption">Balayage</string>
 </resources>

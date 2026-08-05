@@ -43,6 +43,7 @@ object HaLabels {
 
     fun hvacMode(raw: String): String = lookup("hvac_mode", raw)
     fun fanMode(raw: String): String = lookup("fan_mode", raw.lowercase())
+    fun swingMode(raw: String): String = lookup("swing_mode", raw.lowercase())
     fun weatherCondition(raw: String): String = lookup("weather_condition", raw)
     fun vacuumState(raw: String): String = lookup("vacuum_state", raw)
 

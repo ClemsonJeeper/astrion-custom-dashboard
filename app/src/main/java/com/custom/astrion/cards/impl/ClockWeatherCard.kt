@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ha.HaLabels
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -41,11 +42,16 @@ import java.util.Locale
  * Forecast data comes from the `weather.get_forecasts` service (modern HA
  * dropped the `forecast` attribute), falling back to the attribute if present.
  *
+ * The weather condition label (e.g. "partly cloudy") is translated via
+ * `HaLabels.weatherCondition()` — see assets/ha_labels/<lang>.json — instead
+ * of prettifying the raw HA state string, so it follows the app's language.
+ *
  * Config shape:
  *   { "type": "clock_weather", "options": {
  *       "entity_id": "weather.forecast_home",
  *       "time_format": 12,
- *       "forecast_rows": 4
+ *       "forecast_rows": 4,
+ *       "calendar_entity": "calendar.family"
  *   } }
  */
 class ClockWeatherCard : CardRenderer {
@@ -128,7 +134,7 @@ class ClockWeatherCard : CardRenderer {
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        condition.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                        HaLabels.weatherCondition(condition),
                         color = Color(0xFF9AB0C4),
                         fontSize = 11.sp,
                     )

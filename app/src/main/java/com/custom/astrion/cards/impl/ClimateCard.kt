@@ -24,20 +24,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.astrion.R
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.icons.MdiIcons
 
 /**
  * Climate / thermostat card renderer.
  *
- * Displays target setpoint with steppers, current temperature, and HVAC/fan mode chips.
- * Uses `climate.set_temperature`, `climate.set_hvac_mode`, and `climate.set_fan_mode`.
+ * Displays target setpoint with steppers, current temperature, and HVAC/fan/swing
+ * mode chips — mirroring Home Assistant's own climate tile-card features
+ * (`climate-hvac-modes`, `climate-fan-modes`, `climate-swing-modes`), including
+ * their per-feature `style: icons` option.
+ * Uses `climate.set_temperature`, `climate.set_hvac_mode`, `climate.set_fan_mode`,
+ * and `climate.set_swing_mode`.
  *
  * Config shape:
  * ```json
@@ -45,10 +52,31 @@ import com.custom.astrion.ha.ServiceCall
  *   "type": "climate",
  *   "options": {
  *     "entity_id": "climate.lounge",
- *     "step": 0.5
+ *     "step": 0.5,
+ *     "hvac_modes": ["heat_cool", "cool"],
+ *     "hvac_mode_style": "icons",
+ *     "fan_modes": ["low", "medium", "high", "auto"],
+ *     "fan_mode_style": "icons",
+ *     "swing_modes": ["stop", "swing"],
+ *     "swing_mode_style": "icons"
  *   }
  * }
  * ```
+ * `hvac_modes`/`fan_modes`/`swing_modes` are optional overrides — normally the
+ * chips come from the entity's own `hvac_modes`/`fan_modes`/`swing_modes`
+ * attributes, so they always match what the device actually supports and
+ * follow whatever order the integration reports. Set one in the dashboard
+ * config to reorder or restrict which chips show (in the order given), or as
+ * a last-resort fallback if an integration doesn't report the attribute at
+ * all. `"off"` is always excluded from the hvac chips regardless of source —
+ * see below.
+ *
+ * `hvac_mode_style`/`fan_mode_style`/`swing_mode_style` (default `"icons"`
+ * for hvac, `"label"` for fan/swing) switch that row's chips to icons, same
+ * as HA's tile card. The icon glyphs come from [MdiIcons] (hand-built from
+ * MDI path data — see that file for why). The `"off"` hvac mode is never
+ * shown as a chip — the header's power button already covers it, so a
+ * separate "off" chip would just be a duplicate control.
  */
 @Suppress("SpellCheckingInspection")
 class ClimateCard : CardRenderer {
@@ -69,10 +97,29 @@ class ClimateCard : CardRenderer {
         val target = e?.attrDouble("temperature")
         val current = e?.attrDouble("current_temperature")
         val mode = e?.state ?: "off"
-        val modes = e?.attrStringList("hvac_modes") ?: emptyList()
+        // "off" is deliberately excluded — the header's dedicated power
+        // button already turns the unit off, so a chip for it would just
+        // duplicate that control.
+        // Prefer the config override (order respected as given) → the
+        // entity's real hvac_modes → nothing. "off" is deliberately excluded
+        // in all cases — see comment above.
+        val modes = config.stringList("hvac_modes")
+            .ifEmpty { e?.attrStringList("hvac_modes").orEmpty() }
+            .filter { it != "off" }
         val name = config.string("name") ?: e?.friendlyName ?: entityId
         val fanMode = e?.attrString("fan_mode")
-        val fanModes = config.stringList("fan_modes").ifEmpty { listOf("low", "medium", "high", "auto") }
+        val swingMode = e?.attrString("swing_mode")
+        // Prefer what the entity actually reports it supports (like hvac_modes
+        // above); a config override lets you reorder/restrict; the hardcoded
+        // list is only a last resort for integrations that don't report it.
+        val fanModes = config.stringList("fan_modes")
+            .ifEmpty { e?.attrStringList("fan_modes").orEmpty() }
+            .ifEmpty { listOf("low", "medium", "high", "auto") }
+        val swingModes = config.stringList("swing_modes")
+            .ifEmpty { e?.attrStringList("swing_modes").orEmpty() }
+        val hvacModeIcons = config.string("hvac_mode_style") != "label"
+        val fanModeIcons = config.string("fan_mode_style") == "icons"
+        val swingModeIcons = config.string("swing_mode_style") == "icons"
 
         fun setTemp(t: Double) {
             val clamped = t.coerceIn(minT ?: t, maxT ?: t)
@@ -90,6 +137,11 @@ class ClimateCard : CardRenderer {
                 ServiceCall.of("climate", "set_fan_mode", entityId, "fan_mode" to f)
             )
         }
+        fun setSwing(s: String) {
+            ctx.client.callService(
+                ServiceCall.of("climate", "set_swing_mode", entityId, "swing_mode" to s)
+            )
+        }
         fun turnOff() {
             ctx.client.callService(ServiceCall("climate", "turn_off", entityId))
         }
@@ -101,8 +153,8 @@ class ClimateCard : CardRenderer {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color(0xFF1B343D))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // Header: name + a dedicated off button.
             Row(
@@ -110,10 +162,10 @@ class ClimateCard : CardRenderer {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(name, color = Color(0xFFE6F0F1), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(name, color = Color(0xFFE6F0F1), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(if (isOff) Color(0xFF3A2E2E) else Color(0xFF2C4C58))
                         .clickable { turnOff() },
@@ -123,6 +175,7 @@ class ClimateCard : CardRenderer {
                         Icons.Filled.PowerSettingsNew,
                         contentDescription = "Off",
                         tint = if (isOff) Color(0xFFE06767) else Color(0xFFCBDCE0),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
@@ -139,47 +192,78 @@ class ClimateCard : CardRenderer {
                     Text(
                         target?.let { "${trim(it)}°" } ?: "—",
                         color = Color(0xFFE6F0F1),
-                        fontSize = 44.sp,
+                        fontSize = 36.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        current?.let { "Now ${trim(it)}°" } ?: "",
+                        current?.let { stringResource(R.string.climate_current_temp, trim(it)) } ?: "",
                         color = Color(0xFF93AFB6),
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                     )
                 }
 
                 Stepper(Icons.Filled.Add) { target?.let { setTemp(it + step) } }
             }
 
-            // HVAC mode chips
+            // HVAC mode chips (icons by default, matching HA's tile card; "off" excluded, see above).
             if (modes.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    modes.take(4).forEach { m ->
-                        ModeChip(
-                            label = HaLabels.hvacMode(m),
-                            selected = m == mode,
-                            modifier = Modifier.weight(1f),
-                        ) { setMode(m) }
+                ModeSection(caption = stringResource(R.string.climate_hvac_caption)) {
+                    balancedRows(modes, maxPerRow = if (hvacModeIcons) 5 else 3).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            row.forEach { m ->
+                                ModeChip(
+                                    label = HaLabels.hvacMode(m),
+                                    icon = if (hvacModeIcons) hvacModeIcon(m) else null,
+                                    selected = m == mode,
+                                    modifier = Modifier.weight(1f),
+                                ) { setMode(m) }
+                            }
+                        }
                     }
                 }
             }
 
             // Fan mode chips
             if (fanModes.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    fanModes.forEach { f ->
-                        ModeChip(
-                            label = HaLabels.fanMode(f),
-                            selected = fanMode?.equals(f, ignoreCase = true) == true,
-                            modifier = Modifier.weight(1f),
-                        ) { setFan(f) }
+                ModeSection(caption = stringResource(R.string.climate_fan_caption)) {
+                    balancedRows(fanModes, maxPerRow = if (fanModeIcons) 5 else 3).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            row.forEach { f ->
+                                ModeChip(
+                                    label = HaLabels.fanMode(f),
+                                    icon = if (fanModeIcons) fanModeIcon(f) else null,
+                                    selected = fanMode?.equals(f, ignoreCase = true) == true,
+                                    modifier = Modifier.weight(1f),
+                                ) { setFan(f) }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Swing mode chips
+            if (swingModes.isNotEmpty()) {
+                ModeSection(caption = stringResource(R.string.climate_swing_caption)) {
+                    balancedRows(swingModes, maxPerRow = if (swingModeIcons) 5 else 3).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            row.forEach { s ->
+                                ModeChip(
+                                    label = HaLabels.swingMode(s),
+                                    icon = if (swingModeIcons) swingModeIcon(s) else null,
+                                    selected = swingMode?.equals(s, ignoreCase = true) == true,
+                                    modifier = Modifier.weight(1f),
+                                ) { setSwing(s) }
+                            }
+                        }
                     }
                 }
             }
@@ -189,6 +273,54 @@ class ClimateCard : CardRenderer {
     private fun trim(d: Double): String =
         if (d == d.toLong().toDouble()) d.toLong().toString() else d.toString()
 
+    /**
+     * Split [items] into rows of at most [maxPerRow], but balanced: e.g. 5
+     * items with maxPerRow=4 gives two rows of 3+2, not a lopsided 4+1 with
+     * one lonely chip. Small screens (this targets 480×800 panels) especially
+     * suffer from an orphaned last-row chip stretching to full width.
+     */
+    private fun <T> balancedRows(items: List<T>, maxPerRow: Int): List<List<T>> {
+        if (items.isEmpty()) return emptyList()
+        val rows = (items.size + maxPerRow - 1) / maxPerRow
+        val perRow = (items.size + rows - 1) / rows
+        return items.chunked(perRow)
+    }
+
+    /** HVAC mode → MDI glyph, matching what HA's own climate tile-card feature shows. */
+    private fun hvacModeIcon(mode: String): ImageVector = when (mode) {
+        "heat" -> MdiIcons.Fire
+        "cool" -> MdiIcons.Snowflake
+        "heat_cool", "auto" -> MdiIcons.HeatCool
+        "dry" -> MdiIcons.WaterPercent
+        "fan_only" -> MdiIcons.Fan
+        else -> MdiIcons.Power
+    }
+
+    /**
+     * Fan-speed → MDI glyph. Numeric speeds ("1".."5") show their digit —
+     * that's the actual MDI glyph for them, not a placeholder. "auto" and
+     * "quiet"/"silent" have their own distinct glyphs too. Anything else
+     * (e.g. "low"/"medium"/"high"/"turbo") falls back to the generic fan
+     * glyph, since MDI has no dedicated icon for those.
+     */
+    private fun fanModeIcon(mode: String): ImageVector = when (mode.lowercase()) {
+        "auto" -> MdiIcons.FanAuto
+        "quiet", "silent" -> MdiIcons.FanQuiet
+        "1" -> MdiIcons.Fan1
+        "2" -> MdiIcons.Fan2
+        "3" -> MdiIcons.Fan3
+        "4" -> MdiIcons.Fan4
+        "5" -> MdiIcons.Fan5
+        else -> MdiIcons.Fan
+    }
+
+    /** Swing mode → glyph. Covers both HA's official values (off/on/both/vertical/horizontal)
+     *  and the "stop"/"swing" values some integrations (e.g. this Daikin one) use instead. */
+    private fun swingModeIcon(mode: String): ImageVector = when (mode.lowercase()) {
+        "off", "stop" -> MdiIcons.SwingOff
+        else -> MdiIcons.SwingOn
+    }
+
     @Composable
     private fun Stepper(
         icon: ImageVector,
@@ -196,7 +328,7 @@ class ClimateCard : CardRenderer {
     ) {
         Box(
             modifier = Modifier
-                .size(56.dp)
+                .size(46.dp)
                 .clip(CircleShape)
                 .background(Color(0xFF2C4C58))
                 .clickable(onClick = onClick),
@@ -207,26 +339,42 @@ class ClimateCard : CardRenderer {
     }
 
     @Composable
+    private fun ModeSection(caption: String, content: @Composable () -> Unit) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                caption,
+                color = Color(0xFF6D8891),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                content()
+            }
+        }
+    }
+
+    @Composable
     private fun ModeChip(
         label: String,
         selected: Boolean,
         modifier: Modifier,
+        icon: ImageVector? = null,
         onClick: () -> Unit,
     ) {
         Box(
             modifier = modifier
-                .height(40.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .height(34.dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(if (selected) Color(0xFF4C6EF5) else Color(0xFF23414B))
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                label,
-                color = if (selected) Color.White else Color(0xFF93AFB6),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-            )
+            val tint = if (selected) Color.White else Color(0xFF93AFB6)
+            if (icon != null) {
+                Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(18.dp))
+            } else {
+                Text(label, color = tint, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            }
         }
     }
 }

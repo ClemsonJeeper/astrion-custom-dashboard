@@ -2,7 +2,7 @@
 
 A single-file, static HTML tool for building `dashboard.json` visually — no hand-written JSON required. Matches the exact schema the [Astrion Custom](../README.md) app reads.
 
-**Live version**: https://dckiller51.github.io/astrion-custom-dashboard/
+**Live version**: [Online Dashboard Editor](https://dckiller51.github.io/astrion-custom-dashboard/)
 
 No install, no build step — open the link (or `index.html` locally in any browser) and start building.
 

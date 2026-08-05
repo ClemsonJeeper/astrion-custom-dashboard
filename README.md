@@ -1,4 +1,5 @@
-# Astrion Custom Dashboard
+<!-- markdownlint-disable-next-line MD033 -->
+# <img src="docs/app-icon.svg" width="48" align="center" alt="Astrion Custom Icon"> Astrion Custom Dashboard
 
 A custom Android application for controlling [Home Assistant](https://www.home-assistant.io/) via a dedicated Sanytron Astrion HA100 remote control, developed using Kotlin and Jetpack Compose.
 

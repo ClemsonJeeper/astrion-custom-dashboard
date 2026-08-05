@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
@@ -52,6 +53,13 @@ import kotlinx.serialization.json.JsonPrimitive
  * Room buttons fire `vacuum.send_command app_segment_clean` with the segment
  * id (the Roborock room id from your map). The map image is fetched from the
  * entity's `entity_picture` — no blocked-zone editing, just a live-ish view.
+ *
+ * The vacuum's activity state (docked/cleaning/paused/idle/returning/error) is
+ * translated via `HaLabels.vacuumState()` — see assets/ha_labels/<lang>.json —
+ * since it's one of HA's fixed state values. Fan-speed / cleaning-mode names
+ * (e.g. "Quiet", "Turbo", "Max"), on the other hand, are integration-specific
+ * (not a fixed HA-wide set), so those stay best-effort prettified rather than
+ * looked up.
  *
  * Config shape:
  *   { "type": "vacuum", "options": {
@@ -132,7 +140,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(name, color = Color(0xFFE6F0F1), fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f))
-        Text(prettyVacuumLabel(state), color = Color(0xFF93AFB6), fontSize = 13.sp)
+        Text(HaLabels.vacuumState(state), color = Color(0xFF93AFB6), fontSize = 13.sp)
     }
 
     // Map (includes the robot, rooms, path — rendered by the integration).
@@ -252,6 +260,11 @@ private fun VacuumCtrlBtn(icon: ImageVector, accent: Boolean = false, onClick: (
     }
 }
 
+/**
+ * Best-effort prettifier for fan-speed / cleaning-mode names, which are
+ * reported verbatim by each vacuum integration (not a fixed HA-wide set like
+ * the vacuum activity state), so there's no fixed `ha_labels` entry for them.
+ */
 private fun prettyVacuumLabel(s: String): String =
     s.split('_').joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
 

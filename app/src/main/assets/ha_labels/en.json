@@ -1,6 +1,56 @@
+
 {
-  "hvac_mode": { "off": "Off", "heat": "Heat", "cool": "Cool", "heat_cool": "Auto", "auto": "Auto", "dry": "Dry", "fan_only": "Fan" },
-  "fan_mode": { "auto": "Auto", "low": "Low", "medium": "Medium", "high": "High", "silent": "Silent", "turbo": "Turbo" },
-  "weather_condition": { "clear-night": "Clear night", "cloudy": "Cloudy", "partlycloudy": "Partly cloudy", "sunny": "Sunny", "rainy": "Rainy", "pouring": "Heavy rain", "snowy": "Snowy", "windy": "Windy", "fog": "Fog", "lightning": "Lightning" },
-  "vacuum_state": { "cleaning": "Cleaning", "docked": "Docked", "idle": "Idle", "paused": "Paused", "returning": "Returning to dock", "error": "Error" }
+  "hvac_mode": {
+    "off": "Off",
+    "heat": "Heat",
+    "cool": "Cool",
+    "heat_cool": "Auto",
+    "auto": "Auto",
+    "dry": "Dry",
+    "fan_only": "Fan"
+  },
+  "fan_mode": {
+    "auto": "Auto",
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "silent": "Silent",
+    "quiet": "Silent",
+    "turbo": "Turbo"
+  },
+  "weather_condition": {
+    "clear-night": "Clear night",
+    "clear": "Clear",
+    "cloudy": "Cloudy",
+    "partlycloudy": "Partly cloudy",
+    "sunny": "Sunny",
+    "rainy": "Rainy",
+    "pouring": "Heavy rain",
+    "snowy": "Snowy",
+    "snowy-rainy": "Snow and rain",
+    "windy": "Windy",
+    "windy-variant": "Windy",
+    "fog": "Fog",
+    "lightning": "Lightning",
+    "lightning-rainy": "Lightning with rain",
+    "hail": "Hail",
+    "exceptional": "Exceptional"
+  },
+  "swing_mode": {
+    "off": "Off",
+    "on": "On",
+    "both": "Both",
+    "vertical": "Vertical",
+    "horizontal": "Horizontal",
+    "stop": "Off",
+    "swing": "On"
+  },
+  "vacuum_state": {
+    "cleaning": "Cleaning",
+    "docked": "Docked",
+    "idle": "Idle",
+    "paused": "Paused",
+    "returning": "Returning to dock",
+    "error": "Error"
+  }
 }
