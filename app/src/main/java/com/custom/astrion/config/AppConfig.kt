@@ -17,6 +17,10 @@ data class AppConfig(
     val hotkeys: List<HotkeyConfig> = emptyList(),
     /** Long-press (~500ms hold) button bindings — same shape as hotkeys. */
     val longHotkeys: List<HotkeyConfig> = emptyList(),
+    /** Named local IR sequences, sent directly through the device's own IR
+     * blaster (ConsumerIrManager) — no Harmony hub or network needed.
+     * Referenced by id from a scene_grid item's `irActivity` field. */
+    val irActivities: List<IrActivityConfig> = emptyList(),
 )
 
 /**
@@ -64,3 +68,29 @@ data class HotkeyConfig(
     val isHarmonyCommand: Boolean get() = !harmonyDevice.isNullOrBlank() && !harmonyCommand.isNullOrBlank()
     val isHarmonyActivity: Boolean get() = !harmonyActivity.isNullOrBlank()
 }
+
+/**
+ * A named sequence of raw IR sends, executed locally through the device's
+ * built-in IR blaster — the offline, no-hub equivalent of a Harmony
+ * Activity. Resolved and stored fully-formed (freq + pattern already
+ * decoded from Pronto Hex) by the web builder; the app never parses a
+ * protocol or touches `docs/ir-database/` itself.
+ */
+@Suppress("Unused")
+data class IrActivityConfig(
+    val id: String,
+    val name: String = id,
+    val steps: List<IrStepConfig>,
+)
+
+/** One IR transmission: `freq` (Hz) + `pattern` (alternating on/off
+ * durations in µs) map straight onto `ConsumerIrManager.transmit()`.
+ * `delayAfterMs` waits before the *next* step fires (ignored on the last
+ * step) — gives the target device time to process before the next command,
+ * e.g. TV power-on before the input-source command that follows it. */
+@Suppress("Unused")
+data class IrStepConfig(
+    val freq: Int,
+    val pattern: List<Int>,
+    val delayAfterMs: Int = 0,
+)

@@ -6,8 +6,10 @@ import com.custom.astrion.cards.CardConfig
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -92,7 +94,8 @@ object DashboardLoader {
                 val start = root["startPage"]?.jsonPrimitive?.intOrNull ?: 0
                 val hotkeys = root["hotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
                 val longHotkeys = root["longHotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
-                AppConfig(pages, start.coerceIn(0, pages.size - 1), hotkeys, longHotkeys)
+                val irActivities = root["irActivities"]?.jsonArray?.map { parseIrActivity(it.jsonObject) } ?: emptyList()
+                AppConfig(pages, start.coerceIn(0, pages.size - 1), hotkeys, longHotkeys, irActivities)
             }
             else -> error("top level must be an object or array")
         }
@@ -119,6 +122,24 @@ object DashboardLoader {
         val harmonyCommand = obj["harmonyCommand"]?.jsonPrimitive?.content
         val harmonyActivity = obj["harmonyActivity"]?.jsonPrimitive?.content
         return HotkeyConfig(key, page, service, entityId, data, harmonyDevice, harmonyCommand, harmonyActivity)
+    }
+
+    private fun parseIrActivity(obj: JsonObject): IrActivityConfig {
+        val id = obj["id"]?.jsonPrimitive?.content ?: error("irActivity missing \"id\"")
+        val name = obj["name"]?.jsonPrimitive?.content ?: id
+        val steps = obj["steps"]?.jsonArray?.map { parseIrStep(it.jsonObject) }
+            ?: error("irActivity \"$id\" missing \"steps\"")
+        if (steps.isEmpty()) error("irActivity \"$id\" has an empty \"steps\" list")
+        return IrActivityConfig(id, name, steps)
+    }
+
+    private fun parseIrStep(obj: JsonObject): IrStepConfig {
+        val freq = obj["freq"]?.jsonPrimitive?.intOrNull ?: error("IR step missing \"freq\"")
+        val pattern = obj["pattern"]?.jsonArray?.map { it.jsonPrimitive.int }
+            ?: error("IR step missing \"pattern\"")
+        if (pattern.isEmpty()) error("IR step has an empty \"pattern\"")
+        val delayAfterMs = obj["delayAfterMs"]?.jsonPrimitive?.intOrNull ?: 0
+        return IrStepConfig(freq, pattern, delayAfterMs)
     }
 
     // ---- serialize defaults -------------------------------------------------
@@ -154,6 +175,25 @@ object DashboardLoader {
         })
         put("hotkeys", encodeHotkeys(cfg.hotkeys))
         put("longHotkeys", encodeHotkeys(cfg.longHotkeys))
+        if (cfg.irActivities.isNotEmpty()) {
+            put("irActivities", buildJsonArray {
+                cfg.irActivities.forEach { activity ->
+                    add(buildJsonObject {
+                        put("id", activity.id)
+                        put("name", activity.name)
+                        put("steps", buildJsonArray {
+                            activity.steps.forEach { step ->
+                                add(buildJsonObject {
+                                    put("freq", step.freq)
+                                    put("pattern", buildJsonArray { step.pattern.forEach { add(JsonPrimitive(it)) } })
+                                    if (step.delayAfterMs != 0) put("delayAfterMs", step.delayAfterMs)
+                                })
+                            }
+                        })
+                    })
+                }
+            })
+        }
     }
 
     private fun encodeHotkeys(hotkeys: List<HotkeyConfig>) = buildJsonArray {

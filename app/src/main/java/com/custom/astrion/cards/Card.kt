@@ -1,6 +1,7 @@
 package com.custom.astrion.cards
 
 import androidx.compose.runtime.Composable
+import com.custom.astrion.config.IrActivityConfig
 import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.HaClient
 
@@ -50,6 +51,10 @@ class CardContext(
     /** Live connection state of the direct Harmony hub link — for a status
      * indicator on the settings page (HA's own state is on ctx.client.connection). */
     val harmonyConnected: Boolean = false,
+    /** Local IR activities (id -> config), resolved once from AppConfig.irActivities.
+     * Used by scene_grid items with an `irActivity` field to send a sequence
+     * of raw IR commands directly through the device's own blaster. */
+    val irActivities: Map<String, IrActivityConfig> = emptyMap(),
 )
 
 /**

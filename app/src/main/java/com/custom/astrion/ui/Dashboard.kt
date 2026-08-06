@@ -119,6 +119,7 @@ fun Dashboard(
         wakeOnMotionEnabled = wakeOnMotionEnabled,
         setWakeOnMotionEnabled = setWakeOnMotionEnabled,
         harmonyConnected = harmonyConnected,
+        irActivities = remember(config.irActivities) { config.irActivities.associateBy { it.id } },
     )
 
     // Hardware-button navigation: animate to the requested page, then clear it.

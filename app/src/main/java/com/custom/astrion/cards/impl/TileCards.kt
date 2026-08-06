@@ -22,12 +22,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.astrion.R
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
 
 /**
@@ -91,11 +94,40 @@ class CoverCard : CardRenderer {
 }
 
 /**
- * Fan card: toggle tile with a percentage readout and up/down speed steppers.
+ * Fan card. Two layouts, auto-picked from what the entity actually reports
+ * (or forced via the `style` option):
  *
- * Uses fan.toggle and fan.set_percentage.
+ * - **simple** (default when the entity has neither `preset_modes` nor
+ *   `oscillating`): the original compact single-row tile — tap to toggle,
+ *   chevrons step `percentage` up/down. Unchanged behavior for plain
+ *   percentage-only fans.
+ * - **full** (auto-picked when the entity reports `preset_modes` and/or an
+ *   `oscillating` attribute — e.g. many Xiaomi/Smart-Fan integrations, which
+ *   drive speed via named presets like "Level 1".."Level 4" rather than a
+ *   0-100 percentage): a bigger card with a dedicated power button, preset
+ *   chips (or a percentage stepper if there are no presets), and an
+ *   oscillate on/off toggle.
  *
- * Config: CardConfig("fan", mapOf("entity_id" to "fan.bedroom", "step" to 20))
+ * Uses fan.toggle, fan.set_percentage, fan.set_preset_mode, and fan.oscillate.
+ *
+ * Config shape:
+ * ```json
+ * {
+ *   "type": "fan",
+ *   "options": {
+ *     "entity_id": "fan.mi_smart_standing_fan_2",
+ *     "name": "Standing fan",
+ *     "style": "auto",
+ *     "preset_modes": ["Level 1", "Level 2", "Level 3", "Level 4"],
+ *     "step": 20
+ *   }
+ * }
+ * ```
+ * `style` — `"auto"` (default), `"simple"`, or `"full"`. `preset_modes` is an
+ * optional override (order respected), same pattern as `ClimateCard`'s
+ * `fan_modes`/`swing_modes`: normally read straight from the entity so it
+ * always matches what the device actually supports. `"off"` is always
+ * excluded from the preset chips — the card's own power button covers it.
  */
 class FanCard : CardRenderer {
     override val type = "fan"
@@ -106,37 +138,200 @@ class FanCard : CardRenderer {
         val e = ctx.entities[entityId]
         val name = config.string("name") ?: e?.friendlyName ?: entityId
         val on = e?.isOn == true
-        val pct = e?.attrInt("percentage") ?: 0
-        val step = config.int("step", 20).coerceAtLeast(1)
+        val percentage = e?.attrInt("percentage")
+        val step = (config.options["step"] as? Number)?.toInt()
+            ?: e?.attrInt("percentage_step")
+            ?: 20
+        val presetModes = config.stringList("preset_modes")
+            .ifEmpty { e?.attrStringList("preset_modes").orEmpty() }
+            .filter { !it.equals("off", ignoreCase = true) }
+        val presetMode = e?.attrString("preset_mode")
+        // Presence of the attribute (not its value) is what indicates support —
+        // a fan that can't oscillate simply doesn't report this attribute at all.
+        val oscillateSupported = e?.attr("oscillating") != null
+        val oscillating = e?.attrBoolean("oscillating") == true
 
-        fun setPct(p: Int) {
-            ctx.client.callService(
-                ServiceCall.of("fan", "set_percentage", entityId, "percentage" to p.coerceIn(0, 100))
-            )
+        val styleOpt = config.string("style")
+        val useFull = styleOpt == "full" || (styleOpt != "simple" && (presetModes.isNotEmpty() || oscillateSupported))
+        val showCaptions = config.options["show_captions"] as? Boolean ?: true
+
+        fun setPercentage(p: Int) = ctx.client.callService(
+            ServiceCall.of("fan", "set_percentage", entityId, "percentage" to p.coerceIn(0, 100))
+        )
+        fun setPreset(m: String) = ctx.client.callService(
+            ServiceCall.of("fan", "set_preset_mode", entityId, "preset_mode" to m)
+        )
+        fun setOscillate(v: Boolean) = ctx.client.callService(
+            ServiceCall.of("fan", "oscillate", entityId, "oscillating" to v)
+        )
+
+        if (!useFull) {
+            val pct = percentage ?: 0
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(if (on) Color(0xFF2B3A67) else Color(0xFF1E3841))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { ctx.client.toggle(entityId) }
+                ) {
+                    Text(name, color = Color(0xFFE6F0F1), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (on) "$pct%" else stringResource(R.string.state_off),
+                        color = Color(0xFF93AFB6),
+                        fontSize = 13.sp,
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircleBtn(Icons.Filled.KeyboardArrowDown) { setPercentage(pct - step) }
+                    CircleBtn(Icons.Filled.KeyboardArrowUp) { setPercentage(pct + step) }
+                }
+            }
+            return
         }
 
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(if (on) Color(0xFF2B3A67) else Color(0xFF1E3841))
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF1B343D))
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { ctx.client.toggle(entityId) }
+            // Header: name + a dedicated power button (mirrors ClimateCard).
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(name, color = Color(0xFFE6F0F1), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                Text(if (on) "$pct%" else "Off", color = Color(0xFF93AFB6), fontSize = 13.sp)
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(if (on) Color(0xFF1E3A2E) else Color(0xFF3A2E2E))
+                        .clickable { ctx.client.toggle(entityId) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.PowerSettingsNew,
+                        contentDescription = "Power",
+                        tint = if (on) Color(0xFF9BE7C4) else Color(0xFFE06767),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CircleBtn(Icons.Filled.KeyboardArrowDown) { setPct(pct - step) }
-                CircleBtn(Icons.Filled.KeyboardArrowUp) { setPct(pct + step) }
+
+            // Speed: preset chips if the entity has named presets, else a
+            // plain percentage stepper (same control as simple mode).
+            if (presetModes.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (showCaptions) {
+                        Text(
+                            stringResource(R.string.fan_preset_caption),
+                            color = Color(0xFF6D8891),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        balancedChunks(presetModes, maxPerRow = 4).forEach { row ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                row.forEach { m ->
+                                    FanChip(
+                                        label = m,
+                                        selected = on && presetMode?.equals(m, ignoreCase = true) == true,
+                                        modifier = Modifier.weight(1f),
+                                    ) { setPreset(m) }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (percentage != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircleBtn(Icons.Filled.KeyboardArrowDown) { setPercentage(percentage - step) }
+                    Text(
+                        "$percentage%",
+                        color = Color(0xFFE6F0F1),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    CircleBtn(Icons.Filled.KeyboardArrowUp) { setPercentage(percentage + step) }
+                }
+            }
+
+            // Oscillate toggle.
+            if (oscillateSupported) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (showCaptions) {
+                        Text(
+                            stringResource(R.string.fan_oscillate_caption),
+                            color = Color(0xFF6D8891),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                    FanChip(
+                        // Reuses ClimateCard's swing_mode "on"/"off" translation —
+                        // same concept (oscillation on/off), no need for a second key.
+                        label = HaLabels.swingMode(if (oscillating) "on" else "off"),
+                        selected = oscillating,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { setOscillate(!oscillating) }
+                }
             }
         }
     }
+}
+
+/** Small text-only chip, shared by [FanCard]'s preset and oscillate rows. */
+@Composable
+private fun FanChip(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .height(34.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) Color(0xFF4C6EF5) else Color(0xFF23414B))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            color = if (selected) Color.White else Color(0xFF93AFB6),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+/**
+ * Split [items] into rows of at most [maxPerRow], balanced (e.g. 5 items @
+ * max 4 -> 3+2, not a lopsided 4+1). Shared by [FanCard]; [ClimateCard] has
+ * its own private copy of the same logic.
+ */
+private fun <T> balancedChunks(items: List<T>, maxPerRow: Int): List<List<T>> {
+    if (items.isEmpty()) return emptyList()
+    val rows = (items.size + maxPerRow - 1) / maxPerRow
+    val perRow = (items.size + rows - 1) / rows
+    return items.chunked(perRow)
 }
 
 /**
@@ -179,7 +374,11 @@ class SwitchCard : CardRenderer {
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(name, color = Color(0xFFE6F0F1), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text(if (on) "On" else "Off", color = Color(0xFF93AFB6), fontSize = 13.sp)
+                Text(
+                    if (on) stringResource(R.string.state_on) else stringResource(R.string.state_off),
+                    color = Color(0xFF93AFB6),
+                    fontSize = 13.sp,
+                )
             }
         }
     }

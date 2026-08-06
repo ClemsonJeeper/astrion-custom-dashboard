@@ -1,0 +1,23 @@
+{
+  "category": "Audio",
+  "brands": [
+    {
+      "brand_name": "Samsung",
+      "models": [
+        {
+          "model_name": "HW-M550",
+          "commands": {
+            "power_toggle": {
+              "label": "",
+              "pronto": "",
+              "pronto_repeat": "",
+              "meta": {
+                "source": ""
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

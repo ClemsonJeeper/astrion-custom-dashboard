@@ -3,6 +3,40 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] - 2026-08-06
+
+### Added
+
+- `FanCard`: new `full` style (auto-picked when the entity reports `preset_modes` and/or an `oscillating` attribute), mirroring `ClimateCard`'s layout from 0.3.0 — a dedicated power button, preset-mode chips (or a percentage stepper for percentage-only fans), and an oscillate on/off toggle.
+- `FanCard`: `preset_modes` config override, mirroring `ClimateCard`'s `fan_modes`/`swing_modes` overrides — reorders or restricts the preset chips shown, in the order given, instead of always reading the entity's raw attribute order. `"off"` is always excluded from the chips since the card's own power button covers it.
+- `FanCard`: oscillate toggle chip, reusing `HaLabels.swingMode()`'s existing on/off translation for its label (new `fan_oscillate_caption` / `fan_preset_caption` string resources, English and French).
+- `FanCard`: `style` config option (`"auto"` (default), `"simple"`, `"full"`), same pattern as `ClimateCard`.
+- `SceneGridCard`: scene tiles now render an optional PNG `icon`, loaded the same way as `ButtonGridCard`'s `icon` field — previously accepted in `dashboard.json` but silently ignored. Tiles switch to an icon-above-label layout when one is set.
+- `docs/index.html`: `scene_grid` form gained `color` and Harmony `activityId` fields, previously only settable by hand-editing `dashboard.json`.
+- `docs/index.html`: the preview pane now renders dashboard content inside an image of the physical remote (`remote.png`), sized to the real HA100 screen resolution (480×800), with a mocked status bar (Wi-Fi / time / battery) so the space it takes up on-device is accounted for. Tapping the screen expands it into a larger modal for easier editing.
+- `SceneGridCard`: `show_labels` config option — when `false`, tiles show the icon only, no name text underneath.
+- `ClimateCard` / `FanCard`: `show_captions` config option — when `false`, hides the "Mode"/"Fan"/"Swing" (climate) or "Preset"/"Oscillate" (fan) labels above their chip rows.
+- `docs/index.html`: forms for `climate`, `fan`, and `scene_grid` gained checkboxes for the new `show_captions`/`show_labels` options above, including in the preview mock for climate/fan.
+- **IR Activities**: named sequences of raw IR sends, executed locally through the device's own IR blaster (`ConsumerIrManager`) — no Harmony hub or Home Assistant required, for setups without one.
+  - `AppConfig`: new `irActivities` list (`IrActivityConfig`/`IrStepConfig` — id/name/steps, each step a `freq`/`pattern`/optional `delayAfterMs`), parsed from `dashboard.json`'s new `"irActivities"` array.
+  - `CardContext`: exposes `irActivities` (by id) to cards.
+  - `SceneGridCard`: new `irActivity` scene action (alongside `entity_id`/`activityId`/`page`) — runs the named activity's steps in order on the card's own coroutine scope, waiting `delayAfterMs` between steps.
+  - `docs/ir-database/`: community-contributed device codes (`index.json` category manifest + one JSON file per category, e.g. `tv.json`), keyed by category → brand → model → command, storing each command as Pronto Hex (universal raw IR timing, protocol-agnostic — works for NEC, JVC, Sony, etc. via one decoder instead of one per protocol).
+  - `docs/index.html`: new "IR Activities" section — cascading Category → Brand → Model → Command pickers (loaded from `ir-database/`), per-step delay, and a Pronto → `freq`/`pattern` decoder that resolves each step at build time, so `dashboard.json` ships fully-resolved steps and the app never needs to parse a protocol or ship the database itself. `scene_grid` items gained an "IR activity" picker alongside their existing action fields.
+
+### Changed
+
+- `ClimateCard` / `FanCard`: power buttons now share a consistent color scheme — red when off, green when on — instead of `ClimateCard`'s off-only red accent and `FanCard`'s on-only green accent, so both cards read the same way at a glance.
+- `docs/index.html`: `button_grid`/`scene_grid` items in the editor list can now be clicked to edit them in place, instead of only add/remove.
+- `docs/index.html`: the small in-frame preview no longer shows the card type label, edit/remove icons, or `hint` text (entity id, "example data", etc.) — only the expanded modal does — since none of that renders on the real device.
+- `docs/index.html`: split the single ~1400-line file into `styles.css` + `js/{mocks,pages,cards,hotkeys,ir,export,preview}.js`, matching the section comments that were already there. Same behavior, just easier to find and edit a given piece — and `docs/js/` now needs to be deployed alongside `index.html`, not just the one file.
+
+### Fixed
+
+- Wi-Fi sometimes failed to reactivate after a restart, requiring a manual trip into Android's system settings. Added a `WifiBootReceiver` (`BOOT_COMPLETED`) that re-enables Wi-Fi automatically at startup if it isn't already on, with the `ACCESS_WIFI_STATE`/`CHANGE_WIFI_STATE` permissions it needs to read and change the radio state.
+- `docs/index.html`: `button_grid`/`scene_grid` cards with more columns than fit the small in-frame preview width caused a horizontal scrollbar; grid columns now shrink to fit instead.
+- `SceneGridCard`: tile height (icon vs. text-only) was decided per-tile, so a grid mixing scenes with and without an `icon` rendered uneven row heights. It's now decided once for the whole grid — every tile matches as soon as any one of them has an icon.
+
 ## [0.3.0] - 2026-08-04
 
 ### Added

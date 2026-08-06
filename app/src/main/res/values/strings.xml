@@ -41,4 +41,9 @@
     <string name="climate_hvac_caption">Mode</string>
     <string name="climate_fan_caption">Fan</string>
     <string name="climate_swing_caption">Swing</string>
+    <!-- TileCard -->
+    <string name="fan_preset_caption">Preset</string>
+    <string name="fan_oscillate_caption">Oscillate</string>
+    <string name="state_on">On</string>
+    <string name="state_off">Off</string>
 </resources>

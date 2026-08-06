@@ -1,6 +1,9 @@
 <!-- markdownlint-disable-next-line MD033 -->
 # <img src="docs/app-icon.svg" width="48" align="center" alt="Astrion Custom Icon"> Astrion Custom Dashboard
 
+[![GH-release](https://img.shields.io/github/v/release/dckiller51/astrion-custom-dashboard.svg?style=flat-square)](https://github.com/dckiller51/astrion-custom-dashboard/releases)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Buy_me_a_coffee-F16061?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/dckiller)
+
 A custom Android application for controlling [Home Assistant](https://www.home-assistant.io/) via a dedicated Sanytron Astrion HA100 remote control, developed using Kotlin and Jetpack Compose.
 
 It features a swipe-navigable, full-screen dashboard driven entirely by a JSON configuration file; the display does not rely on the standard Lovelace/HA app, and the application replaces the original HaRemote launcher.
@@ -98,3 +101,11 @@ For now, contributions are welcome specifically for **translations** — see the
 ## Credits
 
 Special thanks to [**@baes-cloud**](https://github.com/baes-cloud/astrion-dashboard) for the original work this project is built on.
+
+---
+
+## ☕ Support
+
+If you find **Astrion Custom Dashboard** useful and want to support its development, you can buy me a coffee!
+
+[![Ko-fi](https://img.shields.io/badge/Buy_me_a_coffee-Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/dckiller)

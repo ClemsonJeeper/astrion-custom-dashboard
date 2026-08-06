@@ -120,6 +120,7 @@ class ClimateCard : CardRenderer {
         val hvacModeIcons = config.string("hvac_mode_style") != "label"
         val fanModeIcons = config.string("fan_mode_style") == "icons"
         val swingModeIcons = config.string("swing_mode_style") == "icons"
+        val showCaptions = config.options["show_captions"] as? Boolean ?: true
 
         fun setTemp(t: Double) {
             val clamped = t.coerceIn(minT ?: t, maxT ?: t)
@@ -207,7 +208,7 @@ class ClimateCard : CardRenderer {
 
             // HVAC mode chips (icons by default, matching HA's tile card; "off" excluded, see above).
             if (modes.isNotEmpty()) {
-                ModeSection(caption = stringResource(R.string.climate_hvac_caption)) {
+                ModeSection(caption = if (showCaptions) stringResource(R.string.climate_hvac_caption) else null) {
                     balancedRows(modes, maxPerRow = if (hvacModeIcons) 5 else 3).forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -228,7 +229,7 @@ class ClimateCard : CardRenderer {
 
             // Fan mode chips
             if (fanModes.isNotEmpty()) {
-                ModeSection(caption = stringResource(R.string.climate_fan_caption)) {
+                ModeSection(caption = if (showCaptions) stringResource(R.string.climate_fan_caption) else null) {
                     balancedRows(fanModes, maxPerRow = if (fanModeIcons) 5 else 3).forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -249,7 +250,7 @@ class ClimateCard : CardRenderer {
 
             // Swing mode chips
             if (swingModes.isNotEmpty()) {
-                ModeSection(caption = stringResource(R.string.climate_swing_caption)) {
+                ModeSection(caption = if (showCaptions) stringResource(R.string.climate_swing_caption) else null) {
                     balancedRows(swingModes, maxPerRow = if (swingModeIcons) 5 else 3).forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -339,14 +340,16 @@ class ClimateCard : CardRenderer {
     }
 
     @Composable
-    private fun ModeSection(caption: String, content: @Composable () -> Unit) {
+    private fun ModeSection(caption: String?, content: @Composable () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                caption,
-                color = Color(0xFF6D8891),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-            )
+            if (caption != null) {
+                Text(
+                    caption,
+                    color = Color(0xFF6D8891),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 content()
             }
