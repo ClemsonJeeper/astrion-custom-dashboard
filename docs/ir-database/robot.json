@@ -1,23 +1,4 @@
 {
   "category": "Robot",
-  "brands": [
-    {
-      "brand_name": "",
-      "models": [
-        {
-          "model_name": "",
-          "commands": {
-            "power_toggle": {
-              "label": "",
-              "pronto": "",
-              "pronto_repeat": "",
-              "meta": {
-                "source": ""
-              }
-            }
-          }
-        }
-      ]
-    }
-  ]
+  "brands": []
 }

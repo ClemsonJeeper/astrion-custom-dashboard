@@ -9,6 +9,6 @@
     { "id": "plug", "label": "Plug", "file": "plug.json" },
     { "id": "robot", "label": "Robot", "file": "robot.json" },
     { "id": "set-top-box", "label": "Set-Top Box", "file": "set-top-box.json" },
-        { "id": "tv", "label": "TV", "file": "tv.json" }
+    { "id": "tv", "label": "TV", "file": "tv.json" }
   ]
 }
