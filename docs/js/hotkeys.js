@@ -12,12 +12,20 @@ function updateHotkeyActionInputs() {
       <label>Extra data (optional, JSON)</label><input type="text" id="hkData" placeholder='{"brightness": 255}'>
     `;
   } else if (action === 'harmonyCommand') {
-    container.innerHTML = `
-      <label>Harmony device ID</label><input type="text" id="hkDevice" placeholder="e.g., 62845789">
-      <label>Harmony command</label><input type="text" id="hkCommand" placeholder="e.g., VolumeUp">
-    `;
+    if (harmonyAvailable) {
+      renderHarmonyHubSelect(container, 'command', 'hk');
+    } else {
+      container.innerHTML = `
+        <label>Harmony device ID</label><input type="text" id="hkDevice" placeholder="e.g., 62845789">
+        <label>Harmony command</label><input type="text" id="hkCommand" placeholder="e.g., VolumeUp">
+      `;
+    }
   } else if (action === 'harmonyActivity') {
-    container.innerHTML = `<label>Harmony activity ID</label><input type="text" id="hkActivityId" placeholder="e.g., 12345678 (or -1 for Power Off)">`;
+    if (harmonyAvailable) {
+      renderHarmonyHubSelect(container, 'activity', 'hk');
+    } else {
+      container.innerHTML = `<label>Harmony activity ID</label><input type="text" id="hkActivityId" placeholder="e.g., 12345678 (or -1 for Power Off)">`;
+    }
   }
 }
 
@@ -58,7 +66,7 @@ function renderHotkeysList() {
   if (!container.innerHTML.trim()) container.innerHTML = '<div class="hint">No hotkeys yet.</div>';
 }
 
-function editHotkey(scope, listType, i) {
+async function editHotkey(scope, listType, i) {
   const target = scope === 'global' ? dashboardData : dashboardData.pages[currentActivePage];
   const h = target[listType][i];
   editingHotkey = { scope, listType, i };
@@ -77,10 +85,26 @@ function editHotkey(scope, listType, i) {
     document.getElementById('hkEntityId').value = h.entityId || '';
     document.getElementById('hkData').value = h.data ? JSON.stringify(h.data) : '';
   } else if (action === 'harmonyCommand') {
-    document.getElementById('hkDevice').value = h.harmonyDevice || '';
-    document.getElementById('hkCommand').value = h.harmonyCommand || '';
+    if (harmonyAvailable) {
+      const hubId = h.hub || (harmonyHubsList[0] && harmonyHubsList[0].localId) || '';
+      document.getElementById('hkHub').value = hubId;
+      await onHarmonyHubChange('command', 'hk');
+      document.getElementById('hkDeviceSelect').value = h.harmonyDevice || '';
+      onHarmonyDeviceChange('hk');
+      document.getElementById('hkCommandSelect').value = h.harmonyCommand || '';
+    } else {
+      document.getElementById('hkDevice').value = h.harmonyDevice || '';
+      document.getElementById('hkCommand').value = h.harmonyCommand || '';
+    }
   } else if (action === 'harmonyActivity') {
-    document.getElementById('hkActivityId').value = h.harmonyActivity || '';
+    if (harmonyAvailable) {
+      const hubId = h.hub || (harmonyHubsList[0] && harmonyHubsList[0].localId) || '';
+      document.getElementById('hkHub').value = hubId;
+      await onHarmonyHubChange('activity', 'hk');
+      document.getElementById('hkActivitySelect').value = h.harmonyActivity || '';
+    } else {
+      document.getElementById('hkActivityId').value = h.harmonyActivity || '';
+    }
   }
 
   document.getElementById('addHotkeyBtn').innerText = 'Save changes';
@@ -120,10 +144,28 @@ function addHotkey() {
       try { hkObj.data = JSON.parse(rawData); } catch (e) { alert('Extra data must be valid JSON'); return; }
     }
   } else if (action === 'harmonyCommand') {
-    hkObj.harmonyDevice = document.getElementById('hkDevice').value.trim();
-    hkObj.harmonyCommand = document.getElementById('hkCommand').value.trim();
+    if (harmonyAvailable) {
+      const hub = document.getElementById('hkHub').value.trim();
+      const device = document.getElementById('hkDeviceSelect').value.trim();
+      const command = document.getElementById('hkCommandSelect').value.trim();
+      if (!hub || !device || !command) { alert('Pick a hub, a device, and a command.'); return; }
+      hkObj.hub = hub;
+      hkObj.harmonyDevice = device;
+      hkObj.harmonyCommand = command;
+    } else {
+      hkObj.harmonyDevice = document.getElementById('hkDevice').value.trim();
+      hkObj.harmonyCommand = document.getElementById('hkCommand').value.trim();
+    }
   } else if (action === 'harmonyActivity') {
-    hkObj.harmonyActivity = document.getElementById('hkActivityId').value.trim();
+    if (harmonyAvailable) {
+      const hub = document.getElementById('hkHub').value.trim();
+      const activityId = document.getElementById('hkActivitySelect').value.trim();
+      if (!hub || !activityId) { alert('Pick a hub and an activity.'); return; }
+      hkObj.hub = hub;
+      hkObj.harmonyActivity = activityId;
+    } else {
+      hkObj.harmonyActivity = document.getElementById('hkActivityId').value.trim();
+    }
   }
 
   if (editingHotkey) {
@@ -138,4 +180,3 @@ function addHotkey() {
 
   renderHotkeysList(); renderPreview(); updateJsonOutput();
 }
-

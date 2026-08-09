@@ -67,7 +67,13 @@ function updateCardFormInputs() {
         ` : `
           <label>Entity ID (activates a scene/script) — OR —</label><input type="text" id="giEntityId" placeholder="e.g., scene.night">
           <label>Page to open instead — OR —</label><input type="text" id="giPage" placeholder="e.g., Apple TV">
-          <label>Harmony activity ID (triggers directly on the hub) — OR —</label><input type="text" id="giActivityId" placeholder="e.g., 39568252 (or -1 for Off)">
+          <label>Harmony action (optional) — OR —</label>
+          <select id="giHarmonyMode" onchange="onGiHarmonyModeChange()">
+            <option value="">— none —</option>
+            <option value="activity">Activity</option>
+            <option value="command">Device command</option>
+          </select>
+          <div id="giHarmonyPicker"></div>
           <label>IR activity (sends locally, no hub needed) — OR —</label>
           <select id="giIrActivity">
             <option value="">— none —</option>
@@ -85,7 +91,8 @@ function updateCardFormInputs() {
     window._pendingGridItems = window._pendingGridItems || [];
     renderGridItemsList(type);
   } else if (type === 'apple_tv_remote') {
-    container.innerHTML = `<label>Device ID (Harmony)</label><input type="text" id="optDeviceId" placeholder="e.g., 62846050">`;
+    container.innerHTML = `<div id="atvHarmonyPicker"></div>`;
+    renderAppleTvHarmonyFields();
   } else if (type === 'tv_remote') {
     container.innerHTML = `
       <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room TV">
@@ -135,6 +142,44 @@ function updateCardFormInputs() {
 
 let editingGridItem = null; // index of the button/scene being edited within _pendingGridItems, or null
 
+function renderAppleTvHarmonyFields() {
+  const container = document.getElementById('atvHarmonyPicker');
+  if (!container) return;
+  if (harmonyAvailable) {
+    renderHarmonyHubSelect(container, 'device', 'atv');
+  } else {
+    container.innerHTML = `<label>Device ID (Harmony)</label><input type="text" id="optDeviceId" placeholder="e.g., 62846050">`;
+  }
+}
+
+async function fillAppleTvHarmonyFields(o) {
+  renderAppleTvHarmonyFields();
+  if (harmonyAvailable) {
+    const hubId = o.hub || (harmonyHubsList[0] && harmonyHubsList[0].localId) || '';
+    document.getElementById('atvHub').value = hubId;
+    await onHarmonyHubChange('device', 'atv');
+    document.getElementById('atvDeviceSelect').value = o.deviceId || '';
+  } else {
+    document.getElementById('optDeviceId').value = o.deviceId || '';
+  }
+}
+
+function onGiHarmonyModeChange() {
+  const mode = document.getElementById('giHarmonyMode').value;
+  const container = document.getElementById('giHarmonyPicker');
+  if (!mode) { container.innerHTML = ''; return; }
+  if (harmonyAvailable) {
+    renderHarmonyHubSelect(container, mode, 'gi');
+  } else if (mode === 'activity') {
+    container.innerHTML = `<label>Harmony activity ID</label><input type="text" id="giActivityId" placeholder="e.g., 39568252 (or -1 for Off)">`;
+  } else {
+    container.innerHTML = `
+      <label>Harmony device ID</label><input type="text" id="giHarmonyDevice" placeholder="e.g., 62845789">
+      <label>Harmony command</label><input type="text" id="giHarmonyCommand" placeholder="e.g., VolumeUp">
+    `;
+  }
+}
+
 function renderGridItemsList(type) {
   const list = document.getElementById('gridItemsList');
   if (!list) return;
@@ -147,6 +192,32 @@ function renderGridItemsList(type) {
   });
 }
 
+async function fillGiHarmonySection(item) {
+  const modeSel = document.getElementById('giHarmonyMode');
+  if (!modeSel) return; // button_grid form has no Harmony section
+  const mode = item.activityId ? 'activity' : (item.harmonyDevice && item.harmonyCommand) ? 'command' : '';
+  modeSel.value = mode;
+  onGiHarmonyModeChange();
+  if (!mode) return;
+  if (harmonyAvailable) {
+    const hubId = item.hub || (harmonyHubsList[0] && harmonyHubsList[0].localId) || '';
+    document.getElementById('giHub').value = hubId;
+    await onHarmonyHubChange(mode, 'gi');
+    if (mode === 'activity') {
+      document.getElementById('giActivitySelect').value = item.activityId || '';
+    } else {
+      document.getElementById('giDeviceSelect').value = item.harmonyDevice || '';
+      onHarmonyDeviceChange('gi');
+      document.getElementById('giCommandSelect').value = item.harmonyCommand || '';
+    }
+  } else if (mode === 'activity') {
+    document.getElementById('giActivityId').value = item.activityId || '';
+  } else {
+    document.getElementById('giHarmonyDevice').value = item.harmonyDevice || '';
+    document.getElementById('giHarmonyCommand').value = item.harmonyCommand || '';
+  }
+}
+
 function fillGridItemForm(type, item) {
   document.getElementById('giName').value = item.name || '';
   document.getElementById('giIcon').value = item.icon || '';
@@ -157,16 +228,43 @@ function fillGridItemForm(type, item) {
   } else {
     document.getElementById('giEntityId').value = item.entity_id || '';
     document.getElementById('giPage').value = item.page || '';
-    document.getElementById('giActivityId').value = item.activityId || '';
     const irSel = document.getElementById('giIrActivity');
     if (irSel) irSel.value = item.irActivity || '';
     document.getElementById('giColor').value = item.color || '';
   }
 }
 
-function editGridItem(type, i) {
+async function fillGiHarmonySection(item) {
+  const modeSel = document.getElementById('giHarmonyMode');
+  if (!modeSel) return; // button_grid form has no Harmony section
+  const mode = item.activityId ? 'activity' : (item.harmonyDevice && item.harmonyCommand) ? 'command' : '';
+  modeSel.value = mode;
+  onGiHarmonyModeChange();
+  if (!mode) return;
+  if (harmonyAvailable) {
+    const hubId = item.hub || (harmonyHubsList[0] && harmonyHubsList[0].localId) || '';
+    document.getElementById('giHub').value = hubId;
+    await onHarmonyHubChange(mode, 'gi');
+    if (mode === 'activity') {
+      document.getElementById('giActivitySelect').value = item.activityId || '';
+    } else {
+      document.getElementById('giDeviceSelect').value = item.harmonyDevice || '';
+      onHarmonyDeviceChange('gi');
+      document.getElementById('giCommandSelect').value = item.harmonyCommand || '';
+    }
+  } else if (mode === 'activity') {
+    document.getElementById('giActivityId').value = item.activityId || '';
+  } else {
+    document.getElementById('giHarmonyDevice').value = item.harmonyDevice || '';
+    document.getElementById('giHarmonyCommand').value = item.harmonyCommand || '';
+  }
+}
+
+async function editGridItem(type, i) {
   editingGridItem = i;
-  fillGridItemForm(type, window._pendingGridItems[i]);
+  const item = window._pendingGridItems[i];
+  fillGridItemForm(type, item);
+  if (type !== 'button_grid') await fillGiHarmonySection(item);
   document.getElementById('giSubmitBtn').textContent = `Save ${type === 'button_grid' ? 'button' : 'scene'}`;
   document.getElementById('giCancelBtn').style.display = '';
 }
@@ -175,10 +273,12 @@ function cancelGridItemEdit() {
   editingGridItem = null;
   document.getElementById('giName').value = '';
   document.getElementById('giIcon').value = '';
-  ['giService', 'giEntityId', 'giData', 'giPage', 'giActivityId', 'giIrActivity', 'giColor'].forEach(id => {
+  ['giService', 'giEntityId', 'giData', 'giPage', 'giIrActivity', 'giColor'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  const harmonyModeSel = document.getElementById('giHarmonyMode');
+  if (harmonyModeSel) { harmonyModeSel.value = ''; onGiHarmonyModeChange(); }
   const btn = document.getElementById('giSubmitBtn');
   if (btn) btn.textContent = btn.textContent.replace(/^Save/, '+ Add');
   document.getElementById('giCancelBtn').style.display = 'none';
@@ -200,14 +300,39 @@ function addGridItem(type) {
   } else {
     const entityId = document.getElementById('giEntityId').value.trim();
     const page = document.getElementById('giPage').value.trim();
-    const activityId = document.getElementById('giActivityId').value.trim();
     const irActivity = document.getElementById('giIrActivity')?.value || '';
     const color = document.getElementById('giColor').value.trim();
     if (entityId) item.entity_id = entityId;
     if (page) item.page = page;
-    if (activityId) item.activityId = activityId;
     if (irActivity) item.irActivity = irActivity;
     if (color) item.color = color;
+
+    const harmonyMode = document.getElementById('giHarmonyMode')?.value || '';
+    if (harmonyMode === 'activity') {
+      if (harmonyAvailable) {
+        const hub = document.getElementById('giHub').value.trim();
+        const activityId = document.getElementById('giActivitySelect').value.trim();
+        if (!hub || !activityId) { alert('Pick a hub and an activity.'); return; }
+        item.hub = hub;
+        item.activityId = activityId;
+      } else {
+        const activityId = document.getElementById('giActivityId').value.trim();
+        if (activityId) item.activityId = activityId;
+      }
+    } else if (harmonyMode === 'command') {
+      if (harmonyAvailable) {
+        const hub = document.getElementById('giHub').value.trim();
+        const device = document.getElementById('giDeviceSelect').value.trim();
+        const command = document.getElementById('giCommandSelect').value.trim();
+        if (!hub || !device || !command) { alert('Pick a hub, a device, and a command.'); return; }
+        item.hub = hub;
+        item.harmonyDevice = device;
+        item.harmonyCommand = command;
+      } else {
+        item.harmonyDevice = document.getElementById('giHarmonyDevice').value.trim();
+        item.harmonyCommand = document.getElementById('giHarmonyCommand').value.trim();
+      }
+    }
   }
   window._pendingGridItems = window._pendingGridItems || [];
   if (editingGridItem !== null) {
@@ -304,7 +429,7 @@ function fillCardForm(card) {
     window._pendingGridItems = JSON.parse(JSON.stringify(o.buttons || o.scenes || []));
     renderGridItemsList(type);
   } else if (type === 'apple_tv_remote') {
-    document.getElementById('optDeviceId').value = o.deviceId || '';
+    fillAppleTvHarmonyFields(o);
   } else if (type === 'tv_remote') {
     document.getElementById('optName').value = o.name || '';
     document.getElementById('optRemoteEntity').value = o.remote_entity || '';
@@ -381,7 +506,15 @@ function addCardToPage() {
     if (!document.getElementById('optShowLabels').checked) newCard.options.show_labels = false;
     window._pendingGridItems = [];
   } else if (type === 'apple_tv_remote') {
-    newCard.options.deviceId = document.getElementById('optDeviceId').value || '';
+    if (harmonyAvailable) {
+      const hub = document.getElementById('atvHub').value.trim();
+      const deviceId = document.getElementById('atvDeviceSelect').value.trim();
+      if (!hub || !deviceId) { alert('Pick a hub and a device.'); return; }
+      newCard.options.hub = hub;
+      newCard.options.deviceId = deviceId;
+    } else {
+      newCard.options.deviceId = document.getElementById('optDeviceId').value || '';
+    }
   } else if (type === 'tv_remote') {
     newCard.options.name = document.getElementById('optName').value || 'TV';
     newCard.options.remote_entity = document.getElementById('optRemoteEntity').value || '';
