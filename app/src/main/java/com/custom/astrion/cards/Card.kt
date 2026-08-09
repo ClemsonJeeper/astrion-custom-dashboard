@@ -40,10 +40,12 @@ class CardContext(
     val client: HaClient,
     /** No-op default so existing cards/tests that don't pass this keep working. */
     val navigateToPage: (String) -> Unit = {},
-    /** Starts a Harmony Activity directly on the hub (bypasses HA). */
-    val startHarmonyActivity: (String) -> Unit = {},
-    /** Sends an IR command to a device directly on the hub (bypasses HA). */
-    val sendHarmonyCommand: (deviceId: String, command: String) -> Unit = { _, _ -> },
+    /** Starts a Harmony Activity directly on a hub (bypasses HA). `hub` is a
+     * HarmonyHubConfig.localId; null/blank falls back to the first configured hub. */
+    val startHarmonyActivity: (activityId: String, hub: String?) -> Unit = { _, _ -> },
+    /** Sends an IR command to a device directly on a hub (bypasses HA). `hub` is a
+     * HarmonyHubConfig.localId; null/blank falls back to the first configured hub. */
+    val sendHarmonyCommand: (deviceId: String, command: String, hub: String?) -> Unit = { _, _, _ -> },
     /** Current state of the motion-wake feature, and a way to toggle it —
      * used by the settings page (mirrors HaRemote's "Wake on movement" switch). */
     val wakeOnMotionEnabled: Boolean = true,

@@ -46,6 +46,9 @@ import java.io.File
  *
  * Each tile triggers an action based on its fields:
  * - "entity_id": activates a scene or script via Home Assistant.
+ * - "activityId" / "harmonyDevice"+"harmonyCommand": Harmony hub actions,
+ *   routed through an optional "hub" field (HarmonyHubConfig.localId);
+ *   falls back to the first configured hub when absent.
  * - "activityId": triggers a Harmony activity directly on the hub.
  * - "irActivity": runs a named sequence of raw IR sends locally through the
  *   device's own IR blaster (see AppConfig.irActivities) — works fully
@@ -111,7 +114,13 @@ class SceneGridCard : CardRenderer {
 
         fun onTap(scene: Map<String, Any?>) {
             (scene["entity_id"] as? String)?.let(::activate)
-            (scene["activityId"] as? String)?.let(ctx.startHarmonyActivity)
+            val hub = scene["hub"] as? String
+            (scene["activityId"] as? String)?.let { ctx.startHarmonyActivity(it, hub) }
+            val harmonyDevice = scene["harmonyDevice"] as? String
+            val harmonyCommand = scene["harmonyCommand"] as? String
+            if (harmonyDevice != null && harmonyCommand != null) {
+                ctx.sendHarmonyCommand(harmonyDevice, harmonyCommand, hub)
+            }
             (scene["irActivity"] as? String)?.let(::runIrActivity)
             (scene["page"] as? String)?.let(ctx.navigateToPage)
         }

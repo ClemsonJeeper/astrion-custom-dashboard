@@ -3,16 +3,32 @@ package com.custom.astrion.harmony
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+
+/** One remote-control command exposed by a [HarmonyDevice] (e.g. "VolumeUp"). */
+data class HarmonyCommand(val name: String, val label: String)
+
+/** One device known to the hub (TV, receiver, etc.), with its available commands. */
+data class HarmonyDevice(val id: String, val label: String, val commands: List<HarmonyCommand>)
+
+/** One Activity known to the hub (e.g. "Watch Apple TV"). id "-1" is always PowerOff. */
+data class HarmonyActivity(val id: String, val label: String)
+
+/** Full hub config as returned by [HarmonyHubClient.getConfig] — devices + activities. */
+data class HarmonyConfig(val devices: List<HarmonyDevice>, val activities: List<HarmonyActivity>)
 
 /**
  * Direct WebSocket client for a Logitech Harmony Hub, bypassing Home Assistant.
@@ -27,7 +43,7 @@ import java.util.concurrent.TimeUnit
 @Suppress("SpellCheckingInspection")
 class HarmonyHubClient(
     private val hubIp: String,
-    private val hubId: String,
+    private var hubId: String,
     private val onConnected: () -> Unit = {},
     private val onError: (String) -> Unit = {},
 ) {
@@ -35,6 +51,7 @@ class HarmonyHubClient(
         const val TAG = "HarmonyHubClient"
         const val RECONNECT_DELAY_MS = 2000L
         const val PRESS_HOLD_DELAY_MS = 120L
+        const val CONFIG_TIMEOUT_MS = 8000L
     }
 
     private val client = OkHttpClient.Builder()
@@ -56,6 +73,14 @@ class HarmonyHubClient(
 
     /** Live connection state, for a status indicator on the settings page. */
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
+
+    /** Outstanding request/response commands (currently just getConfig), keyed by the hbus msg id. */
+    private val pending = ConcurrentHashMap<String, CompletableDeferred<JSONObject>>()
+
+    /** Updates the hubId dynamically if it was initially resolved from a blank value during discovery. */
+    fun updateHubId(newHubId: String) {
+        this.hubId = newHubId
+    }
 
     fun connect() {
         if (hubIp.isBlank()) {
@@ -79,6 +104,7 @@ class HarmonyHubClient(
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 Log.d(TAG, "onMessage: $text")
+                routeMessage(text)
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
@@ -112,6 +138,17 @@ class HarmonyHubClient(
         })
     }
 
+    /**
+     * Routes an incoming frame to a waiting [getConfig] caller if its "id"
+     * matches an outstanding request; unsolicited frames (activity change
+     * notifications, etc.) are just logged for now.
+     */
+    private fun routeMessage(text: String) {
+        val obj = runCatching { JSONObject(text) }.getOrNull() ?: return
+        val id = obj.optString("id", null) ?: return
+        pending.remove(id)?.complete(obj)
+    }
+
     private fun scheduleReconnect() {
         if (intentionalDisconnect) return
         Log.d(TAG, "Reconnecting in ${RECONNECT_DELAY_MS}ms...")
@@ -121,6 +158,14 @@ class HarmonyHubClient(
     fun disconnect() {
         intentionalDisconnect = true
         _connected.value = false
+        // Cancels any already-scheduled reconnect (mainHandler.postDelayed in
+        // scheduleReconnect()) — without this, a reconnect queued just before
+        // disconnect() is called still fires: it runs on the process-wide main
+        // looper, not tied to this client instance's lifecycle, so it survives
+        // even after the hub was removed from settings and MainActivity recreated.
+        mainHandler.removeCallbacksAndMessages(null)
+        pending.values.forEach { it.cancel() }
+        pending.clear()
         webSocket?.close(1000, "Normal closure")
         webSocket = null
     }
@@ -128,8 +173,8 @@ class HarmonyHubClient(
     /**
      * Starts a Harmony Activity (e.g. "Watch Apple TV"), NOT a simple IR command.
      * Uses a different mechanism on the hub side (runactivity vs holdAction).
-     * `activityId` comes from harmony_config.json (data[0].activity[].id).
-     * PowerOff uses a special ID: "-1".
+     * `activityId` comes from harmony_config.json (data[0].activity[].id), or
+     * from [getConfig] directly. PowerOff uses a special ID: "-1".
      *
      * JSON payload format confirmed by community implementations
      * (NovaGL/diy-harmonyhub, DavidPhillipOster/DIYHarmonyApp):
@@ -199,5 +244,102 @@ class HarmonyHubClient(
         Log.d(TAG, "send: $payload")
         val sent = webSocket?.send(payload)
         Log.d(TAG, "send() returned: $sent (false = socket not open/queue full)")
+    }
+
+    /**
+     * Fetches the hub's full config — every paired device with its available
+     * IR commands, plus every Activity — the same data Home Assistant's
+     * Harmony integration keeps in `harmony_<hubId>.conf`. Lets users manage
+     * a Harmony hub from this app without ever needing Home Assistant.
+     *
+     * Returns null on timeout, if not connected, or on a malformed response.
+     * Safe to call repeatedly (e.g. to refresh after re-pairing a device).
+     */
+    suspend fun getConfig(): HarmonyConfig? {
+        val socket = webSocket ?: run {
+            Log.w(TAG, "getConfig() called while not connected")
+            return null
+        }
+        val id = (nextMsgId++).toString()
+        val deferred = CompletableDeferred<JSONObject>()
+        pending[id] = deferred
+
+        val params = JSONObject().apply {
+            put("verb", "get")
+            put("format", "json")
+        }
+        val hbus = JSONObject().apply {
+            put("cmd", "vnd.logitech.harmony/vnd.logitech.harmony.engine?config")
+            put("id", id)
+            put("params", params)
+        }
+        val envelope = JSONObject().apply {
+            put("hubId", hubId)
+            put("timeout", 30)
+            put("hbus", hbus)
+        }
+
+        Log.d(TAG, "getConfig(): ${envelope}")
+        socket.send(envelope.toString())
+
+        val reply = withTimeoutOrNull(CONFIG_TIMEOUT_MS) { deferred.await() }
+        pending.remove(id)
+        if (reply == null) {
+            Log.w(TAG, "getConfig() timed out")
+            return null
+        }
+        return runCatching { parseConfig(reply) }
+            .onFailure { Log.e(TAG, "getConfig(): malformed response", it) }
+            .getOrNull()
+    }
+
+    /**
+     * The hub's "config" response nests its payload in a `data` field that,
+     * depending on hub firmware, is either a JSON object directly or a JSON
+     * *string* that itself needs parsing — handle both (same quirk other
+     * community Harmony clients, e.g. harmonyhubjs-client, work around).
+     */
+    private fun parseConfig(reply: JSONObject): HarmonyConfig {
+        val rawData = reply.opt("data")
+        val data: JSONObject = when (rawData) {
+            is JSONObject -> rawData
+            is String -> JSONObject(rawData)
+            else -> error("no \"data\" field in config response")
+        }
+
+        val devices = (data.optJSONArray("device") ?: JSONArray()).let { arr ->
+            (0 until arr.length()).map { i ->
+                val d = arr.getJSONObject(i)
+                val commands = mutableListOf<HarmonyCommand>()
+                val groups = d.optJSONArray("controlGroup") ?: JSONArray()
+                for (g in 0 until groups.length()) {
+                    val functions = groups.getJSONObject(g).optJSONArray("function") ?: JSONArray()
+                    for (f in 0 until functions.length()) {
+                        val fn = functions.getJSONObject(f)
+                        val name = fn.optString("name")
+                        if (name.isNotBlank()) {
+                            commands += HarmonyCommand(name = name, label = fn.optString("label", name))
+                        }
+                    }
+                }
+                HarmonyDevice(
+                    id = d.optString("id"),
+                    label = d.optString("label", d.optString("name", d.optString("id"))),
+                    commands = commands,
+                )
+            }
+        }
+
+        val activities = (data.optJSONArray("activity") ?: JSONArray()).let { arr ->
+            (0 until arr.length()).map { i ->
+                val a = arr.getJSONObject(i)
+                HarmonyActivity(
+                    id = a.optString("id"),
+                    label = a.optString("label", a.optString("name", a.optString("id"))),
+                )
+            }
+        }
+
+        return HarmonyConfig(devices = devices, activities = activities)
     }
 }

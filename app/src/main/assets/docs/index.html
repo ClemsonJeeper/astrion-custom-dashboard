@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Astrion Custom — dashboard.json Editor</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<h1>Astrion Custom — dashboard.json Editor</h1>
+<div class="subtitle">Build your dashboard visually, no hand-written JSON required. Matches the exact schema the app reads.</div>
+<div id="deviceModeBanner" class="note" style="display:none"></div>
+
+<div class="layout">
+  <!-- LEFT PANE -->
+  <div class="editor-pane">
+
+    <h2>Load an existing dashboard.json (optional)</h2>
+    <div class="section-box">
+      <textarea id="importBox" rows="4" placeholder="Paste your current dashboard.json here to edit it, or leave empty to start fresh."></textarea>
+      <div class="btn-row">
+        <button onclick="importJson()">Load</button>
+        <button class="secondary" onclick="resetAll()">Start over</button>
+      </div>
+    </div>
+
+    <h2>1. Pages</h2>
+    <div class="section-box">
+      <label>Add a page</label>
+      <input type="text" id="newPageName" placeholder="e.g., Living Room, Apple TV...">
+      <button onclick="addPage()">Add page</button>
+      <div id="pagesList" style="margin-top:10px"></div>
+      <label style="margin-top:14px">Start page (shown on launch)</label>
+      <select id="startPageSelect" onchange="setStartPage()"></select>
+    </div>
+
+    <h2>2. Cards</h2>
+    <div class="section-box">
+      <label>Target page</label>
+      <select id="pageSelect" onchange="onPageChange()"></select>
+
+      <label>Card type</label>
+      <select id="cardTypeSelect" onchange="updateCardFormInputs()">
+        <optgroup label="Common">
+          <option value="bubble_light">Light — dimmable (bubble_light)</option>
+          <option value="light">Light — simple toggle (light)</option>
+          <option value="switch">Switch (switch)</option>
+          <option value="cover">Cover / Shutter (cover)</option>
+          <option value="fan">Fan (fan)</option>
+          <option value="climate">Climate (climate)</option>
+          <option value="source_select">Source selector (source_select)</option>
+        </optgroup>
+        <optgroup label="Grids">
+          <option value="button_grid">Button grid (button_grid)</option>
+          <option value="scene_grid">Scene grid (scene_grid)</option>
+        </optgroup>
+        <optgroup label="Remotes">
+          <option value="apple_tv_remote">Apple TV remote (apple_tv_remote)</option>
+          <option value="tv_remote">TV / media remote (tv_remote)</option>
+        </optgroup>
+        <optgroup label="Advanced (raw options)">
+          <option value="clock_weather">Clock &amp; weather (clock_weather)</option>
+          <option value="media_player">Media player (media_player)</option>
+          <option value="speaker_group">Speaker group (speaker_group)</option>
+          <option value="monitor">System monitor (monitor)</option>
+          <option value="picture_elements">Picture elements (picture_elements)</option>
+          <option value="plex">Plex (plex)</option>
+          <option value="row">Row layout (row)</option>
+          <option value="vacuum">Vacuum (vacuum)</option>
+          <option value="custom">Other / custom type…</option>
+        </optgroup>
+      </select>
+
+      <div id="dynamicCardInputs"></div>
+      <div class="btn-row">
+        <button id="addCardBtn" onclick="addCardToPage()">Add card to page</button>
+        <button id="cancelCardEditBtn" class="secondary" style="display:none" onclick="cancelCardEdit()">Cancel edit</button>
+      </div>
+    </div>
+
+    <h2>3. Hotkeys</h2>
+    <div class="section-box">
+      <label>Scope</label>
+      <select id="hkScope">
+        <option value="page">This page only (overrides global while page is active)</option>
+        <option value="global">Global (every page)</option>
+      </select>
+
+      <label>Press type</label>
+      <select id="hkType">
+        <option value="hotkeys">Single press</option>
+        <option value="longHotkeys">Long press (~500ms hold)</option>
+      </select>
+
+      <label>Physical key</label>
+      <select id="hkKey">
+        <option>BACK</option><option>HOME</option><option>POWER</option>
+        <option>VOLUME_UP</option><option>VOLUME_DOWN</option><option>MUTE</option>
+        <option>PAGE_UP</option><option>PAGE_DOWN</option>
+        <option>UP</option><option>DOWN</option><option>LEFT</option><option>RIGHT</option><option>CENTER</option>
+        <option>VOICE</option><option>MAIN</option>
+        <option>REWIND</option><option>PLAY</option><option>STOP</option><option>FASTFORWARD</option>
+        <option>RED_BUTTON</option><option>GREEN_BUTTON</option><option>BLUE_BUTTON</option><option>YELLOW_BUTTON</option>
+      </select>
+
+      <label>Action</label>
+      <select id="hkAction" onchange="updateHotkeyActionInputs()">
+        <option value="page">Go to page</option>
+        <option value="service">Home Assistant service call</option>
+        <option value="harmonyCommand">Harmony IR command (direct to hub)</option>
+        <option value="harmonyActivity">Harmony activity (direct to hub)</option>
+      </select>
+
+      <div id="dynamicHotkeyInputs"></div>
+      <div class="btn-row">
+        <button id="addHotkeyBtn" onclick="addHotkey()">Add hotkey</button>
+        <button id="cancelHotkeyEditBtn" class="secondary" style="display:none" onclick="cancelHotkeyEdit()">Cancel edit</button>
+      </div>
+      <div id="hotkeysList" style="margin-top:12px"></div>
+    </div>
+
+    <h2>4. IR Activities</h2>
+    <div class="section-box">
+      <div class="hint">Sends a sequence of raw IR commands directly through the device's built-in blaster — no Harmony hub or Home Assistant needed. Build one here, then pick it from a scene_grid item's "IR activity" action.</div>
+
+      <label>Activity name</label>
+      <input type="text" id="irActName" placeholder="e.g., Watch TV">
+
+      <div class="hint" style="margin-top:10px"><strong>Add a step</strong></div>
+      <label>Category</label>
+      <select id="irCategory" onchange="onIrCategoryChange()"><option value="">Loading…</option></select>
+      <label>Brand</label>
+      <select id="irBrand" onchange="onIrBrandChange()" disabled><option value="">— select a category first —</option></select>
+      <label>Model</label>
+      <select id="irModel" onchange="onIrModelChange()" disabled><option value="">— select a brand first —</option></select>
+      <label>Command</label>
+      <select id="irCommand" disabled><option value="">— select a model first —</option></select>
+      <label>Delay after this step (ms, 0 = none — skipped on the last step)</label>
+      <input type="number" id="irStepDelay" value="400" min="0">
+      <div class="btn-row">
+        <button type="button" class="secondary" onclick="addIrStep()">+ Add step to activity</button>
+      </div>
+
+      <div id="irStepsList" style="margin-top:12px"></div>
+      <div class="btn-row">
+        <button id="saveIrActivityBtn" onclick="saveIrActivity()">Save activity</button>
+        <button id="cancelIrActivityEditBtn" class="secondary" style="display:none" onclick="cancelIrActivityEdit()">Cancel edit</button>
+      </div>
+      <div id="irActivitiesList" style="margin-top:12px"></div>
+    </div>
+
+    <h2>5. Generated JSON</h2>
+    <textarea id="jsonOutput" readonly></textarea>
+    <div class="btn-row">
+      <button onclick="copyJson()">Copy JSON</button>
+      <button class="secondary" onclick="downloadJson()">Download dashboard.json</button>
+      <button id="saveToDeviceBtn" style="display:none" onclick="saveDashboardToDevice()">Save to device</button>
+    </div>
+  </div>
+
+  <!-- RIGHT PANE -->
+  <div class="preview-pane">
+    <h2 style="margin-top:0">Preview</h2>
+    <div id="tabs" class="tabs"></div>
+    <div class="remote-frame">
+      <img src="remote.png" class="remote-img" alt="Astrion remote">
+      <div class="remote-screen" onclick="openPreviewModal()">
+        <div class="remote-status-bar">
+          <span class="sb-wifi">📶</span>
+          <span class="sb-time" id="sbTime">21:42</span>
+          <span class="sb-battery">🔋</span>
+        </div>
+        <div id="content" class="remote-screen-content"></div>
+      </div>
+    </div>
+    <div class="remote-tap-hint">🔍 Tap the screen to edit at full size</div>
+    <div id="hotkeysInfo"></div>
+  </div>
+</div>
+
+<div id="previewModal" class="preview-modal" onclick="if (event.target === this) closePreviewModal()">
+  <div class="preview-modal-inner">
+    <button class="preview-modal-close" onclick="closePreviewModal()">✕ Close</button>
+    <div id="modalScreenSlot"></div>
+  </div>
+</div>
+
+<script src="js/mocks.js"></script>
+<script src="js/pages.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/harmony.js"></script>
+<script src="js/hotkeys.js"></script>
+<script src="js/ir.js"></script>
+<script src="js/export.js"></script>
+<script src="js/preview.js"></script>
+<script src="js/device.js"></script>
+<script>initEditor();</script>
+</body>
+</html>

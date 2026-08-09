@@ -22,6 +22,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.lifecycleScope
 import com.custom.astrion.config.DashboardConfig
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HotkeyConfig
@@ -30,11 +31,13 @@ import com.custom.astrion.config.RemoteSettings
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.harmony.HarmonyHubClient
+import com.custom.astrion.harmony.HarmonyHubRegistry
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.ui.Dashboard
 import com.custom.astrion.web.ConfigServer
 import fi.iki.elonen.NanoHTTPD
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sqrt
 
@@ -82,9 +85,9 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var client: HaClient
 
-    /** Talks directly to the Harmony hub over its local WebSocket API — used
-     * for hotkeys that specify harmonyDevice/harmonyCommand, bypassing HA. */
-    private lateinit var harmonyClient: HarmonyHubClient
+    /** Owns one HarmonyHubClient per configured Harmony hub. */
+    private lateinit var harmonyRegistry: HarmonyHubRegistry
+
     private lateinit var configServer: ConfigServer
     private val keyRouter = HardwareKeyRouter()
     private var dashboard by mutableStateOf(DashboardLoader.Result(DashboardConfig.default, null))
@@ -128,19 +131,20 @@ class MainActivity : ComponentActivity() {
         setupMotionWake()
 
         client = HaClient(baseUrl = RemoteSettings.haUrl(this), token = RemoteSettings.haToken(this))
-        harmonyClient = HarmonyHubClient(
-            hubIp = RemoteSettings.harmonyIp(this),
-            hubId = RemoteSettings.harmonyId(this),
-            onError = { msg -> Log.e("HarmonyHubClient", msg) },
+        harmonyRegistry = HarmonyHubRegistry(
+            hubs = RemoteSettings.harmonyHubs(this),
+            onError = { hubName, msg -> Log.e("HarmonyHubClient", "[$hubName] $msg") },
+            onHubIdDiscovered = { updatedHubs -> RemoteSettings.saveHarmonyHubs(this, updatedHubs) },
         )
         configServer = ConfigServer(
             context = this,
-            onConnectionSaved = { runOnUiThread { recreate() } },      // rebuild HaClient/HarmonyHubClient with new settings
-            onDashboardUpdated = { runOnUiThread { reloadDashboard() } }, // reuses the existing reload path
+            harmonyRegistry = harmonyRegistry,
+            onConnectionSaved = { runOnUiThread { recreate() } },
+            onDashboardUpdated = { runOnUiThread { reloadDashboard() } },
         )
         runCatching { configServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false) }
             .onFailure { Log.e("ConfigServer", "failed to start on :8080", it) }
-        harmonyClient.connect()
+        lifecycleScope.launch { harmonyRegistry.connectAll() }
 
         currentPageIndex = dashboard.config.startPage
         rebindHotkeysForCurrentPage()
@@ -151,7 +155,7 @@ class MainActivity : ComponentActivity() {
             val connection = client.connection.collectAsState()
             Dashboard(
                 client = client,
-                harmonyClient = harmonyClient,
+                harmonyRegistry = harmonyRegistry,
                 entitiesState = entities,
                 connectionState = connection,
                 config = dashboard.config,
@@ -230,14 +234,16 @@ class MainActivity : ComponentActivity() {
         }
 
         hk.harmonyActivity?.let { activityId ->
-            harmonyClient.startActivity(activityId)
+            harmonyRegistry.client(hk.hub)?.startActivity(activityId)
+                ?: Log.w("MainActivity", "hotkey harmonyActivity=$activityId (hub=${hk.hub}) but that hub isn't configured")
             return true
         }
 
         val device = hk.harmonyDevice
         val command = hk.harmonyCommand
         if (device != null && command != null) {
-            harmonyClient.sendCommand(device, command)
+            harmonyRegistry.client(hk.hub)?.sendCommand(device, command)
+                ?: Log.w("MainActivity", "hotkey harmonyCommand (hub=${hk.hub}) but that hub isn't configured")
             return true
         }
 
@@ -352,7 +358,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         sensorManager?.unregisterListener(motionListener)
         client.disconnect()
-        harmonyClient.disconnect()
+        harmonyRegistry.disconnectAll()
         configServer.stop()
         super.onDestroy()
     }

@@ -47,8 +47,9 @@ import com.custom.astrion.cards.CardRenderer
  *
  * Config shape:
  * ```json
- * { "type": "apple_tv_remote", "options": { "deviceId": "62846050" } }
+ * { "type": "apple_tv_remote", "options": { "deviceId": "62846050", "hub": "<localId>" } }
  * ```
+ * `hub` is optional — a HarmonyHubConfig.localId; omit it to use the first configured hub.`
  */
 class AppleTvRemoteCard : CardRenderer {
     override val type = "apple_tv_remote"
@@ -56,8 +57,9 @@ class AppleTvRemoteCard : CardRenderer {
     @Composable
     override fun Render(config: CardConfig, ctx: CardContext) {
         val deviceId = config.string("deviceId") ?: return
+        val hub = config.string("hub") // HarmonyHubConfig.localId; falls back to the first hub if absent
 
-        fun send(command: String) = ctx.sendHarmonyCommand(deviceId, command)
+        fun send(command: String) = ctx.sendHarmonyCommand(deviceId, command, hub)
 
         var isPlaying by remember { mutableStateOf(true) }
 

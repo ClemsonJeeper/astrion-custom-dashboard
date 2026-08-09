@@ -3,6 +3,31 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0] - 2026-08-10
+
+### Added
+
+- Multi-hub Harmony support: `RemoteSettings` now stores a list of Harmony hubs (name/IP/ID) instead of a single hardwired one, each with a stable app-generated `localId` used to reference it from `dashboard.json`. The settings page (`/`) lists them as repeatable rows with a "+ Add a hub" button; existing single-hub installs are migrated automatically on first read.
+- `HarmonyHubRegistry`: owns one `HarmonyHubClient` per configured hub, connects/disconnects them together, and resolves which client a `hub` reference should use — falling back to the first configured hub when a `hub` field is absent, so single-hub `dashboard.json` files keep working unchanged.
+- "Auto-detect ID" per hub row, plus automatic detection on the IP field losing focus: resolves a hub's numeric ID from its IP alone via `HarmonyHubDiscovery` (`setup.account?getProvisionInfo`, `Origin: http://sl.dhg.myharmony.com`), so hubs no longer need their ID copied by hand from Home Assistant's `harmony_<id>.conf`.
+- `HarmonyHubClient.getConfig()`: fetches a hub's full config over the existing WebSocket connection — every paired device with its IR commands, plus every Activity — the same data Home Assistant keeps in `harmony_<id>.conf`. Exposed via `GET /harmony-config?hub=<localId>` (and `GET /harmony-hubs` to list configured hubs), and cached to `astrion/harmony_<hubId>.json` next to `dashboard.json` on every successful fetch — served from that cache automatically if the hub is temporarily unreachable.
+- The dashboard builder (`docs/`) is now bundled as app assets and served locally at `GET /builder/`, alongside the existing GitHub Pages copy — no separate computer or internet access needed to build a `dashboard.json`.
+- Builder: `dashboard.json` now loads automatically when the builder is opened from this device (`js/device.js`), with a "Save to device" button that writes it directly and live-reloads the dashboard — replacing the copy-paste/download-only flow. Falls back to the original flow when the builder is opened outside the app (GitHub Pages).
+- Builder: hotkeys and scene tiles can now target a Harmony hub through a cascading **Hub → Device → Command** or **Hub → Activity** picker (`js/harmony.js`), fed live from the paired hub(s), instead of typing raw device/command/activity IDs. Falls back to the original plain text fields when the builder isn't served by the app.
+- `SceneGridCard` scenes support `harmonyDevice`/`harmonyCommand` (alongside the existing `activityId`), and both now respect an optional `hub` field. `AppleTvRemoteCard` also gained an optional `hub` option. `CardContext.startHarmonyActivity`/`sendHarmonyCommand` and `HotkeyConfig` both take a `hub` parameter/field for this, defaulting to the first configured hub when omitted.
+
+### Removed
+
+- `CustomIrCard` (`custom_ir` card type): superseded by IR Activities (0.4.0) — a `scene_grid` tile with an `irActivity` action covers the same local, hub-free IR sending, with a proper Category → Brand → Model → Command picker in the dashboard builder instead of hand-written `freq`/`pattern` arrays. Existing `dashboard.json` files with `custom_ir` cards need to migrate their buttons to an IR Activity + `scene_grid`.
+- `docs/index.html`: `custom_ir` option removed from the "Card type" dropdown.
+- `docs/README.md`: `custom_ir` removed from the list of raw-JSON-fallback card types.
+
+### Changed
+
+- `cards/impl/TileCards.kt` split into one file per card: `CoverCard.kt`, `FanCard.kt`, and `SwitchCard.kt` (renamed from `TileCards.kt`, now containing only `SwitchCard`). Same package, same class names — no config or registration changes needed. Each card previously shared a couple of small private UI helpers (e.g. `CircleBtn`); those are now duplicated per file instead, so each card's look can evolve independently.
+- Local config page (`/`, `ConfigServer.kt`): the Home Assistant connection panel and the dashboard.json panel are now shown side by side (`panels-grid`, 2 columns above 700px, single column on narrower screens) instead of stacked.
+- Local config page: the "Updates" section moved from a separate block at the bottom of the page into a compact badge next to the Home Assistant/hubs status badges — shows the current version, or an amber "update available" badge that installs directly when tapped.
+
 ## [0.4.0] - 2026-08-06
 
 ### Added

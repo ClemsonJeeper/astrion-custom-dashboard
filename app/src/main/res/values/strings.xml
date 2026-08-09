@@ -11,11 +11,8 @@
     <string name="disconnected">Disconnected</string>
     <string name="close">Close</string>
     <string name="web_config_title">Astrion Custom — Local configuration</string>
-    <string name="web_config_ha_harmony_heading">Home Assistant &amp; Harmony Hub</string>
     <string name="web_config_ha_url_label">Home Assistant URL</string>
     <string name="web_config_ha_token_label">Home Assistant long-lived access token</string>
-    <string name="web_config_harmony_ip_label">Harmony Hub IP (optional)</string>
-    <string name="web_config_harmony_id_label">Harmony Hub ID (optional)</string>
     <string name="web_config_save_button">Save &amp; reconnect</string>
     <string name="web_config_save_note">The app restarts itself to reconnect after saving.</string>
     <string name="web_config_dashboard_heading">dashboard.json</string>
@@ -36,6 +33,23 @@
     <string name="web_config_update_installing">Installer launched — approve the install prompt on the panel screen</string>
     <string name="web_config_update_needs_permission">Allow "Install unknown apps" for this app on the screen that just opened, then tap Download &amp; install again.</string>
     <string name="web_config_update_failed">Update check failed: %1$s</string>
+    <string name="web_config_ha_heading">Home Assistant</string>
+    <string name="web_config_harmony_heading">Harmony Hubs</string>
+    <string name="web_config_harmony_name_label">Name</string>
+    <string name="web_config_harmony_ip_label">IP address</string>
+    <string name="web_config_harmony_id_label">Hub ID (optional)</string>
+    <string name="web_config_harmony_add_button">+ Add a hub</string>
+    <string name="web_config_harmony_remove_button">Remove</string>
+    <string name="web_config_harmony_fetch_link">Fetch config from hub</string>
+    <string name="web_config_harmony_fetching">Fetching…</string>
+    <string name="web_config_harmony_discover_button">Auto-detect ID</string>
+    <string name="web_config_harmony_discover_need_ip">Enter the IP address first</string>
+    <string name="web_config_harmony_discover_failed">Could not detect hub ID</string>
+    <string name="web_config_dashboard_builder_link">Open the dashboard editor</string>
+    <string name="web_config_status_not_set">not set</string>
+    <string name="web_config_status_hub_singular">hub</string>
+    <string name="web_config_status_hub_plural">hubs</string>
+    <string name="web_config_dashboard_sub">Build and edit your dashboard.json visually, right from this device.</string>
     <!-- ClimateCard -->
     <string name="climate_current_temp">Now %1$s°</string>
     <string name="climate_hvac_caption">Mode</string>

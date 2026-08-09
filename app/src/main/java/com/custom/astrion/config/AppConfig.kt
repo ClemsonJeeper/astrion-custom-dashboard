@@ -61,6 +61,11 @@ data class HotkeyConfig(
     val harmonyDevice: String? = null,
     val harmonyCommand: String? = null,
     val harmonyActivity: String? = null,
+    /** Which configured Harmony hub (HarmonyHubConfig.localId) this action
+     * targets. Null/blank falls back to the first configured hub — see
+     * HarmonyHubRegistry.client(). Only meaningful alongside
+     * harmonyDevice/harmonyCommand or harmonyActivity. */
+    val hub: String? = null,
 ) {
     /** Helper flags to quickly check hotkey action type. */
     val isPageNavigation: Boolean get() = !page.isNullOrBlank()

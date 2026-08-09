@@ -1,5 +1,6 @@
 package com.custom.astrion.ui
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,7 +42,8 @@ import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.HaLabels
-import com.custom.astrion.harmony.HarmonyHubClient
+import com.custom.astrion.harmony.HarmonyHubRegistry
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -70,7 +72,7 @@ import com.custom.astrion.R
 @Composable
 fun Dashboard(
     client: HaClient,
-    harmonyClient: HarmonyHubClient,
+    harmonyRegistry: HarmonyHubRegistry,
     entitiesState: State<EntityMap>,
     connectionState: State<ConnectionState>,
     config: AppConfig,
@@ -91,7 +93,9 @@ fun Dashboard(
         HaLabels.init(context)
     }
     val connection by connectionState
-    val harmonyConnected by harmonyClient.connected.collectAsState()
+    // Status dot reflects the first configured hub — good enough for a single
+    // glance indicator; a per-hub breakdown isn't worth the UI space here.
+    val harmonyConnected by (harmonyRegistry.client()?.connected ?: remember { MutableStateFlow(false) }).collectAsState()
     val scope = rememberCoroutineScope()
 
     val pageCount = config.pages.size.coerceAtLeast(1)
@@ -114,8 +118,14 @@ fun Dashboard(
         entities = entities,
         client = client,
         navigateToPage = navigateToPage,
-        startHarmonyActivity = { activityId -> harmonyClient.startActivity(activityId) },
-        sendHarmonyCommand = { deviceId, command -> harmonyClient.sendCommand(deviceId, command) },
+        startHarmonyActivity = { activityId, hub ->
+            harmonyRegistry.client(hub)?.startActivity(activityId)
+                ?: Log.w("Dashboard", "startHarmonyActivity($activityId, hub=$hub) but that hub isn't configured")
+        },
+        sendHarmonyCommand = { deviceId, command, hub ->
+            harmonyRegistry.client(hub)?.sendCommand(deviceId, command)
+                ?: Log.w("Dashboard", "sendHarmonyCommand($deviceId, $command, hub=$hub) but that hub isn't configured")
+        },
         wakeOnMotionEnabled = wakeOnMotionEnabled,
         setWakeOnMotionEnabled = setWakeOnMotionEnabled,
         harmonyConnected = harmonyConnected,

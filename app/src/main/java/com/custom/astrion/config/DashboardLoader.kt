@@ -121,7 +121,8 @@ object DashboardLoader {
         val harmonyDevice = obj["harmonyDevice"]?.jsonPrimitive?.content
         val harmonyCommand = obj["harmonyCommand"]?.jsonPrimitive?.content
         val harmonyActivity = obj["harmonyActivity"]?.jsonPrimitive?.content
-        return HotkeyConfig(key, page, service, entityId, data, harmonyDevice, harmonyCommand, harmonyActivity)
+        val hub = obj["hub"]?.jsonPrimitive?.content
+        return HotkeyConfig(key, page, service, entityId, data, harmonyDevice, harmonyCommand, harmonyActivity, hub)
     }
 
     private fun parseIrActivity(obj: JsonObject): IrActivityConfig {
@@ -207,6 +208,7 @@ object DashboardLoader {
                 hk.harmonyDevice?.let { put("harmonyDevice", it) }
                 hk.harmonyCommand?.let { put("harmonyCommand", it) }
                 hk.harmonyActivity?.let { put("harmonyActivity", it) }
+                hk.hub?.let { put("hub", it) }
             })
         }
     }

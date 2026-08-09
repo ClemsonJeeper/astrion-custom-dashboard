@@ -6,22 +6,17 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Air
-import androidx.compose.material.icons.filled.Blinds
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.Icon
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,66 +29,6 @@ import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
 
 /**
- * Cover / curtain card: open / stop / close buttons plus a position readout.
- *
- * Uses cover.open_cover / cover.close_cover / cover.stop_cover.
- *
- * Config: CardConfig("cover", mapOf("entity_id" to "cover.living_room", "name" to "Curtains"))
- */
-class CoverCard : CardRenderer {
-    override val type = "cover"
-
-    @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
-        val entityId = config.string("entity_id") ?: return
-        val e = ctx.entities[entityId]
-        val name = config.string("name") ?: e?.friendlyName ?: entityId
-        val position = e?.attrInt("current_position") // 0..100
-        val stateLabel = position?.let { "$it% open" } ?: (e?.state ?: "—")
-
-        fun call(service: String) {
-            ctx.client.callService(ServiceCall(domain = "cover", service = service, entityId = entityId))
-        }
-
-        // Mushroom horizontal: icon + name/state on the left, controls on the right.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1E3841))
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF2A4954)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Filled.Blinds, contentDescription = null, tint = Color(0xFFB6C9CE))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    name,
-                    color = Color(0xFFE6F0F1),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                )
-                Text(stateLabel, color = Color(0xFF93AFB6), fontSize = 13.sp)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CircleBtn(Icons.Filled.KeyboardArrowUp) { call("open_cover") }
-                CircleBtn(Icons.Filled.Stop) { call("stop_cover") }
-                CircleBtn(Icons.Filled.KeyboardArrowDown) { call("close_cover") }
-            }
-        }
-    }
-}
-
-/**
  * Fan card. Two layouts, auto-picked from what the entity actually reports
  * (or forced via the `style` option):
  *
@@ -103,7 +38,7 @@ class CoverCard : CardRenderer {
  *   percentage-only fans.
  * - **full** (auto-picked when the entity reports `preset_modes` and/or an
  *   `oscillating` attribute — e.g. many Xiaomi/Smart-Fan integrations, which
- *   drive speed via named presets like "Level 1".."Level 4" rather than a
+ *   drive speed via named presets like "Level 1"..."Level 4" rather than a
  *   0-100 percentage): a bigger card with a dedicated power button, preset
  *   chips (or a percentage stepper if there are no presets), and an
  *   oscillate on/off toggle.
@@ -297,7 +232,7 @@ class FanCard : CardRenderer {
     }
 }
 
-/** Small text-only chip, shared by [FanCard]'s preset and oscillate rows. */
+/** Small text-only chip, used by [FanCard]'s preset and oscillate rows. */
 @Composable
 private fun FanChip(
     label: String,
@@ -324,8 +259,8 @@ private fun FanChip(
 
 /**
  * Split [items] into rows of at most [maxPerRow], balanced (e.g. 5 items @
- * max 4 -> 3+2, not a lopsided 4+1). Shared by [FanCard]; [ClimateCard] has
- * its own private copy of the same logic.
+ * max 4 -> 3+2, not a lopsided 4+1). Used by [FanCard]; [ClimateCard] has its
+ * own private copy of the same logic.
  */
 private fun <T> balancedChunks(items: List<T>, maxPerRow: Int): List<List<T>> {
     if (items.isEmpty()) return emptyList()
@@ -334,75 +269,10 @@ private fun <T> balancedChunks(items: List<T>, maxPerRow: Int): List<List<T>> {
     return items.chunked(perRow)
 }
 
-/**
- * Switch tile: simple toggle. Works for switch.* (and anything toggleable).
- *
- * Config: CardConfig("switch", mapOf("entity_id" to "switch.porch", "name" to "Porch"))
- */
-class SwitchCard : CardRenderer {
-    override val type = "switch"
-
-    @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
-        val entityId = config.string("entity_id") ?: return
-        val e = ctx.entities[entityId]
-        val name = config.string("name") ?: e?.friendlyName ?: entityId
-        val on = e?.isOn == true
-        val icon = switchIcon(config.string("icon"))
-        // On-state background (e.g. a semi-transparent dark red for a heater).
-        val onColor = parseColor(config.options["on_color"]) ?: Color(0xFF2E5A46)
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(if (on) onColor else Color(0xFF1E3841))
-                .clickable { ctx.client.toggle(entityId) }
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Leading icon box, matching the cover tiles below it.
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF2A4954)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(icon, contentDescription = null, tint = if (on) Color(0xFFE79A9A) else Color(0xFFB6C9CE))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(name, color = Color(0xFFE6F0F1), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text(
-                    if (on) stringResource(R.string.state_on) else stringResource(R.string.state_off),
-                    color = Color(0xFF93AFB6),
-                    fontSize = 13.sp,
-                )
-            }
-        }
-    }
-}
-
-/** Map a switch card's `icon` option name to a Material icon. */
-private fun switchIcon(name: String?): ImageVector = when (name) {
-    "heater", "heat" -> Icons.Filled.Whatshot
-    "fan" -> Icons.Filled.Air
-    "bulb", "light" -> Icons.Filled.Lightbulb
-    else -> Icons.Filled.PowerSettingsNew
-}
-
-/** Parse an `on_color` option: a hex string ("#AARRGGBB") or an ARGB number. */
-private fun parseColor(v: Any?): Color? = when (v) {
-    is Number -> Color(v.toLong())
-    is String -> v.removePrefix("#").toLongOrNull(16)?.let { Color(it) }
-    else -> null
-}
-
-/** Shared small circular icon button used by the tile cards above. */
+/** Shared small circular icon button used by [FanCard]'s simple layout. */
 @Composable
 private fun CircleBtn(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     onClick: () -> Unit,
 ) {
     Box(

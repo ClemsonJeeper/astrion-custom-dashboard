@@ -8,7 +8,6 @@ import com.custom.astrion.cards.impl.ButtonGridCard
 import com.custom.astrion.cards.impl.ClimateCard
 import com.custom.astrion.cards.impl.ClockWeatherCard
 import com.custom.astrion.cards.impl.CoverCard
-import com.custom.astrion.cards.impl.CustomIrCard
 import com.custom.astrion.cards.impl.FanCard
 import com.custom.astrion.cards.impl.LightCard
 import com.custom.astrion.cards.impl.MediaPlayerCard
@@ -47,7 +46,6 @@ class AstrionApp : Application() {
             ClimateCard(),
             ClockWeatherCard(),
             CoverCard(),
-            CustomIrCard(),
             FanCard(),
             LightCard(),
             MediaPlayerCard(),
