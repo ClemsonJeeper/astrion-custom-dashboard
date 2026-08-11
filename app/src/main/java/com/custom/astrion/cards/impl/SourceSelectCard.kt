@@ -45,7 +45,10 @@ class SourceSelectCard : CardRenderer {
     override val type = "source_select"
 
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val entityId = config.string("entity_id") ?: return
         val e = ctx.entities[entityId]
         val name = config.string("name") ?: e?.friendlyName ?: entityId
@@ -56,12 +59,13 @@ class SourceSelectCard : CardRenderer {
 
         Box {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF1E3841))
-                    .clickable(enabled = sources.isNotEmpty()) { expanded = true }
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF1E3841))
+                        .clickable(enabled = sources.isNotEmpty()) { expanded = true }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
@@ -84,9 +88,10 @@ class SourceSelectCard : CardRenderer {
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                modifier = Modifier
-                    .background(Color(0xFF1E3841))
-                    .widthIn(max = 400.dp),
+                modifier =
+                    Modifier
+                        .background(Color(0xFF1E3841))
+                        .widthIn(max = 400.dp),
             ) {
                 sources.forEach { s ->
                     DropdownMenuItem(
@@ -102,7 +107,7 @@ class SourceSelectCard : CardRenderer {
                         onClick = {
                             expanded = false
                             ctx.client.callService(
-                                ServiceCall.of("media_player", "select_source", entityId, "source" to s)
+                                ServiceCall.of("media_player", "select_source", entityId, "source" to s),
                             )
                         },
                     )

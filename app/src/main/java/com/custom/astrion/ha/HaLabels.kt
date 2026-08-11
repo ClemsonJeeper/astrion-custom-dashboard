@@ -26,28 +26,51 @@ object HaLabels {
     private var loadedLang: String? = null
 
     /** Call once at startup (or again if the language changes). */
-    fun init(context: Context, lang: String = Locale.getDefault().language) {
+    fun init(
+        context: Context,
+        lang: String = Locale.getDefault().language,
+    ) {
         if (lang == loadedLang) return
-        val text = runCatching {
-            context.assets.open("ha_labels/$lang.json").bufferedReader().use { it.readText() }
-        }.getOrElse {
-            context.assets.open("ha_labels/en.json").bufferedReader().use { it.readText() }
-        }
-        categories = runCatching {
-            Json.parseToJsonElement(text).jsonObject.mapValues { (_, v) ->
-                v.jsonObject.mapValues { (_, s) -> s.jsonPrimitive.content }
+        val text =
+            runCatching {
+                context.assets.open("ha_labels/$lang.json").bufferedReader().use { it.readText() }
+            }.getOrElse {
+                context.assets.open("ha_labels/en.json").bufferedReader().use { it.readText() }
             }
-        }.getOrDefault(emptyMap())
+        categories =
+            runCatching {
+                Json.parseToJsonElement(text).jsonObject.mapValues { (_, v) ->
+                    v.jsonObject.mapValues { (_, s) -> s.jsonPrimitive.content }
+                }
+            }.getOrDefault(emptyMap())
         loadedLang = lang
     }
 
     fun hvacMode(raw: String): String = lookup("hvac_mode", raw)
+
     fun fanMode(raw: String): String = lookup("fan_mode", raw.lowercase())
+
     fun swingMode(raw: String): String = lookup("swing_mode", raw.lowercase())
+
     fun weatherCondition(raw: String): String = lookup("weather_condition", raw)
+
     fun vacuumState(raw: String): String = lookup("vacuum_state", raw)
 
-    private fun lookup(category: String, raw: String): String =
+    /**
+     * Fan-speed / cleaning-mode names are reported verbatim by each vacuum
+     * integration (not a fixed HA-wide set like the activity state), so
+     * `assets/ha_labels/<lang>.json`'s `vacuum_fan_speed` category only
+     * covers the common ones (min/quiet/medium/high/turbo/max/mop...) —
+     * anything else still falls back to the best-effort prettifier below.
+     */
+    fun vacuumFanSpeed(raw: String): String = lookup("vacuum_fan_speed", raw.lowercase())
+
+    fun coverState(raw: String): String = lookup("cover_state", raw)
+
+    private fun lookup(
+        category: String,
+        raw: String,
+    ): String =
         categories[category]?.get(raw) ?: fallback(raw)
 
     /** Best-effort display for a key with no translation entry. */

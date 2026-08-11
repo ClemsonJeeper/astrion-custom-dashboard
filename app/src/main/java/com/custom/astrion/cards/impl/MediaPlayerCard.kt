@@ -61,41 +61,50 @@ class MediaPlayerCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val entityId = config.string("entity_id") ?: return
         val full = config.string("variant") == "full"
         val topButtons = (config.options["top_buttons"] as? List<Map<String, Any?>>) ?: emptyList()
         val e = ctx.entities[entityId]
         val playing = e?.state == "playing"
         val title = e?.attrString("media_title") ?: e?.friendlyName ?: entityId
-        val artist = e?.attrString("media_artist")
-            ?: e?.attrString("media_series_title")
-            ?: e?.attrString("app_name")
-            ?: "—"
+        val artist =
+            e?.attrString("media_artist")
+                ?: e?.attrString("media_series_title")
+                ?: e?.attrString("app_name")
+                ?: "—"
         val artPath = e?.attrString("entity_picture")
 
         var art by remember(artPath) { mutableStateOf<ImageBitmap?>(null) }
         LaunchedEffect(artPath) { art = artPath?.let { ctx.client.fetchBitmap(it) } }
 
-        val blurredBg = remember(art) {
-            art?.let { img ->
-                val src = img.asAndroidBitmap()
-                if (src.width <= 0) return@let null
-                val w = 32
-                val h = (w * src.height / src.width).coerceAtLeast(1)
-                Bitmap.createScaledBitmap(src, w, h, true).asImageBitmap()
+        val blurredBg =
+            remember(art) {
+                art?.let { img ->
+                    val src = img.asAndroidBitmap()
+                    if (src.width <= 0) return@let null
+                    val w = 32
+                    val h = (w * src.height / src.width).coerceAtLeast(1)
+                    Bitmap.createScaledBitmap(src, w, h, true).asImageBitmap()
+                }
             }
-        }
 
-        fun mp(service: String, vararg data: Pair<String, Any?>) {
+        fun mp(
+            service: String,
+            vararg data: Pair<String, Any?>,
+        ) {
             ctx.client.callService(ServiceCall.of("media_player", service, entityId, *data))
         }
 
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF1B343D)),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF1B343D)),
         ) {
             // Blurred album art background + scrim for legibility.
             blurredBg?.let { bg ->
@@ -117,14 +126,17 @@ class MediaPlayerCard : CardRenderer {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun fireService(ctx: CardContext, b: Map<String, Any?>) {
+    private fun fireService(
+        ctx: CardContext,
+        b: Map<String, Any?>,
+    ) {
         val service = b["service"] as? String ?: return
         val domain = service.substringBefore('.')
         val svc = service.substringAfter('.')
         val entityId = b["entity_id"] as? String
         val data = (b["data"] as? Map<String, Any?>).orEmpty()
         ctx.client.callService(
-            ServiceCall.of(domain, svc, entityId, *data.entries.map { it.key to it.value }.toTypedArray())
+            ServiceCall.of(domain, svc, entityId, *data.entries.map { it.key to it.value }.toTypedArray()),
         )
     }
 
@@ -137,12 +149,13 @@ class MediaPlayerCard : CardRenderer {
         mp: (String, Array<out Pair<String, Any?>>) -> Unit,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                // Tap the card body to toggle play/pause (volume buttons still
-                // handle their own taps).
-                .clickable { mp("media_play_pause", emptyArray()) }
-                .padding(10.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    // Tap the card body to toggle play/pause (volume buttons still
+                    // handle their own taps).
+                    .clickable { mp("media_play_pause", emptyArray()) }
+                    .padding(10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -153,10 +166,21 @@ class MediaPlayerCard : CardRenderer {
                 Box(artMod.background(Color(0xFF3A2E5A)))
             }
             Column(Modifier.weight(1f)) {
-                Text(title, color = Color(0xFFF1F4FA), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(artist, color = Color(0xFFB6BECC), fontSize = 12.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    title,
+                    color = Color(0xFFF1F4FA),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    artist,
+                    color = Color(0xFFB6BECC),
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             // Only volume, sitting at the right after the weighted text.
             CircleControl(Icons.Filled.VolumeDown, 40.dp) { mp("volume_down", emptyArray()) }
@@ -188,12 +212,13 @@ class MediaPlayerCard : CardRenderer {
                 ) {
                     topButtons.forEach { b ->
                         Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(44.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0x662C4C58)) // semi-transparent
-                                .clickable { fireService(ctx, b) },
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0x662C4C58)) // semi-transparent
+                                    .clickable { fireService(ctx, b) },
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
@@ -218,12 +243,25 @@ class MediaPlayerCard : CardRenderer {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(title, color = Color(0xFFF1F4FA), fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth())
-                Text(artist, color = Color(0xFFB6BECC), fontSize = 14.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth())
+                Text(
+                    title,
+                    color = Color(0xFFF1F4FA),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    artist,
+                    color = Color(0xFFB6BECC),
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             // Single control row: vol- prev play/pause next vol+, justified.
             Row(
@@ -250,11 +288,12 @@ class MediaPlayerCard : CardRenderer {
         onClick: () -> Unit,
     ) {
         Box(
-            modifier = Modifier
-                .size(size)
-                .clip(CircleShape)
-                .background(if (accent) Color(0xFF4C6EF5) else Color(0x552C4C58))
-                .clickable(onClick = onClick),
+            modifier =
+                Modifier
+                    .size(size)
+                    .clip(CircleShape)
+                    .background(if (accent) Color(0xFF4C6EF5) else Color(0x552C4C58))
+                    .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Icon(icon, contentDescription = null, tint = Color.White)

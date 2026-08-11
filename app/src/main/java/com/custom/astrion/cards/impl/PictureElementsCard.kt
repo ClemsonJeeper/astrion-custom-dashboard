@@ -10,17 +10,17 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -32,8 +32,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,30 +71,36 @@ class PictureElementsCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val imagePath = config.string("image") ?: "/sdcard/astrion/floorplan.png"
         val elements = (config.options["elements"] as? List<Map<String, Any?>>) ?: emptyList()
         var showVacuumDialog by remember { mutableStateOf(false) }
 
         // Decode off-thread safely via produceState + Dispatchers.IO
         val bitmap by produceState<ImageBitmap?>(initialValue = null, imagePath) {
-            value = withContext(Dispatchers.IO) {
-                runCatching {
-                    val f = File(imagePath)
-                    if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
-                }.getOrNull()
-            }
+            value =
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        val f = File(imagePath)
+                        if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
+                    }.getOrNull()
+                }
         }
 
-        val aspect = bitmap?.let { it.width.toFloat() / it.height.toFloat() }
-            ?: (config.options["aspect"] as? Number)?.toFloat() ?: 1.3f
+        val aspect =
+            bitmap?.let { it.width.toFloat() / it.height.toFloat() }
+                ?: (config.options["aspect"] as? Number)?.toFloat() ?: 1.3f
 
         BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(aspect)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF0E1116)),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(aspect)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF0E1116)),
         ) {
             if (bitmap != null) {
                 Image(
@@ -124,39 +130,41 @@ class PictureElementsCard : CardRenderer {
 
                 val bg = if (on) Color(0x66FFC24B) else Color(0x33000000)
                 val tint = if (on) Color(0xFFFFD37A) else Color(0xFFE8ECF2)
-                val icon = when {
-                    isPower -> Icons.Filled.PowerSettingsNew
-                    on -> Icons.Filled.Lightbulb
-                    else -> Icons.Outlined.Lightbulb
-                }
+                val icon =
+                    when {
+                        isPower -> Icons.Filled.PowerSettingsNew
+                        on -> Icons.Filled.Lightbulb
+                        else -> Icons.Outlined.Lightbulb
+                    }
 
                 Icon(
                     imageVector = icon,
                     contentDescription = entityId,
                     tint = tint,
-                    modifier = Modifier
-                        .offset(x = x.coerceAtLeast(0.dp), y = y.coerceAtLeast(0.dp))
-                        .size(iconBox)
-                        .clip(CircleShape)
-                        .background(bg)
-                        .clickable {
-                            when {
-                                entityId != null -> ctx.client.toggle(entityId)
-                                service != null -> {
-                                    val domain = service.substringBefore('.')
-                                    val svc = service.substringAfter('.')
-                                    val targets = (el["targets"] as? List<*>)?.filterIsInstance<String>().orEmpty()
-                                    if (targets.isEmpty()) {
-                                        ctx.client.callService(ServiceCall(domain, svc))
-                                    } else {
-                                        targets.forEach { t ->
-                                            ctx.client.callService(ServiceCall(domain, svc, entityId = t))
+                    modifier =
+                        Modifier
+                            .offset(x = x.coerceAtLeast(0.dp), y = y.coerceAtLeast(0.dp))
+                            .size(iconBox)
+                            .clip(CircleShape)
+                            .background(bg)
+                            .clickable {
+                                when {
+                                    entityId != null -> ctx.client.toggle(entityId)
+                                    service != null -> {
+                                        val domain = service.substringBefore('.')
+                                        val svc = service.substringAfter('.')
+                                        val targets = (el["targets"] as? List<*>)?.filterIsInstance<String>().orEmpty()
+                                        if (targets.isEmpty()) {
+                                            ctx.client.callService(ServiceCall(domain, svc))
+                                        } else {
+                                            targets.forEach { t ->
+                                                ctx.client.callService(ServiceCall(domain, svc, entityId = t))
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                        .padding(6.dp),
+                            .padding(6.dp),
                 )
             }
 
@@ -173,11 +181,12 @@ class PictureElementsCard : CardRenderer {
             if (showVacuumDialog && vacuumOpts != null) {
                 Dialog(onDismissRequest = { showVacuumDialog = false }) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFF1B343D))
-                            .padding(14.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color(0xFF1B343D))
+                                .padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         VacuumPanelContent(vacuumOpts, ctx)
@@ -206,13 +215,14 @@ class PictureElementsCard : CardRenderer {
         val docked = state == "docked" || state == "charging"
         val active = state == "cleaning" || state == "returning"
 
-        val pos: Pair<Float, Float> = when {
-            docked && dockPosition?.size == 2 -> dockPosition[0].toFloat() to dockPosition[1].toFloat()
-            currentRoom != null && roomPositions?.get(currentRoom) != null ->
-                roomPositions.getValue(currentRoom).let { it[0].toFloat() to it[1].toFloat() }
-            dockPosition?.size == 2 -> dockPosition[0].toFloat() to dockPosition[1].toFloat()
-            else -> 50f to 50f
-        }
+        val pos: Pair<Float, Float> =
+            when {
+                docked && dockPosition?.size == 2 -> dockPosition[0].toFloat() to dockPosition[1].toFloat()
+                currentRoom != null && roomPositions?.get(currentRoom) != null ->
+                    roomPositions.getValue(currentRoom).let { it[0].toFloat() to it[1].toFloat() }
+                dockPosition?.size == 2 -> dockPosition[0].toFloat() to dockPosition[1].toFloat()
+                else -> 50f to 50f
+            }
         val (leftPct, topPct) = pos
         val vac = 30.dp
         val iconW = vac
@@ -221,60 +231,74 @@ class PictureElementsCard : CardRenderer {
         val y = (h * (topPct / 100f) - iconH / 2).coerceAtLeast(0.dp)
 
         Box(
-            modifier = Modifier
-                .offset(x = x, y = y)
-                .clickable(onClick = onOpen),
+            modifier =
+                Modifier
+                    .offset(x = x, y = y)
+                    .clickable(onClick = onOpen),
         ) {
             RoboVacIcon(vac = vac, docked = docked, moving = active)
         }
     }
 
     @Composable
-    private fun RoboVacIcon(vac: Dp, docked: Boolean, moving: Boolean) {
+    private fun RoboVacIcon(
+        vac: Dp,
+        docked: Boolean,
+        moving: Boolean,
+    ) {
         val body = Color(0xFF3A4A52)
         val bump = Color(0xFF7B8C96)
 
         if (docked) {
             Box(modifier = Modifier.size(width = vac, height = vac * 1.35f)) {
                 Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .height(vac * 0.5f)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(Color(0xFF1E262C)),
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .height(vac * 0.5f)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(Color(0xFF1E262C)),
                 )
                 VacBody(vac * 0.92f, body, bump, Modifier.align(Alignment.BottomCenter))
             }
         } else {
-            val angle = if (moving) {
-                val t = rememberInfiniteTransition(label = "vacrock")
-                t.animateFloat(
-                    initialValue = -10f,
-                    targetValue = 10f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(650, easing = FastOutSlowInEasing),
-                        repeatMode = RepeatMode.Reverse,
-                    ),
-                    label = "angle",
-                ).value
-            } else {
-                0f
-            }
+            val angle =
+                if (moving) {
+                    val t = rememberInfiniteTransition(label = "vacrock")
+                    t.animateFloat(
+                        initialValue = -10f,
+                        targetValue = 10f,
+                        animationSpec =
+                            infiniteRepeatable(
+                                animation = tween(650, easing = FastOutSlowInEasing),
+                                repeatMode = RepeatMode.Reverse,
+                            ),
+                        label = "angle",
+                    ).value
+                } else {
+                    0f
+                }
             VacBody(vac, body, bump, Modifier.rotate(angle))
         }
     }
 
     @Composable
-    private fun VacBody(d: Dp, body: Color, bump: Color, modifier: Modifier = Modifier) {
+    private fun VacBody(
+        d: Dp,
+        body: Color,
+        bump: Color,
+        modifier: Modifier = Modifier,
+    ) {
         Box(modifier = modifier.size(d).clip(CircleShape).background(body)) {
             Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = d * 0.12f)
-                    .size(d * 0.24f)
-                    .clip(CircleShape)
-                    .background(bump),
+                modifier =
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = d * 0.12f)
+                        .size(d * 0.24f)
+                        .clip(CircleShape)
+                        .background(bump),
             )
         }
     }
@@ -316,7 +340,7 @@ class PictureElementsCard : CardRenderer {
                 rot = rot,
                 flipX = flipX,
                 flipY = flipY,
-                blend = blend
+                blend = blend,
             )
         }
     }
@@ -341,7 +365,7 @@ class PictureElementsCard : CardRenderer {
         rot: Float,
         flipX: Boolean,
         flipY: Boolean,
-        blend: BlendMode?
+        blend: BlendMode?,
     ) {
         val xm = ctx.entities["${prefix}_${id}_x"]?.state?.toFloatOrNull() ?: return
         val ym = ctx.entities["${prefix}_${id}_y"]?.state?.toFloatOrNull() ?: return
@@ -363,27 +387,29 @@ class PictureElementsCard : CardRenderer {
         val dy = (h * (topPct / 100f) - dot / 2).coerceAtLeast(0.dp)
 
         Box(
-            modifier = Modifier
-                .offset(x = dx, y = dy)
-                .size(dot)
-                .drawBehind {
-                    drawCircle(color = Color(0xD9155E6E))
-                    blend?.let { drawCircle(color = Color(0xFF33CBDA), blendMode = it) }
-                },
+            modifier =
+                Modifier
+                    .offset(x = dx, y = dy)
+                    .size(dot)
+                    .drawBehind {
+                        drawCircle(color = Color(0xD9155E6E))
+                        blend?.let { drawCircle(color = Color(0xFF33CBDA), blendMode = it) }
+                    },
             contentAlignment = Alignment.Center,
         ) {
             Text("$id", color = Color(0xFFDCF1F4), fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 
-    private fun parseBlend(name: String?): BlendMode? = when (name?.lowercase()) {
-        "none" -> null
-        "multiply" -> BlendMode.Multiply
-        "screen" -> BlendMode.Screen
-        "softlight" -> BlendMode.Softlight
-        "hardlight" -> BlendMode.Hardlight
-        "difference" -> BlendMode.Difference
-        "overlay", null -> BlendMode.Overlay
-        else -> BlendMode.Overlay
-    }
+    private fun parseBlend(name: String?): BlendMode? =
+        when (name?.lowercase()) {
+            "none" -> null
+            "multiply" -> BlendMode.Multiply
+            "screen" -> BlendMode.Screen
+            "softlight" -> BlendMode.Softlight
+            "hardlight" -> BlendMode.Hardlight
+            "difference" -> BlendMode.Difference
+            "overlay", null -> BlendMode.Overlay
+            else -> BlendMode.Overlay
+        }
 }

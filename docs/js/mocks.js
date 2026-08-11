@@ -152,3 +152,73 @@ const FAN_MOCK = {
 // Mirrors FanCard.kt's oscillate-toggle label — reuses the swing_mode
 // on/off translation, same concept (oscillation on/off) as ClimateCard's swing.
 function fanOscillateLabel(on) { return on ? CLIMATE_SWING_LABELS.on : CLIMATE_SWING_LABELS.off; }
+
+// Fake example cover entity (real data, from cover.volet_chambre_noham).
+const COVER_MOCK = {
+  friendly_name: 'Volet Chambre Noham',
+  state: 'open',
+  is_closed: false,
+  current_position: 100,
+  device_class: 'shutter',
+};
+
+// Mirrors assets/ha_labels/en.json's cover_state category (used only as a
+// fallback for covers with no current_position — see coverStateLabel below).
+const COVER_STATE_LABELS = { open: 'Open', closed: 'Closed', opening: 'Opening', closing: 'Closing', stopped: 'Stopped', unknown: 'Unknown' };
+function coverStateLabel(s) { return COVER_STATE_LABELS[s] || (s.charAt(0).toUpperCase() + s.slice(1)); }
+
+// Mirrors CoverCard.kt's stateLabel logic: 100% -> "Open", 0% -> "Closed",
+// anything in between -> "N% open"; falls back to the raw HA state when the
+// entity has no current_position attribute at all.
+function coverPositionLabel(position, rawState) {
+  if (position === 100) return 'Open';
+  if (position === 0) return 'Closed';
+  if (position != null) return `${position}% open`;
+  return coverStateLabel(rawState);
+}
+
+// Same MDI path data as MdiIcons.kt's WindowShutterClosed/Open and
+// CoverUp/CoverDown — see that file for the source/rationale. "stop" mirrors
+// Material Icons' filled Stop glyph (a plain filled square), used as-is by
+// CoverCard.kt for the middle button.
+MDI.windowShutterClosed = 'M3,4H21V8H19V20H17V8H7V20H5V8H3V4M8,9H16V11H8V9M8,12H16V14H8V12M8,15H16V17H8V15M8,18H16V20H8V18Z';
+MDI.windowShutterOpen = 'M3,4H21V8H19V20H17V8H7V20H5V8H3V4M8,9H16V11H8V9Z';
+MDI.coverUp = 'M21,19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3H19C20.11,3 21,3.9 21,5V19M13,18V9.5L16.5,13L17.92,11.58L12,5.66L6.08,11.58L7.5,13L11,9.5V18H13Z';
+MDI.coverDown = 'M3,5A2,2 0 0,1 5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5M11,6V14.5L7.5,11L6.08,12.42L12,18.34L17.92,12.42L16.5,11L13,14.5V6H11Z';
+MDI.stop = 'M6,6H18V18H6V6Z';
+// Same shape as MdiIcons.kt's LightbulbOn/LightbulbOff, used by LightCard.kt
+// (swaps automatically with on/off, same as that card).
+MDI.lightbulbOn = 'M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z';
+MDI.lightbulbOff = 'M12,2C9.76,2 7.78,3.05 6.5,4.68L16.31,14.5C17.94,13.21 19,11.24 19,9A7,7 0 0,0 12,2M3.28,4L2,5.27L5.04,8.3C5,8.53 5,8.76 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H14.73L18.73,22L20,20.72L3.28,4M9,20V21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9Z';
+
+// Fake example light entity — colour-temp/xy profile (no rgb_color), the
+// same shape a Hue-style colour-temp bulb reports, generic name (no local
+// IP or personal entity id baked into a file this builder ships publicly).
+const LIGHT_MOCK = {
+  friendly_name: 'Living Room Lamp',
+  state: 'on',
+  brightness: 191, // 0..255, ≈75%
+  supported_color_modes: ['color_temp', 'xy'],
+  color_temp_kelvin: 3000, // used only to derive a warm preview tint below
+  rgb_color: null,
+};
+
+// Approximates the on-screen warmth of a given colour temperature for the
+// "use_light_color" preview, since this mock has no rgb_color of its own
+// (color_temp/xy lights report kelvin, not RGB — LightCard.kt itself only
+// tints from a real rgb_color, this is preview-only convenience).
+function kelvinToPreviewRgb(k) {
+  if (k <= 2700) return [255, 179, 102]; // warm
+  if (k <= 4000) return [255, 214, 170]; // neutral-warm
+  return [255, 249, 253]; // cool/neutral white
+}
+
+// Mirrors LightCard.kt's stateLabel logic: off -> "Off", 0% -> "Off",
+// otherwise "N%" — only shown when showBrightness is on and the light
+// reports a brightness; a plain toggle-only light just shows "On".
+function lightStateLabel(isOn, brightnessPct, showBrightness) {
+  if (!isOn) return 'Off';
+  if (!showBrightness || brightnessPct == null) return 'On';
+  if (brightnessPct <= 0) return 'Off';
+  return `${brightnessPct}%`;
+}

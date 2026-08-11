@@ -5,11 +5,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material.icons.automirrored.filled.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,7 +51,10 @@ class TvRemoteCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val remoteEntity = config.string("remote_entity") ?: return
         val muteEntity = config.string("mute_entity") ?: remoteEntity
         val name = config.string("name") ?: "TV"
@@ -59,16 +62,23 @@ class TvRemoteCard : CardRenderer {
         // Per-button command names, overridable from config. Defaults match an
         // Android TV `remote.send_command` entity (DPAD_*, HOME, BACK, ...).
         val commands = (config.options["commands"] as? Map<String, Any?>).orEmpty()
-        fun c(key: String, default: String): String = (commands[key] as? String) ?: default
 
-        fun send(command: String, entity: String = remoteEntity) {
+        fun c(
+            key: String,
+            default: String,
+        ): String = (commands[key] as? String) ?: default
+
+        fun send(
+            command: String,
+            entity: String = remoteEntity,
+        ) {
             ctx.client.callService(
                 ServiceCall.of(
                     domain = "remote",
                     service = "send_command",
                     entityId = entity,
                     "command" to command,
-                )
+                ),
             )
         }
 
@@ -86,26 +96,29 @@ class TvRemoteCard : CardRenderer {
                 val entity = app["entity_id"] as? String
                 val data = (app["data"] as? Map<String, Any?>).orEmpty()
                 ctx.client.callService(
-                    ServiceCall.of(domain, svc, entity, *data.entries.map { it.key to it.value }.toTypedArray())
+                    ServiceCall.of(domain, svc, entity, *data.entries.map { it.key to it.value }.toTypedArray()),
                 )
             } else {
                 val appId = app["app"] as? String ?: return
                 ctx.client.callService(
                     ServiceCall.of(
-                        "media_player", "play_media", mediaEntity,
+                        "media_player",
+                        "play_media",
+                        mediaEntity,
                         "media_content_type" to "app",
                         "media_content_id" to appId,
-                    )
+                    ),
                 )
             }
         }
 
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF1B343D))
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF1B343D))
+                    .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             // Header row: name + power
@@ -158,13 +171,18 @@ class TvRemoteCard : CardRenderer {
     }
 
     @Composable
-    private fun AppButton(label: String, modifier: Modifier, onClick: () -> Unit) {
+    private fun AppButton(
+        label: String,
+        modifier: Modifier,
+        onClick: () -> Unit,
+    ) {
         Box(
-            modifier = modifier
-                .height(48.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF2C4C58))
-                .clickable(onClick = onClick),
+            modifier =
+                modifier
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF2C4C58))
+                    .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Text(label, color = Color(0xFFE6F0F1), fontSize = 15.sp, fontWeight = FontWeight.Medium)
@@ -172,12 +190,13 @@ class TvRemoteCard : CardRenderer {
     }
 
     private companion object {
-        val DEFAULT_APPS = listOf(
-            mapOf("name" to "Netflix", "app" to "com.netflix.ninja"),
-            mapOf("name" to "Plex", "app" to "com.plexapp.android"),
-            mapOf("name" to "ABC iView", "app" to "au.net.abc.iview"),
-            mapOf("name" to "VLC", "app" to "org.videolan.vlc"),
-        )
+        val DEFAULT_APPS =
+            listOf(
+                mapOf("name" to "Netflix", "app" to "com.netflix.ninja"),
+                mapOf("name" to "Plex", "app" to "com.plexapp.android"),
+                mapOf("name" to "ABC iView", "app" to "au.net.abc.iview"),
+                mapOf("name" to "VLC", "app" to "org.videolan.vlc"),
+            )
     }
 
     @Composable
@@ -189,11 +208,12 @@ class TvRemoteCard : CardRenderer {
         onCenter: () -> Unit,
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(180.dp)
-                .clip(RoundedCornerShape(90.dp))
-                .background(Color(0xFF23414B)),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(90.dp))
+                    .background(Color(0xFF23414B)),
             contentAlignment = Alignment.Center,
         ) {
             // Up
@@ -214,11 +234,12 @@ class TvRemoteCard : CardRenderer {
             }
             // Center / OK
             Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF33525E))
-                    .clickable(onClick = onCenter),
+                modifier =
+                    Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF33525E))
+                        .clickable(onClick = onCenter),
                 contentAlignment = Alignment.Center,
             ) {
                 Text("OK", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -233,11 +254,12 @@ class TvRemoteCard : CardRenderer {
         onClick: () -> Unit,
     ) {
         Box(
-            modifier = Modifier
-                .size(52.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF2C4C58))
-                .clickable(onClick = onClick),
+            modifier =
+                Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF2C4C58))
+                    .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Icon(icon, contentDescription = null, tint = tint)

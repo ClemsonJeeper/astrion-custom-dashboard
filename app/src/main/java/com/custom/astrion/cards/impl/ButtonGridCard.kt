@@ -49,7 +49,10 @@ class ButtonGridCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val columns = config.int("columns", 3).coerceAtLeast(1)
         val buttons = (config.options["buttons"] as? List<Map<String, Any?>>) ?: emptyList()
 
@@ -69,38 +72,47 @@ class ButtonGridCard : CardRenderer {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun fire(ctx: CardContext, b: Map<String, Any?>) {
+    private fun fire(
+        ctx: CardContext,
+        b: Map<String, Any?>,
+    ) {
         val service = b["service"] as? String ?: return
         val domain = service.substringBefore('.')
         val svc = service.substringAfter('.')
         val entityId = b["entity_id"] as? String
         val data = (b["data"] as? Map<String, Any?>).orEmpty()
         ctx.client.callService(
-            ServiceCall.of(domain, svc, entityId, *data.entries.map { it.key to it.value }.toTypedArray())
+            ServiceCall.of(domain, svc, entityId, *data.entries.map { it.key to it.value }.toTypedArray()),
         )
     }
 
     @Composable
-    private fun GridButton(b: Map<String, Any?>, modifier: Modifier, onClick: () -> Unit) {
+    private fun GridButton(
+        b: Map<String, Any?>,
+        modifier: Modifier,
+        onClick: () -> Unit,
+    ) {
         val name = b["name"] as? String
         val iconPath = b["icon"] as? String
-        val bitmap = remember(iconPath) {
-            iconPath?.let {
-                runCatching {
-                    val f = File(it)
-                    if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
-                }.getOrNull()
+        val bitmap =
+            remember(iconPath) {
+                iconPath?.let {
+                    runCatching {
+                        val f = File(it)
+                        if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
+                    }.getOrNull()
+                }
             }
-        }
         val hasIcon = bitmap != null
 
         Column(
-            modifier = modifier
-                .height(if (hasIcon) 68.dp else 48.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFF2A4954))
-                .clickable(onClick = onClick)
-                .padding(6.dp),
+            modifier =
+                modifier
+                    .height(if (hasIcon) 68.dp else 48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF2A4954))
+                    .clickable(onClick = onClick)
+                    .padding(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {

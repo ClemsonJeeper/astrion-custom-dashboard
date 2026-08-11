@@ -67,24 +67,25 @@ fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
     val time = rememberTickingTime()
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(30.dp)
-            .padding(horizontal = 14.dp)
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragStart = { dragAccumulated = 0f },
-                    onDragEnd = { dragAccumulated = 0f },
-                    onVerticalDrag = { change, dragAmount ->
-                        change.consume()
-                        dragAccumulated += dragAmount
-                        if (dragAccumulated > triggerPx) {
-                            onSwipeDownToSettings()
-                            dragAccumulated = 0f
-                        }
-                    },
-                )
-            },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(30.dp)
+                .padding(horizontal = 14.dp)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onDragStart = { dragAccumulated = 0f },
+                        onDragEnd = { dragAccumulated = 0f },
+                        onVerticalDrag = { change, dragAmount ->
+                            change.consume()
+                            dragAccumulated += dragAmount
+                            if (dragAccumulated > triggerPx) {
+                                onSwipeDownToSettings()
+                                dragAccumulated = 0f
+                            }
+                        },
+                    )
+                },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -107,12 +108,16 @@ fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
 /** Simple hand-drawn battery glyph (outline + fill + nub) — avoids depending
  * on the extended Material icon pack, which may not be on the classpath. */
 @Composable
-private fun BatteryGlyph(percent: Int, charging: Boolean) {
-    val fillColor = when {
-        charging -> Color(0xFF4CAF50)
-        percent <= 15 -> Color(0xFFE53935)
-        else -> Color(0xFF93AFB6)
-    }
+private fun BatteryGlyph(
+    percent: Int,
+    charging: Boolean,
+) {
+    val fillColor =
+        when {
+            charging -> Color(0xFF4CAF50)
+            percent <= 15 -> Color(0xFFE53935)
+            else -> Color(0xFF93AFB6)
+        }
     Canvas(modifier = Modifier.size(width = 20.dp, height = 11.dp)) {
         val bodyWidth = size.width * 0.85f
         val nubWidth = size.width - bodyWidth
@@ -168,20 +173,27 @@ private fun rememberWifiConnected(context: Context): Boolean {
 
         connected = hasWifi(null)
 
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                connected = hasWifi(network)
+        val callback =
+            object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    connected = hasWifi(network)
+                }
+
+                override fun onLost(network: Network) {
+                    connected = hasWifi(null)
+                }
+
+                override fun onCapabilitiesChanged(
+                    network: Network,
+                    capabilities: NetworkCapabilities,
+                ) {
+                    connected = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                }
             }
-            override fun onLost(network: Network) {
-                connected = hasWifi(null)
-            }
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                connected = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-            }
-        }
-        val request = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .build()
+        val request =
+            NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
         cm?.registerNetworkCallback(request, callback)
         onDispose { cm?.unregisterNetworkCallback(callback) }
     }
@@ -193,17 +205,21 @@ private fun rememberBatteryState(context: Context): Pair<Int, Boolean> {
     var percent by remember { mutableIntStateOf(100) }
     var charging by remember { mutableStateOf(false) }
     DisposableEffect(Unit) {
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context?, intent: Intent?) {
-                if (intent == null) return
-                val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-                val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-                if (level >= 0 && scale > 0) percent = (level * 100 / scale)
-                val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-                charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+        val receiver =
+            object : BroadcastReceiver() {
+                override fun onReceive(
+                    ctx: Context?,
+                    intent: Intent?,
+                ) {
+                    if (intent == null) return
+                    val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                    val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                    if (level >= 0 && scale > 0) percent = (level * 100 / scale)
+                    val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                    charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                         status == BatteryManager.BATTERY_STATUS_FULL
+                }
             }
-        }
         context.registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         onDispose { context.unregisterReceiver(receiver) }
     }

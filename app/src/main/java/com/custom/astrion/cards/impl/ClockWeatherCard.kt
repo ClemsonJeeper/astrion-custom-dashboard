@@ -58,7 +58,10 @@ class ClockWeatherCard : CardRenderer {
     override val type = "clock_weather"
 
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val entityId = config.string("entity_id") ?: "weather.forecast_home"
         val e = ctx.entities[entityId]
         val is24 = config.int("time_format", 12) == 24
@@ -72,9 +75,10 @@ class ClockWeatherCard : CardRenderer {
                 delay(10_000)
             }
         }
-        val timeFmt = remember(is24) {
-            SimpleDateFormat(if (is24) "HH:mm" else "h:mm a", Locale.getDefault())
-        }
+        val timeFmt =
+            remember(is24) {
+                SimpleDateFormat(if (is24) "HH:mm" else "h:mm a", Locale.getDefault())
+            }
         val dateFmt = remember { SimpleDateFormat("EEE, d MMM", Locale.getDefault()) }
 
         // Fetch the forecast via the service; refresh every 30 min.
@@ -97,11 +101,12 @@ class ClockWeatherCard : CardRenderer {
         val todayEvent = calendarEntity?.let { todaysEvent(ctx.entities[it], now) }
 
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1B343D))
-                .padding(12.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF1B343D))
+                    .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // Current info.
@@ -157,7 +162,11 @@ class ClockWeatherCard : CardRenderer {
     }
 
     @Composable
-    private fun ForecastRow(f: Forecast, weekMin: Double, span: Double) {
+    private fun ForecastRow(
+        f: Forecast,
+        weekMin: Double,
+        span: Double,
+    ) {
         val lowFrac = (((f.low ?: weekMin) - weekMin) / span).toFloat().coerceIn(0f, 1f)
         val highFrac = (((f.high ?: (weekMin + span)) - weekMin) / span).toFloat().coerceIn(0f, 1f)
 
@@ -166,34 +175,42 @@ class ClockWeatherCard : CardRenderer {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(f.day, color = Color(0xFF9AB0C4), fontSize = 13.sp, modifier = Modifier.width(40.dp))
-            Text(emojiFor(f.condition), fontSize = 18.sp, textAlign = TextAlign.Center,
-                modifier = Modifier.width(30.dp))
+            Text(
+                emojiFor(f.condition),
+                fontSize = 18.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(30.dp),
+            )
             Text(
                 f.low?.let { "${trim(it)}°" } ?: "",
-                color = Color(0xFF9AB0C4), fontSize = 13.sp, textAlign = TextAlign.End,
+                color = Color(0xFF9AB0C4),
+                fontSize = 13.sp,
+                textAlign = TextAlign.End,
                 modifier = Modifier.width(40.dp),
             )
             Spacer(Modifier.width(8.dp))
             // Min→max gradient bar, positioned within the week's range via weights.
             Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFF2C3E4E)),
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF2C3E4E)),
             ) {
                 Row(Modifier.matchParentSize()) {
                     Spacer(Modifier.weight(lowFrac.coerceAtLeast(0.001f)))
                     Box(
-                        modifier = Modifier
-                            .weight((highFrac - lowFrac).coerceAtLeast(0.03f))
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(Color(0xFF3DD68C), Color(0xFF9BE7C4)),
-                                )
-                            ),
+                        modifier =
+                            Modifier
+                                .weight((highFrac - lowFrac).coerceAtLeast(0.03f))
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(Color(0xFF3DD68C), Color(0xFF9BE7C4)),
+                                    ),
+                                ),
                     )
                     Spacer(Modifier.weight((1f - highFrac).coerceAtLeast(0.001f)))
                 }
@@ -201,8 +218,11 @@ class ClockWeatherCard : CardRenderer {
             Spacer(Modifier.width(8.dp))
             Text(
                 f.high?.let { "${trim(it)}°" } ?: "",
-                color = Color(0xFFF2F5FA), fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.End, modifier = Modifier.width(40.dp),
+                color = Color(0xFFF2F5FA),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(40.dp),
             )
         }
     }
@@ -214,7 +234,9 @@ class ClockWeatherCard : CardRenderer {
         val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.getDefault())
         return arr.mapNotNull { el ->
             val o = el as? JsonObject ?: return@mapNotNull null
+
             fun str(k: String) = (o[k] as? JsonPrimitive)?.content
+
             fun dbl(k: String) = (o[k] as? JsonPrimitive)?.content?.toDoubleOrNull()
             val dt = str("datetime")
             val day = dt?.let { runCatching { dayFmt.format(parser.parse(it.take(16))!!) }.getOrNull() } ?: ""
@@ -228,7 +250,10 @@ class ClockWeatherCard : CardRenderer {
      * over the WebSocket state, only this one. Show it only if that event's
      * date is today, so a distant next event doesn't sit here for days.
      */
-    private fun todaysEvent(e: com.custom.astrion.ha.EntityState?, nowMs: Long): String? {
+    private fun todaysEvent(
+        e: com.custom.astrion.ha.EntityState?,
+        nowMs: Long,
+    ): String? {
         e ?: return null
         val message = e.attrString("message") ?: return null
         val startStr = e.attrString("start_time") ?: return null
@@ -247,21 +272,21 @@ class ClockWeatherCard : CardRenderer {
         return "$message · $range"
     }
 
-    private fun trim(d: Double): String =
-        if (d == d.toLong().toDouble()) d.toLong().toString() else String.format(Locale.US, "%.1f", d)
+    private fun trim(d: Double): String = if (d == d.toLong().toDouble()) d.toLong().toString() else String.format(Locale.US, "%.1f", d)
 
     /** Map HA weather condition strings to a simple emoji — no icon assets needed. */
-    private fun emojiFor(condition: String): String = when (condition) {
-        "sunny", "clear" -> "☀️"
-        "clear-night" -> "🌙"
-        "partlycloudy" -> "⛅"
-        "cloudy" -> "☁️"
-        "fog" -> "🌫️"
-        "rainy", "pouring" -> "🌧️"
-        "lightning", "lightning-rainy" -> "⛈️"
-        "snowy", "snowy-rainy" -> "❄️"
-        "windy", "windy-variant" -> "💨"
-        "hail" -> "🌨️"
-        else -> "🌡️"
-    }
+    private fun emojiFor(condition: String): String =
+        when (condition) {
+            "sunny", "clear" -> "☀️"
+            "clear-night" -> "🌙"
+            "partlycloudy" -> "⛅"
+            "cloudy" -> "☁️"
+            "fog" -> "🌫️"
+            "rainy", "pouring" -> "🌧️"
+            "lightning", "lightning-rainy" -> "⛈️"
+            "snowy", "snowy-rainy" -> "❄️"
+            "windy", "windy-variant" -> "💨"
+            "hail" -> "🌨️"
+            else -> "🌡️"
+        }
 }

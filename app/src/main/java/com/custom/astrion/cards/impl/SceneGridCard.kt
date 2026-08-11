@@ -80,16 +80,20 @@ class SceneGridCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val columns = config.int("columns", 2).coerceAtLeast(1)
         val scenes = (config.options["scenes"] as? List<Map<String, Any?>>) ?: emptyList()
         val row = config.string("layout") == "row"
 
         val androidContext = LocalContext.current
         val scope = rememberCoroutineScope()
-        val irManager = remember {
-            androidContext.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
-        }
+        val irManager =
+            remember {
+                androidContext.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
+            }
 
         fun activate(entityId: String) {
             val domain = entityId.substringBefore('.')
@@ -132,8 +136,7 @@ class SceneGridCard : CardRenderer {
             return scene["page"] as? String ?: "?"
         }
 
-        fun colorOf(scene: Map<String, Any?>): Color =
-            (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFF2A4954)
+        fun colorOf(scene: Map<String, Any?>): Color = (scene["color"] as? String)?.let(::parseHexColor) ?: Color(0xFF2A4954)
 
         fun iconOf(scene: Map<String, Any?>): String? = scene["icon"] as? String
 
@@ -145,9 +148,10 @@ class SceneGridCard : CardRenderer {
 
         if (row) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 scenes.forEach { scene ->
@@ -192,8 +196,7 @@ class SceneGridCard : CardRenderer {
         }
     }
 
-    private fun luminance(c: Color): Float =
-        0.2126f * c.red + 0.7152f * c.green + 0.0722f * c.blue
+    private fun luminance(c: Color): Float = 0.2126f * c.red + 0.7152f * c.green + 0.0722f * c.blue
 
     @Composable
     private fun SceneButton(
@@ -206,14 +209,15 @@ class SceneGridCard : CardRenderer {
         onClick: () -> Unit,
     ) {
         val textColor = if (luminance(color) > 0.75f) Color(0xFF141414) else Color(0xFFF0F2F6)
-        val bitmap = remember(iconPath) {
-            iconPath?.let {
-                runCatching {
-                    val f = File(it)
-                    if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
-                }.getOrNull()
+        val bitmap =
+            remember(iconPath) {
+                iconPath?.let {
+                    runCatching {
+                        val f = File(it)
+                        if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
+                    }.getOrNull()
+                }
             }
-        }
 
         if (hasIcon) {
             // Every tile in the grid uses this branch once any one of them has
@@ -221,12 +225,13 @@ class SceneGridCard : CardRenderer {
             // spacer keeps their label lined up with the others instead of
             // sitting lower.
             Column(
-                modifier = modifier
-                    .height(74.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(color)
-                    .clickable(onClick = onClick)
-                    .padding(6.dp),
+                modifier =
+                    modifier
+                        .height(74.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(color)
+                        .clickable(onClick = onClick)
+                        .padding(6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -249,12 +254,13 @@ class SceneGridCard : CardRenderer {
             }
         } else {
             Box(
-                modifier = modifier
-                    .height(58.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(color)
-                    .clickable(onClick = onClick)
-                    .padding(horizontal = 8.dp),
+                modifier =
+                    modifier
+                        .height(58.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(color)
+                        .clickable(onClick = onClick)
+                        .padding(horizontal = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

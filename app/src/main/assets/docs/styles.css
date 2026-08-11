@@ -1,4 +1,4 @@
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
   h1 { font-size: 1.3rem; color: #00E5FF; margin: 0 0 4px; }
   .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
   .layout { display: flex; gap: 20px; align-items: flex-start; }
@@ -65,6 +65,24 @@
   .preview-modal-close { position: absolute; top: 10px; right: 10px; background: #333; color: #eee; border: none; border-radius: 6px; padding: 5px 11px; cursor: pointer; font-size: 0.9rem; }
   .remote-screen.expanded { position: static; width: 380px; cursor: default; }
 
+  /* Icon field: text input (still editable by hand) + a live thumbnail +
+     "Choose…" button that opens the icon-picker modal below. The thumbnail
+     and picker both only resolve when the builder is served by the device
+     itself (see iconUrl() in cards.js) — harmless no-ops otherwise. */
+  .icon-field-row { display: flex; gap: 8px; align-items: center; }
+  .icon-field-row input { flex: 1; }
+  .icon-field-thumb { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 7px; background: #2d2d2d; object-fit: contain; padding: 3px; box-sizing: border-box; display: none; }
+  .icon-field-thumb.shown { display: block; }
+  .icon-field-row button.secondary { margin-top: 0; flex: 0 0 auto; white-space: nowrap; }
+
+  .icon-picker-inner { width: 380px; max-width: 90vw; }
+  .icon-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 10px; max-height: 360px; overflow-y: auto; margin-top: 10px; }
+  .icon-picker-item { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; padding: 8px 4px; border-radius: 8px; background: #202020; border: 1px solid #333; }
+  .icon-picker-item:hover { background: #2a2a2a; border-color: #00E5FF; }
+  .icon-picker-item img { width: 36px; height: 36px; object-fit: contain; background: #2d2d2d; border-radius: 7px; padding: 4px; box-sizing: border-box; }
+  .icon-picker-item span { font-size: 0.65rem; color: #aaa; max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .icon-picker-empty, .icon-picker-error { color: #888; font-size: 0.82rem; padding: 20px 4px; text-align: center; }
+
   /* Real cards never show their config type name, edit/remove icons, or
      entity id — only the zoomed/expanded view (an editing aid) does. */
   .remote-screen:not(.expanded) .card-title,
@@ -80,6 +98,57 @@
   .preview-play-btn { width: 44px; height: 44px; background: #2a2a2a; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #e6e6e6; }
   .preview-grid { display: grid; gap: 8px; min-width: 0; }
   .preview-tile { background: #2a2a2a; border-radius: 8px; padding: 10px; font-size: 0.82rem; text-align: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-sizing: border-box; }
+
+  /* scene_grid / button_grid tiles — sized to match the real on-device tile
+     dp values 1:1 (see SceneGridCard.kt / ButtonGridCard.kt), same convention
+     as the other preview-* card styles below. */
+  .preview-scene-tile, .preview-button-tile {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border-radius: 14px; box-sizing: border-box; padding: 6px; overflow: hidden; min-width: 0;
+  }
+  .preview-scene-tile.has-icon, .preview-button-tile.has-icon { height: 74px; }
+  .preview-scene-tile.no-icon { height: 58px; }
+  .preview-button-tile.has-icon { height: 68px; }
+  .preview-button-tile.no-icon { height: 48px; }
+  .preview-scene-tile .st-icon, .preview-scene-tile .st-icon-spacer { width: 28px; height: 28px; object-fit: contain; flex: 0 0 auto; }
+  .preview-button-tile .bt-icon { width: 32px; height: 32px; object-fit: contain; flex: 0 0 auto; margin-bottom: 4px; }
+  .preview-scene-tile .st-label {
+    font-size: 12px; font-weight: 500; text-align: center; margin-top: 6px; max-width: 100%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .preview-scene-tile.no-icon .st-label { font-size: 15px; margin-top: 0; }
+  .preview-button-tile .bt-label {
+    color: #E6F0F1; font-size: 12px; font-weight: 500; text-align: center; max-width: 100%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .preview-button-tile.no-icon { background: #2A4954; }
+  .preview-button-tile.has-icon { background: #2A4954; }
+  .preview-button-tile.no-icon .bt-label { font-size: 15px; }
+
+  /* cover card — mirrors CoverCard.kt's 3 layouts (default / horizontal / vertical) */
+  .preview-cover { border-radius: 18px; background: #1E3841; padding: 12px 14px; box-sizing: border-box; }
+  .preview-cover.layout-horizontal { display: flex; align-items: center; gap: 12px; }
+  .preview-cover.layout-default { display: flex; flex-direction: column; gap: 12px; }
+  .preview-cover.layout-vertical { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .pc-icon { width: 42px; height: 42px; border-radius: 12px; background: #2A4954; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  .pc-icon.pc-icon-lg { width: 48px; height: 48px; }
+  .pc-icon svg { width: 24px; height: 24px; fill: #B6C9CE; }
+  .pc-namestate { display: flex; flex-direction: column; min-width: 0; }
+  .pc-namestate.pc-center { align-items: center; text-align: center; }
+  .pc-name { color: #E6F0F1; font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .pc-state { color: #93AFB6; font-size: 13px; }
+  .pc-controls { display: flex; gap: 8px; }
+  .pc-controls.pc-full { width: 100%; justify-content: space-evenly; }
+  .pc-btn { width: 44px; height: 44px; border-radius: 50%; background: #2C4C58; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  .pc-btn svg { width: 24px; height: 24px; fill: #CBDCE0; }
+  .pc-btn.pc-disabled { opacity: 0.35; }
+  .preview-light { border-radius: 18px; background: #1E3841; padding: 12px 14px; box-sizing: border-box; }
+  .preview-light.layout-horizontal { display: flex; align-items: center; gap: 12px; }
+  .preview-light.layout-default { display: flex; flex-direction: column; gap: 10px; }
+  .preview-light.layout-vertical { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .pl-bar { width: 100%; height: 6px; border-radius: 3px; background: #152B33; overflow: hidden; box-sizing: border-box; }
+  .pl-bar-fill { height: 100%; border-radius: 3px; }
+  .pc-icon.pl-icon svg { fill: currentColor; }
 
   .preview-clock-weather { background: #1B343D; border-radius: 18px; padding: 12px; display: flex; align-items: center; gap: 12px; }
   .preview-clock-weather .cw-emoji { font-size: 34px; }

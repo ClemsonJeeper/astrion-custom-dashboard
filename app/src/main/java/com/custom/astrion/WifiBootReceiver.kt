@@ -12,11 +12,15 @@ import android.util.Log
  * previous Wi-Fi state automatically after a reboot.
  */
 class WifiBootReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             try {
-                val wifiManager = context.applicationContext
-                    .getSystemService(Context.WIFI_SERVICE) as WifiManager
+                val wifiManager =
+                    context.applicationContext
+                        .getSystemService(Context.WIFI_SERVICE) as WifiManager
                 if (!wifiManager.isWifiEnabled) {
                     @Suppress("DEPRECATION")
                     wifiManager.isWifiEnabled = true

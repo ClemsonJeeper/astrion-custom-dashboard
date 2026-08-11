@@ -13,7 +13,6 @@ import com.custom.astrion.config.HarmonyHubConfig
 import com.custom.astrion.config.RemoteSettings
 import com.custom.astrion.harmony.HarmonyHubDiscovery
 import com.custom.astrion.harmony.HarmonyHubRegistry
-
 import com.custom.astrion.update.UpdateChecker
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.runBlocking
@@ -45,6 +44,12 @@ import java.util.UUID
  *  GET  /dashboard.json  download the current dashboard.json (backup)
  *  POST /dashboard.json  replace dashboard.json, then live-reload the dashboard
  *  POST /icons           upload a PNG into /sdcard/astrion/icons/
+ *  GET  /icons-list       list every uploaded icon's filename, as JSON — feeds
+ *                        the dashboard editor's icon picker
+ *  GET  /icons/<file>     serve an uploaded icon back out — lets the dashboard
+ *                        editor's picker/preview (docs/js/cards.js) show a
+ *                        card's real configured icon when opened from this
+ *                        device (/builder/)
  *  GET  /check-update     check this project's GitHub Releases for a newer build
  *  POST /install-update   download the newer APK and open the system installer
  *
@@ -58,7 +63,6 @@ class ConfigServer(
     private val onConnectionSaved: () -> Unit,
     private val onDashboardUpdated: () -> Unit,
 ) : NanoHTTPD(8080) {
-
     @Volatile private var lastResult: UpdateChecker.CheckResult? = null
 
     private val iconsDir: File
@@ -77,6 +81,8 @@ class ConfigServer(
                 session.method == Method.POST && session.uri == "/save-connection" -> handleSaveConnection(session)
                 session.method == Method.POST && session.uri == "/dashboard.json" -> handleDashboardUpload(session)
                 session.method == Method.POST && session.uri == "/icons" -> handleIconUpload(session)
+                session.method == Method.GET && session.uri == "/icons-list" -> serveIconsList()
+                session.method == Method.GET && session.uri.startsWith("/icons/") -> serveIcon(session.uri)
                 session.method == Method.GET && session.uri == "/check-update" -> handleCheckUpdate()
                 session.method == Method.POST && session.uri == "/install-update" -> handleInstallUpdate()
                 else -> newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found")
@@ -96,23 +102,25 @@ class ConfigServer(
         val haConfigured = haUrl.isNotBlank() && haToken.isNotBlank()
         val update = (lastResult as? UpdateChecker.CheckResult.Available)?.info
 
-        val updateBadgeHtml = if (update != null) {
-            """
-            <form method="post" action="/install-update" class="status-right">
-              <button type="submit" class="badge badge-warn" title="${escape(context.getString(R.string.web_config_install_update_button))}">
-                <span class="dot dot-warn"></span>${context.getString(R.string.web_config_update_found, update.version)}
-              </button>
-            </form>
-            """.trimIndent()
-        } else {
-            """
-            <a class="badge status-right" href="/check-update" title="${escape(context.getString(R.string.web_config_check_update_link))}">
-              <span class="dot dot-off"></span>v${BuildConfig.VERSION_NAME}
-            </a>
-            """.trimIndent()
-        }
+        val updateBadgeHtml =
+            if (update != null) {
+                """
+                <form method="post" action="/install-update" class="status-right">
+                  <button type="submit" class="badge badge-warn" title="${escape(context.getString(R.string.web_config_install_update_button))}">
+                    <span class="dot dot-warn"></span>${context.getString(R.string.web_config_update_found, update.version)}
+                  </button>
+                </form>
+                """.trimIndent()
+            } else {
+                """
+                <a class="badge status-right" href="/check-update" title="${escape(context.getString(R.string.web_config_check_update_link))}">
+                  <span class="dot dot-off"></span>v${BuildConfig.VERSION_NAME}
+                </a>
+                """.trimIndent()
+            }
 
-        val html = """
+        val html =
+            """
             <!doctype html><html><head><meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>${context.getString(R.string.web_config_title)}</title>
@@ -318,7 +326,7 @@ class ConfigServer(
             </script>
 
             </body></html>
-        """.trimIndent()
+            """.trimIndent()
         return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
     }
 
@@ -326,22 +334,27 @@ class ConfigServer(
     // internet access beyond the optional Google Fonts, which degrade gracefully) --
 
     private fun svgWifi() = """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.5a17 17 0 0 1 20 0"/><path d="M5.5 12.5a12 12 0 0 1 13 0"/><path d="M9 16.5a7 7 0 0 1 6 0"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/></svg>"""
+
     private fun svgRemote() = """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="7" r="1.4" fill="currentColor" stroke="none"/><path d="M9.5 12h5M9.5 15.5h5M9.5 19h2"/></svg>"""
+
     private fun svgWand() = """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 16 8"/><path d="M14.5 9.5 18 6"/><path d="M19 4v2M22 5h-2M4 3v2M3 4h2M19.5 15v2M20.5 16h-2"/></svg>"""
+
     private fun svgDownload() = """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>"""
+
     private fun svgUpload() = """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V8M7 13l5-5 5 5M4 4h16"/></svg>"""
+
     private fun svgImage() = """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.4" fill="currentColor" stroke="none"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg>"""
+
     private fun svgRefresh() = """<svg class="icon" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>"""
-
-
 
     /** One repeatable hub row — also used (with blank values) as the JS `+` template. */
     private fun hubRowHtml(hub: HarmonyHubConfig): String {
-        val fetchLink = if (hub.localId.isNotBlank()) {
-            """<a href="#" onclick="fetchHubConfig(this, '${escape(hub.localId)}'); return false;">${context.getString(R.string.web_config_harmony_fetch_link)}</a>"""
-        } else {
-            "" // unsaved row — nothing to fetch yet, hub doesn't exist on the backend until Save is pressed
-        }
+        val fetchLink =
+            if (hub.localId.isNotBlank()) {
+                """<a href="#" onclick="fetchHubConfig(this, '${escape(hub.localId)}'); return false;">${context.getString(R.string.web_config_harmony_fetch_link)}</a>"""
+            } else {
+                "" // unsaved row — nothing to fetch yet, hub doesn't exist on the backend until Save is pressed
+            }
         return """
             <div class="hub-row">
               <input type="hidden" name="hub_localid[]" value="${escape(hub.localId)}">
@@ -360,7 +373,7 @@ class ConfigServer(
               </div>
               <div class="hub-config-result"></div>
             </div>
-        """.trimIndent()
+            """.trimIndent()
     }
 
     private fun serveDashboardJson(): Response {
@@ -384,22 +397,24 @@ class ConfigServer(
             return newFixedLengthResponse(Response.Status.FORBIDDEN, "text/plain", "Forbidden")
         }
         val assetPath = "docs/$relativePath"
-        val bytes = try {
-            context.assets.open(assetPath).use { it.readBytes() }
-        } catch (e: java.io.FileNotFoundException) {
-            return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found: $assetPath")
-        }
-        val mime = when (relativePath.substringAfterLast('.', "")) {
-            "html" -> "text/html; charset=utf-8"
-            "js" -> "application/javascript; charset=utf-8"
-            "css" -> "text/css; charset=utf-8"
-            "json" -> "application/json; charset=utf-8"
-            "svg" -> "image/svg+xml"
-            "png" -> "image/png"
-            "jpg", "jpeg" -> "image/jpeg"
-            "ico" -> "image/x-icon"
-            else -> "application/octet-stream"
-        }
+        val bytes =
+            try {
+                context.assets.open(assetPath).use { it.readBytes() }
+            } catch (e: java.io.FileNotFoundException) {
+                return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found: $assetPath")
+            }
+        val mime =
+            when (relativePath.substringAfterLast('.', "")) {
+                "html" -> "text/html; charset=utf-8"
+                "js" -> "application/javascript; charset=utf-8"
+                "css" -> "text/css; charset=utf-8"
+                "json" -> "application/json; charset=utf-8"
+                "svg" -> "image/svg+xml"
+                "png" -> "image/png"
+                "jpg", "jpeg" -> "image/jpeg"
+                "ico" -> "image/x-icon"
+                else -> "application/octet-stream"
+            }
         return newFixedLengthResponse(Response.Status.OK, mime, bytes.inputStream(), bytes.size.toLong())
     }
 
@@ -419,11 +434,17 @@ class ConfigServer(
      * /harmony-config?hub=<localId>.
      */
     private fun serveHarmonyHubs(): Response {
-        val json = JSONArray().apply {
-            harmonyRegistry.configs.forEach { hub ->
-                put(JSONObject().apply { put("localId", hub.localId); put("name", hub.name) })
+        val json =
+            JSONArray().apply {
+                harmonyRegistry.configs.forEach { hub ->
+                    put(
+                        JSONObject().apply {
+                            put("localId", hub.localId)
+                            put("name", hub.name)
+                        },
+                    )
+                }
             }
-        }
         return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
     }
 
@@ -441,9 +462,10 @@ class ConfigServer(
         // Same fallback-to-first-hub resolution as HarmonyHubRegistry.client(),
         // but we need the HarmonyHubConfig itself (not just its client) to know
         // which cache file (by hubId) to read/write below.
-        val hubConfig = harmonyRegistry.configs.firstOrNull { it.localId == hubParam }
-            ?: harmonyRegistry.configs.firstOrNull()
-            ?: return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", """{"error":"no Harmony hub configured"}""")
+        val hubConfig =
+            harmonyRegistry.configs.firstOrNull { it.localId == hubParam }
+                ?: harmonyRegistry.configs.firstOrNull()
+                ?: return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", """{"error":"no Harmony hub configured"}""")
         val client = harmonyRegistry.client(hubConfig.localId)
 
         val config = client?.let { runBlocking { it.getConfig() } }
@@ -457,26 +479,48 @@ class ConfigServer(
             }
         }
 
-        val json = JSONObject().apply {
-            put("devices", JSONArray().apply {
-                config.devices.forEach { d ->
-                    put(JSONObject().apply {
-                        put("id", d.id)
-                        put("label", d.label)
-                        put("commands", JSONArray().apply {
-                            d.commands.forEach { c ->
-                                put(JSONObject().apply { put("name", c.name); put("label", c.label) })
-                            }
-                        })
-                    })
-                }
-            })
-            put("activities", JSONArray().apply {
-                config.activities.forEach { a ->
-                    put(JSONObject().apply { put("id", a.id); put("label", a.label) })
-                }
-            })
-        }
+        val json =
+            JSONObject().apply {
+                put(
+                    "devices",
+                    JSONArray().apply {
+                        config.devices.forEach { d ->
+                            put(
+                                JSONObject().apply {
+                                    put("id", d.id)
+                                    put("label", d.label)
+                                    put(
+                                        "commands",
+                                        JSONArray().apply {
+                                            d.commands.forEach { c ->
+                                                put(
+                                                    JSONObject().apply {
+                                                        put("name", c.name)
+                                                        put("label", c.label)
+                                                    },
+                                                )
+                                            }
+                                        },
+                                    )
+                                },
+                            )
+                        }
+                    },
+                )
+                put(
+                    "activities",
+                    JSONArray().apply {
+                        config.activities.forEach { a ->
+                            put(
+                                JSONObject().apply {
+                                    put("id", a.id)
+                                    put("label", a.label)
+                                },
+                            )
+                        }
+                    },
+                )
+            }
         writeHarmonyConfigCache(hubConfig, json)
         return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
     }
@@ -487,7 +531,10 @@ class ConfigServer(
     private fun harmonyConfigCacheFile(hub: HarmonyHubConfig): File =
         File(DashboardLoader.configFile.parentFile, "harmony_${hub.hubId.ifBlank { hub.localId }}.json")
 
-    private fun writeHarmonyConfigCache(hub: HarmonyHubConfig, config: JSONObject) {
+    private fun writeHarmonyConfigCache(
+        hub: HarmonyHubConfig,
+        config: JSONObject,
+    ) {
         try {
             val file = harmonyConfigCacheFile(hub)
             file.parentFile?.mkdirs()
@@ -516,8 +563,9 @@ class ConfigServer(
         if (ip.isNullOrBlank()) {
             return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", """{"error":"missing ip"}""")
         }
-        val hubId = runBlocking { HarmonyHubDiscovery.discoverHubId(ip) }
-            ?: return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", """{"error":"could not reach hub at $ip, or unexpected response"}""")
+        val hubId =
+            runBlocking { HarmonyHubDiscovery.discoverHubId(ip) }
+                ?: return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", """{"error":"could not reach hub at $ip, or unexpected response"}""")
         return newFixedLengthResponse(Response.Status.OK, "application/json", """{"hubId":"$hubId"}""")
     }
 
@@ -561,8 +609,9 @@ class ConfigServer(
     private fun handleDashboardUpload(session: IHTTPSession): Response {
         val files = HashMap<String, String>()
         session.parseBody(files) // NanoHTTPD writes uploaded parts to temp files, keyed by form field name
-        val tmpPath = files["file"]
-            ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "Missing file")
+        val tmpPath =
+            files["file"]
+                ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "Missing file")
         File(tmpPath).copyTo(DashboardLoader.configFile, overwrite = true)
         onDashboardUpdated()
         return redirectHome(context.getString(R.string.web_config_dashboard_updated))
@@ -571,8 +620,9 @@ class ConfigServer(
     private fun handleIconUpload(session: IHTTPSession): Response {
         val files = HashMap<String, String>()
         session.parseBody(files)
-        val tmpPath = files["file"]
-            ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "Missing file")
+        val tmpPath =
+            files["file"]
+                ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "Missing file")
         // For multipart file fields, NanoHTTPD puts the temp path in `files` and
         // the original filename as the parameter value for that same field name.
         val originalName = session.parameters["file"]?.firstOrNull() ?: "icon_${System.currentTimeMillis()}.png"
@@ -580,43 +630,88 @@ class ConfigServer(
         return redirectHome(context.getString(R.string.web_config_icon_uploaded))
     }
 
+    /**
+     * Lists every icon previously uploaded to [iconsDir], as a JSON array of
+     * bare filenames — feeds the dashboard builder's icon picker (`docs/js/
+     * cards.js`'s `openIconPicker()`), which shows them as clickable
+     * thumbnails instead of making the person type a path by hand. Only
+     * meaningful when the builder is opened from this device (`/builder/`);
+     * the picker button hides itself if this call fails (e.g. GitHub Pages).
+     */
+    private fun serveIconsList(): Response {
+        val names = iconsDir.listFiles()?.filter { it.isFile }?.map { it.name }?.sorted() ?: emptyList()
+        val json = JSONArray(names).toString()
+        return newFixedLengthResponse(Response.Status.OK, "application/json", json)
+    }
+
+    /**
+     * Serves a previously-uploaded icon back out of [iconsDir] — the other
+     * half of `handleIconUpload`'s `POST /icons`. Used by the dashboard
+     * builder (`docs/js/cards.js`'s `iconUrl()`) when it's opened from this
+     * device (`/builder/`), to preview a `scene_grid`/`button_grid` card's
+     * real configured icon instead of just its name. `sanitize()` (same one
+     * upload uses) collapses the requested path down to a bare filename, so
+     * `/icons/../../whatever` can't escape [iconsDir].
+     */
+    private fun serveIcon(uri: String): Response {
+        val name = sanitize(uri.removePrefix("/icons/"))
+        val file = File(iconsDir, name)
+        if (name.isBlank() || !file.isFile) {
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found: $name")
+        }
+        val mime =
+            when (name.substringAfterLast('.', "").lowercase()) {
+                "png" -> "image/png"
+                "jpg", "jpeg" -> "image/jpeg"
+                "svg" -> "image/svg+xml"
+                "webp" -> "image/webp"
+                else -> "application/octet-stream"
+            }
+        val bytes = file.readBytes()
+        return newFixedLengthResponse(Response.Status.OK, mime, bytes.inputStream(), bytes.size.toLong())
+    }
+
     private fun handleCheckUpdate(): Response {
         val result = UpdateChecker.checkForUpdate()
         lastResult = result
-        val message = when (result) {
-            is UpdateChecker.CheckResult.Available ->
-                context.getString(R.string.web_config_update_found, result.info.version)
-            is UpdateChecker.CheckResult.UpToDate ->
-                context.getString(R.string.web_config_update_none)
-            is UpdateChecker.CheckResult.Failed ->
-                context.getString(R.string.web_config_update_failed, result.reason)
-        }
+        val message =
+            when (result) {
+                is UpdateChecker.CheckResult.Available ->
+                    context.getString(R.string.web_config_update_found, result.info.version)
+                is UpdateChecker.CheckResult.UpToDate ->
+                    context.getString(R.string.web_config_update_none)
+                is UpdateChecker.CheckResult.Failed ->
+                    context.getString(R.string.web_config_update_failed, result.reason)
+            }
         return redirectHome(message)
     }
 
     private fun handleInstallUpdate(): Response {
         val result = lastResult ?: UpdateChecker.checkForUpdate()
-        val info = (result as? UpdateChecker.CheckResult.Available)?.info
-            ?: return redirectHome(
-                when (result) {
-                    is UpdateChecker.CheckResult.Failed -> context.getString(R.string.web_config_update_failed, result.reason)
-                    else -> context.getString(R.string.web_config_update_none)
-                }
-            )
+        val info =
+            (result as? UpdateChecker.CheckResult.Available)?.info
+                ?: return redirectHome(
+                    when (result) {
+                        is UpdateChecker.CheckResult.Failed -> context.getString(R.string.web_config_update_failed, result.reason)
+                        else -> context.getString(R.string.web_config_update_none)
+                    },
+                )
 
         // Ask first instead of letting the install intent fail: on Android 8+
         // this permission is granted per-app in Settings, not at install time.
         if (!context.packageManager.canRequestPackageInstalls()) {
-            val settingsIntent = Intent(
-                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                Uri.parse("package:${context.packageName}"),
-            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val settingsIntent =
+                Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:${context.packageName}"),
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             runCatching { context.startActivity(settingsIntent) }
             return redirectHome(context.getString(R.string.web_config_update_needs_permission))
         }
 
-        val file = UpdateChecker.download(context, info.apkUrl)
-            ?: return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Download failed")
+        val file =
+            UpdateChecker.download(context, info.apkUrl)
+                ?: return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Download failed")
 
         return try {
             UpdateChecker.promptInstall(context, file)

@@ -1,56 +1,78 @@
-
 {
   "hvac_mode": {
     "off": "Off",
-    "heat": "Heat",
-    "cool": "Cool",
-    "heat_cool": "Auto",
     "auto": "Auto",
+    "heat_cool": "Auto",
+    "cool": "Cool",
+    "heat": "Heat",
     "dry": "Dry",
     "fan_only": "Fan"
   },
   "fan_mode": {
     "auto": "Auto",
+    "silent": "Silent",
+    "quiet": "Silent",
     "low": "Low",
     "medium": "Medium",
     "high": "High",
-    "silent": "Silent",
-    "quiet": "Silent",
     "turbo": "Turbo"
-  },
-  "weather_condition": {
-    "clear-night": "Clear night",
-    "clear": "Clear",
-    "cloudy": "Cloudy",
-    "partlycloudy": "Partly cloudy",
-    "sunny": "Sunny",
-    "rainy": "Rainy",
-    "pouring": "Heavy rain",
-    "snowy": "Snowy",
-    "snowy-rainy": "Snow and rain",
-    "windy": "Windy",
-    "windy-variant": "Windy",
-    "fog": "Fog",
-    "lightning": "Lightning",
-    "lightning-rainy": "Lightning with rain",
-    "hail": "Hail",
-    "exceptional": "Exceptional"
   },
   "swing_mode": {
     "off": "Off",
+    "stop": "Off",
     "on": "On",
-    "both": "Both",
+    "swing": "On",
     "vertical": "Vertical",
     "horizontal": "Horizontal",
-    "stop": "Off",
-    "swing": "On"
+    "both": "Both"
+  },
+  "cover_state": {
+    "open": "Open",
+    "opening": "Opening",
+    "closed": "Closed",
+    "closing": "Closing",
+    "stopped": "Stopped",
+    "unknown": "Unknown"
   },
   "vacuum_state": {
     "cleaning": "Cleaning",
     "docked": "Docked",
+    "returning": "Returning to dock",
     "idle": "Idle",
     "paused": "Paused",
-    "returning": "Returning to dock",
     "error": "Error"
+  },
+  "vacuum_fan_speed": {
+    "min": "Min",
+    "quiet": "Quiet",
+    "silent": "Silent",
+    "medium": "Medium",
+    "standard": "Standard",
+    "balanced": "Balanced",
+    "high": "High",
+    "strong": "Strong",
+    "turbo": "Turbo",
+    "max": "Max",
+    "gentle": "Gentle",
+    "mop": "Mop",
+    "off": "Off"
+  },
+  "weather_condition": {
+    "sunny": "Sunny",
+    "clear": "Clear",
+    "clear-night": "Clear night",
+    "partlycloudy": "Partly cloudy",
+    "cloudy": "Cloudy",
+    "fog": "Fog",
+    "windy": "Windy",
+    "windy-variant": "Windy",
+    "rainy": "Rainy",
+    "pouring": "Heavy rain",
+    "lightning": "Lightning",
+    "lightning-rainy": "Lightning with rain",
+    "snowy": "Snowy",
+    "snowy-rainy": "Snow and rain",
+    "hail": "Hail",
+    "exceptional": "Exceptional"
   }
 }

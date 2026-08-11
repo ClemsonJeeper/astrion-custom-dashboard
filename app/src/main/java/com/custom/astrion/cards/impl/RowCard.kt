@@ -28,7 +28,10 @@ class RowCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val children = (config.options["cards"] as? List<Map<String, Any?>>) ?: emptyList()
         Row(
             modifier = Modifier.fillMaxWidth(),

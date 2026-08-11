@@ -237,14 +237,188 @@ function renderPreview() {
           </div>
           <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'climate.entity'}${usingExample ? ' · no overrides set — showing example modes (your real device\'s modes render live in the app)' : ''}</div>
         </div>`;
+    } else if (card.type === 'cover') {
+      const o = card.options || {};
+      const name = o.name || o.entity_id || COVER_MOCK.friendly_name;
+      const position = COVER_MOCK.current_position; // 0..100
+      const isOpen = position != null ? position >= 100 : COVER_MOCK.state === 'open';
+      const isClosed = position != null ? position <= 0 : COVER_MOCK.state === 'closed';
+      const stateLabel = coverPositionLabel(position, COVER_MOCK.state);
+      const layout = (o.layout === 'horizontal' || o.layout === 'vertical') ? o.layout : 'default';
+      // Only 2 icon variants exist (fully open / fully closed shutter) — show
+      // "closed" only when truly closed (0%); anything else reads as "open"
+      // since the shutter isn't down (mirrors CoverCard.kt's showOpenIcon).
+      const showOpenIcon = !isClosed;
+      // Reflects the last known open/closed state always, including while
+      // opening/closing — matches CoverCard.kt's coverIcon (no more blanking
+      // the icon mid-move; the up/down/stop buttons are the real-time cue).
+      const iconPath = showOpenIcon ? MDI.windowShutterOpen : MDI.windowShutterClosed;
+
+      const iconHtml = (big) => `<div class="pc-icon${big ? ' pc-icon-lg' : ''}">${mdiSvg(iconPath)}</div>`;
+      const nameStateHtml = (center) => `
+        <div class="pc-namestate${center ? ' pc-center' : ''}">
+          <div class="pc-name">${name}</div>
+          <div class="pc-state">${stateLabel}</div>
+        </div>`;
+      const btnHtml = (path, disabled) => `<div class="pc-btn${disabled ? ' pc-disabled' : ''}">${mdiSvg(path)}</div>`;
+      // Up disabled once fully open, down disabled once fully closed — mirrors CoverCard.kt.
+      const controlsHtml = (full) => `
+        <div class="pc-controls${full ? ' pc-full' : ''}">
+          ${btnHtml(MDI.coverUp, isOpen)}
+          ${btnHtml(MDI.stop, false)}
+          ${btnHtml(MDI.coverDown, isClosed)}
+        </div>`;
+
+      let bodyHtml;
+      if (layout === 'horizontal') {
+        // icon + name/state on the left, buttons on the right — single row.
+        bodyHtml = `
+          <div class="preview-cover layout-horizontal">
+            ${iconHtml(false)}
+            <div style="flex:1; min-width:0;">${nameStateHtml(false)}</div>
+            ${controlsHtml(false)}
+          </div>`;
+      } else if (layout === 'vertical') {
+        // icon, name, state, buttons — all centered and stacked.
+        bodyHtml = `
+          <div class="preview-cover layout-vertical">
+            ${iconHtml(true)}
+            ${nameStateHtml(true)}
+            ${controlsHtml(false)}
+          </div>`;
+      } else {
+        // "default": icon + name/state row, buttons full-width below.
+        bodyHtml = `
+          <div class="preview-cover layout-default">
+            <div style="display:flex; align-items:center; gap:12px;">
+              ${iconHtml(false)}
+              ${nameStateHtml(false)}
+            </div>
+            ${controlsHtml(true)}
+          </div>`;
+      }
+
+      cardEl.innerHTML = `
+        <div class="card">
+          <div class="card-title"><span>cover</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
+          ${bodyHtml}
+          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'cover.entity'} · Layout: ${layout} · example data (${COVER_MOCK.friendly_name}, ${position}% open)</div>
+        </div>`;
+    } else if (card.type === 'light') {
+      const o = card.options || {};
+      const name = o.name || o.entity_id || LIGHT_MOCK.friendly_name;
+      const isOn = LIGHT_MOCK.state === 'on';
+      const brightnessPct = LIGHT_MOCK.brightness != null ? Math.round((LIGHT_MOCK.brightness / 255) * 100) : null;
+      const useLightColor = o.use_light_color === true;
+      const showBrightness = o.show_brightness !== false;
+      const layout = (o.layout === 'horizontal' || o.layout === 'vertical') ? o.layout : 'default';
+      const stateLabel = lightStateLabel(isOn, brightnessPct, showBrightness);
+
+      // Mirrors LightCard.kt: filled bulb while on, outline while off; tint
+      // follows the light's rgb_color only when "use_light_color" is set,
+      // otherwise the plain amber "on" look. This mock reports color_temp/xy
+      // (no rgb_color of its own — see kelvinToPreviewRgb in mocks.js).
+      const [r, g, b] = LIGHT_MOCK.rgb_color || kelvinToPreviewRgb(LIGHT_MOCK.color_temp_kelvin);
+      const lightColorCss = (isOn && useLightColor) ? `rgb(${r},${g},${b})` : null;
+      const iconPath = isOn ? MDI.lightbulbOn : MDI.lightbulbOff;
+      const iconBg = !isOn ? '#2A4954' : (lightColorCss ? `rgba(${r},${g},${b},0.22)` : '#FFC24B');
+      const iconTint = !isOn ? '#B6C9CE' : (lightColorCss || '#241A00');
+      const barColor = lightColorCss || '#FFC24B';
+      const showBar = isOn && showBrightness && brightnessPct != null;
+
+      const iconHtml = (big) => `<div class="pc-icon pl-icon${big ? ' pc-icon-lg' : ''}" style="background:${iconBg}; color:${iconTint}">${mdiSvg(iconPath)}</div>`;
+      const nameStateHtml = (center) => `
+        <div class="pc-namestate${center ? ' pc-center' : ''}">
+          <div class="pc-name">${name}</div>
+          <div class="pc-state">${stateLabel}</div>
+        </div>`;
+      const barHtml = `<div class="pl-bar"><div class="pl-bar-fill" style="width:${brightnessPct}%; background:${barColor}"></div></div>`;
+
+      let bodyHtml;
+      if (layout === 'horizontal') {
+        // icon + name/state, single row, no bar.
+        bodyHtml = `
+          <div class="preview-light layout-horizontal">
+            ${iconHtml(false)}
+            <div style="flex:1; min-width:0;">${nameStateHtml(false)}</div>
+          </div>`;
+      } else if (layout === 'vertical') {
+        // icon, name, state — all centered and stacked.
+        bodyHtml = `
+          <div class="preview-light layout-vertical">
+            ${iconHtml(true)}
+            ${nameStateHtml(true)}
+          </div>`;
+      } else {
+        // "default": icon + name/state row, brightness bar full-width below.
+        bodyHtml = `
+          <div class="preview-light layout-default">
+            <div style="display:flex; align-items:center; gap:12px;">
+              ${iconHtml(false)}
+              ${nameStateHtml(false)}
+            </div>
+            ${showBar ? barHtml : ''}
+          </div>`;
+      }
+
+      cardEl.innerHTML = `
+        <div class="card">
+          <div class="card-title"><span>light</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
+          ${bodyHtml}
+          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'light.entity'} · Layout: ${layout}${useLightColor ? ' · icon tinted with light colour' : ''} · example data (${LIGHT_MOCK.friendly_name}, ${brightnessPct}%)</div>
+        </div>`;
     } else if (card.type === 'button_grid' || card.type === 'scene_grid') {
+      const isScene = card.type === 'scene_grid';
       const items = card.options?.buttons || card.options?.scenes || [];
       const cols = card.options?.columns || 2;
-      let tiles = items.map(i => `<div class="preview-tile">${i.name || '?'}</div>`).join('');
+      const isRow = isScene && card.options?.layout === 'row';
+      const showLabels = card.options?.show_labels !== false;
+      // Mirrors SceneGridCard.kt: once ANY scene in the grid has an icon,
+      // every tile in that grid uses the taller icon layout (74dp) so they
+      // stay a uniform height — even tiles with no icon of their own get a
+      // blank spacer instead of dropping to the shorter 58dp layout.
+      const hasIconGrid = isScene && items.some(i => i.icon);
+
+      const tileHtml = (item) => {
+        const label = item.name || '?';
+        const src = iconUrl(item.icon);
+        if (isScene) {
+          const bg = parseHexColorCss(item.color) || '#2A4954';
+          const textColor = textColorForBg(bg);
+          const iconCell = hasIconGrid
+            ? (src
+                ? `<img class="st-icon" src="${src}" alt="" onerror="onSceneIconError(this)">`
+                : `<div class="st-icon-spacer"></div>`)
+            : '';
+          return `<div class="preview-scene-tile ${hasIconGrid ? 'has-icon' : 'no-icon'}" style="background:${bg}; color:${textColor}">
+            ${iconCell}
+            ${showLabels ? `<div class="st-label">${label}</div>` : ''}
+          </div>`;
+        } else {
+          const hasIcon = !!src;
+          const iconCell = hasIcon
+            ? `<img class="bt-icon" src="${src}" alt="" onerror="onButtonIconError(this)">`
+            : '';
+          return `<div class="preview-button-tile ${hasIcon ? 'has-icon' : 'no-icon'}">
+            ${iconCell}
+            ${label ? `<div class="bt-label">${label}</div>` : ''}
+          </div>`;
+        }
+      };
+
+      let gridHtml;
+      if (isRow) {
+        const tiles = items.map(i => `<div style="flex:0 0 104px; width:104px;">${tileHtml(i)}</div>`).join('');
+        gridHtml = `<div style="display:flex; gap:10px; overflow-x:auto; padding-bottom:2px;">${tiles}</div>`;
+      } else {
+        const tiles = items.map(tileHtml).join('');
+        gridHtml = `<div class="preview-grid" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">${tiles}</div>`;
+      }
+
       cardEl.innerHTML = `
         <div class="card">
           <div class="card-title"><span>${card.type} (${items.length} items)</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
-          <div class="preview-grid" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">${tiles}</div>
+          ${gridHtml}
         </div>`;
     } else {
       cardEl.className = 'card';
@@ -256,4 +430,3 @@ function renderPreview() {
     contentContainer.appendChild(cardEl);
   });
 }
-

@@ -1,55 +1,78 @@
 {
   "hvac_mode": {
     "off": "Arrêt",
-    "heat": "Chauffage",
-    "cool": "Froid",
-    "heat_cool": "Auto",
     "auto": "Auto",
+    "heat_cool": "Auto",
+    "cool": "Froid",
+    "heat": "Chauffage",
     "dry": "Déshumidification",
     "fan_only": "Ventilation"
   },
   "fan_mode": {
     "auto": "Auto",
+    "silent": "Silencieux",
+    "quiet": "Silencieux",
     "low": "Faible",
     "medium": "Moyen",
     "high": "Fort",
-    "silent": "Silencieux",
-    "quiet": "Silencieux",
     "turbo": "Turbo"
-  },
-  "weather_condition": {
-    "clear-night": "Nuit dégagée",
-    "clear": "Dégagé",
-    "cloudy": "Nuageux",
-    "partlycloudy": "Partiellement nuageux",
-    "sunny": "Ensoleillé",
-    "rainy": "Pluvieux",
-    "pouring": "Pluie forte",
-    "snowy": "Neigeux",
-    "snowy-rainy": "Neige et pluie",
-    "windy": "Venteux",
-    "windy-variant": "Venteux",
-    "fog": "Brouillard",
-    "lightning": "Orage",
-    "lightning-rainy": "Orage avec pluie",
-    "hail": "Grêle",
-    "exceptional": "Exceptionnel"
   },
   "swing_mode": {
     "off": "Arrêt",
+    "stop": "Arrêt",
     "on": "Marche",
-    "both": "Les deux",
+    "swing": "Marche",
     "vertical": "Vertical",
     "horizontal": "Horizontal",
-    "stop": "Arrêt",
-    "swing": "Marche"
+    "both": "Les deux"
+  },
+  "cover_state": {
+    "open": "Ouvert",
+    "opening": "Ouverture",
+    "closed": "Fermé",
+    "closing": "Fermeture",
+    "stopped": "Arrêté",
+    "unknown": "Inconnu"
   },
   "vacuum_state": {
     "cleaning": "Nettoyage",
     "docked": "À la base",
+    "returning": "Retour à la base",
     "idle": "Inactif",
     "paused": "En pause",
-    "returning": "Retour à la base",
     "error": "Erreur"
+  },
+  "vacuum_fan_speed": {
+    "min": "Min",
+    "quiet": "Silencieux",
+    "silent": "Silencieux",
+    "medium": "Moyen",
+    "standard": "Standard",
+    "balanced": "Équilibré",
+    "high": "Fort",
+    "strong": "Fort",
+    "turbo": "Turbo",
+    "max": "Max",
+    "gentle": "Doux",
+    "mop": "Serpillière",
+    "off": "Arrêt"
+  },
+  "weather_condition": {
+    "sunny": "Ensoleillé",
+    "clear": "Dégagé",
+    "clear-night": "Nuit dégagée",
+    "partlycloudy": "Partiellement nuageux",
+    "cloudy": "Nuageux",
+    "fog": "Brouillard",
+    "windy": "Venteux",
+    "windy-variant": "Venteux",
+    "rainy": "Pluvieux",
+    "pouring": "Pluie forte",
+    "lightning": "Orage",
+    "lightning-rainy": "Orage avec pluie",
+    "snowy": "Neigeux",
+    "snowy-rainy": "Neige et pluie",
+    "hail": "Grêle",
+    "exceptional": "Exceptionnel"
   }
 }

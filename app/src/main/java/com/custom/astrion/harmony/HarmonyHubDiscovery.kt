@@ -29,44 +29,48 @@ import java.util.concurrent.TimeUnit
 object HarmonyHubDiscovery {
     private const val TAG = "HarmonyHubDiscovery"
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(5, TimeUnit.SECONDS)
-        .build()
+    private val client =
+        OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .build()
 
     private val jsonMediaType = "application/json".toMediaType()
 
     /** Returns the hub's hubId, or null if unreachable or the response was unexpected.
      * Logs the raw HTTP status/body on any failure — check Logcat (tag "HarmonyHubDiscovery")
      * if this returns null, to see exactly what the hub sent back. */
-    suspend fun discoverHubId(ip: String): String? = withContext(Dispatchers.IO) {
-        runCatching {
-            val body = JSONObject().apply {
-                put("id", 1)
-                put("cmd", "setup.account?getProvisionInfo")
-                put("params", JSONObject())
-            }.toString().toRequestBody(jsonMediaType)
+    suspend fun discoverHubId(ip: String): String? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val body =
+                    JSONObject().apply {
+                        put("id", 1)
+                        put("cmd", "setup.account?getProvisionInfo")
+                        put("params", JSONObject())
+                    }.toString().toRequestBody(jsonMediaType)
 
-            val request = Request.Builder()
-                .url("http://$ip:8088/")
-                .post(body)
-                .addHeader("Origin", "http://sl.dhg.myharmony.com")
-                .addHeader("Accept", "text/plain")
-                .build()
+                val request =
+                    Request.Builder()
+                        .url("http://$ip:8088/")
+                        .post(body)
+                        .addHeader("Origin", "http://sl.dhg.myharmony.com")
+                        .addHeader("Accept", "text/plain")
+                        .build()
 
-            Log.d(TAG, "discoverHubId($ip): POST http://$ip:8088/")
-            client.newCall(request).execute().use { response ->
-                val text = response.body?.string()
-                Log.d(TAG, "discoverHubId($ip): HTTP ${response.code} ${response.message} | body: ${text?.take(500)}")
-                if (!response.isSuccessful || text.isNullOrBlank()) return@use null
+                Log.d(TAG, "discoverHubId($ip): POST http://$ip:8088/")
+                client.newCall(request).execute().use { response ->
+                    val text = response.body?.string()
+                    Log.d(TAG, "discoverHubId($ip): HTTP ${response.code} ${response.message} | body: ${text?.take(500)}")
+                    if (!response.isSuccessful || text.isNullOrBlank()) return@use null
 
-                // Extraction de la nouvelle clé JSON "activeRemoteId"
-                runCatching { JSONObject(text).getJSONObject("data").getString("activeRemoteId") }
-                    .onFailure { Log.e(TAG, "discoverHubId($ip): unexpected JSON shape in body above", it) }
-                    .getOrNull()
-            }
-        }.onFailure {
-            Log.e(TAG, "discoverHubId($ip): request failed", it)
-        }.getOrNull()
-    }
+                    // Extraction de la nouvelle clé JSON "activeRemoteId"
+                    runCatching { JSONObject(text).getJSONObject("data").getString("activeRemoteId") }
+                        .onFailure { Log.e(TAG, "discoverHubId($ip): unexpected JSON shape in body above", it) }
+                        .getOrNull()
+                }
+            }.onFailure {
+                Log.e(TAG, "discoverHubId($ip): request failed", it)
+            }.getOrNull()
+        }
 }

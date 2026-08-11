@@ -86,6 +86,8 @@ fun Dashboard(
     onPageChanged: (Int) -> Unit = {},
     wakeOnMotionEnabled: Boolean = true,
     setWakeOnMotionEnabled: (Boolean) -> Unit = {},
+    configServerEnabled: Boolean = true,
+    setConfigServerEnabled: (Boolean) -> Unit = {},
 ) {
     val entities by entitiesState
     val context = LocalContext.current
@@ -107,10 +109,16 @@ fun Dashboard(
     // Card-driven navigation: any card can call this with a page name (as it
     // appears in dashboard.json's "pages[].name", case-insensitive) to jump
     // there — same mechanism physical hotkeys use, just triggered by a tap.
+    // Uses scrollToPage (instant, no animation) rather than
+    // animateScrollToPage: the animated variant visibly scrolls through every
+    // intermediate page between the current one and the target, which reads
+    // as "the wrong page flashes up" right before the real one lands —
+    // especially noticeable on the HA100's weak CPU. A direct jump should
+    // land directly.
     val navigateToPage: (String) -> Unit = { pageName ->
         val idx = config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
         if (idx >= 0) {
-            scope.launch { pagerState.animateScrollToPage(idx) }
+            scope.launch { pagerState.scrollToPage(idx) }
         }
     }
 
@@ -128,14 +136,19 @@ fun Dashboard(
         },
         wakeOnMotionEnabled = wakeOnMotionEnabled,
         setWakeOnMotionEnabled = setWakeOnMotionEnabled,
+        configServerEnabled = configServerEnabled,
+        setConfigServerEnabled = setConfigServerEnabled,
         harmonyConnected = harmonyConnected,
         irActivities = remember(config.irActivities) { config.irActivities.associateBy { it.id } },
     )
 
-    // Hardware-button navigation: animate to the requested page, then clear it.
+    // Hardware-button navigation: jump straight to the requested page, then
+    // clear it. scrollToPage (not animateScrollToPage) for the same reason as
+    // navigateToPage above — a physical shortcut button should land directly,
+    // not visibly scroll through every page in between.
     LaunchedEffect(navTarget) {
         val target = navTarget ?: return@LaunchedEffect
-        if (target in 0 until pageCount) pagerState.animateScrollToPage(target)
+        if (target in 0 until pageCount) pagerState.scrollToPage(target)
         onNavHandled()
     }
 
@@ -171,7 +184,10 @@ fun Dashboard(
             PageIndicator(
                 pages = config.pages,
                 current = pagerState.currentPage,
-                onDotClick = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+                // Same instant scrollToPage as navigateToPage/hardware nav —
+                // a dot tap is a direct jump too, not a swipe gesture, so it
+                // shouldn't visibly scroll through pages in between.
+                onDotClick = { index -> scope.launch { pagerState.scrollToPage(index) } },
             )
         }
 

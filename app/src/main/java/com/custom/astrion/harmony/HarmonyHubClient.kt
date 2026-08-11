@@ -54,13 +54,14 @@ class HarmonyHubClient(
         const val CONFIG_TIMEOUT_MS = 8000L
     }
 
-    private val client = OkHttpClient.Builder()
-        .readTimeout(0, TimeUnit.MILLISECONDS)
-        .callTimeout(10, TimeUnit.SECONDS)
-        // Sends a WS ping every 20s — most embedded WS servers (this hub
-        // included) drop idle connections around 60s otherwise.
-        .pingInterval(20, TimeUnit.SECONDS)
-        .build()
+    private val client =
+        OkHttpClient.Builder()
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .callTimeout(10, TimeUnit.SECONDS)
+            // Sends a WS ping every 20s — most embedded WS servers (this hub
+            // included) drop idle connections around 60s otherwise.
+            .pingInterval(20, TimeUnit.SECONDS)
+            .build()
 
     private var webSocket: WebSocket? = null
     private var nextMsgId = 1
@@ -90,52 +91,76 @@ class HarmonyHubClient(
         intentionalDisconnect = false
         val url = "ws://$hubIp:8088/?domain=svcs.myharmony.com&hubId=$hubId"
         Log.d(TAG, "connect() -> $url")
-        val request = Request.Builder()
-            .url(url)
-            .addHeader("Origin", "http://sl.dhg.myharmony.com")
-            .build()
+        val request =
+            Request.Builder()
+                .url(url)
+                .addHeader("Origin", "http://sl.dhg.myharmony.com")
+                .build()
 
-        webSocket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.d(TAG, "onOpen: handshake HTTP ${response.code}")
-                _connected.value = true
-                onConnected()
-            }
-
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                Log.d(TAG, "onMessage: $text")
-                routeMessage(text)
-            }
-
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                Log.w(TAG, "onClosing: code=$code reason=$reason")
-                _connected.value = false
-            }
-
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                Log.w(TAG, "onClosed: code=$code reason=$reason")
-                _connected.value = false
-                scheduleReconnect()
-            }
-
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                val detail = buildString {
-                    append(t.javaClass.simpleName)
-                    append(": ")
-                    append(t.message ?: "(no message)")
-                    if (response != null) {
-                        append(" | HTTP ${response.code} ${response.message}")
-                        runCatching { response.body?.string() }.getOrNull()?.let { body ->
-                            if (body.isNotBlank()) append(" | body: ${body.take(200)}")
-                        }
+        webSocket =
+            client.newWebSocket(
+                request,
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: Response,
+                    ) {
+                        Log.d(TAG, "onOpen: handshake HTTP ${response.code}")
+                        _connected.value = true
+                        onConnected()
                     }
-                }
-                Log.e(TAG, "onFailure: $detail", t)
-                _connected.value = false
-                onError(detail)
-                scheduleReconnect()
-            }
-        })
+
+                    override fun onMessage(
+                        webSocket: WebSocket,
+                        text: String,
+                    ) {
+                        Log.d(TAG, "onMessage: $text")
+                        routeMessage(text)
+                    }
+
+                    override fun onClosing(
+                        webSocket: WebSocket,
+                        code: Int,
+                        reason: String,
+                    ) {
+                        Log.w(TAG, "onClosing: code=$code reason=$reason")
+                        _connected.value = false
+                    }
+
+                    override fun onClosed(
+                        webSocket: WebSocket,
+                        code: Int,
+                        reason: String,
+                    ) {
+                        Log.w(TAG, "onClosed: code=$code reason=$reason")
+                        _connected.value = false
+                        scheduleReconnect()
+                    }
+
+                    override fun onFailure(
+                        webSocket: WebSocket,
+                        t: Throwable,
+                        response: Response?,
+                    ) {
+                        val detail =
+                            buildString {
+                                append(t.javaClass.simpleName)
+                                append(": ")
+                                append(t.message ?: "(no message)")
+                                if (response != null) {
+                                    append(" | HTTP ${response.code} ${response.message}")
+                                    runCatching { response.body?.string() }.getOrNull()?.let { body ->
+                                        if (body.isNotBlank()) append(" | body: ${body.take(200)}")
+                                    }
+                                }
+                            }
+                        Log.e(TAG, "onFailure: $detail", t)
+                        _connected.value = false
+                        onError(detail)
+                        scheduleReconnect()
+                    }
+                },
+            )
     }
 
     /**
@@ -181,21 +206,24 @@ class HarmonyHubClient(
      *   {"cmd": "harmony.activityengine?runactivity", "params": {"activityId": "-1"}}
      */
     fun startActivity(activityId: String) {
-        val params = JSONObject().apply {
-            put("activityId", activityId)
-        }
+        val params =
+            JSONObject().apply {
+                put("activityId", activityId)
+            }
 
-        val hbus = JSONObject().apply {
-            put("cmd", "harmony.activityengine?runactivity")
-            put("id", (nextMsgId++).toString())
-            put("params", params)
-        }
+        val hbus =
+            JSONObject().apply {
+                put("cmd", "harmony.activityengine?runactivity")
+                put("id", (nextMsgId++).toString())
+                put("params", params)
+            }
 
-        val envelope = JSONObject().apply {
-            put("hubId", hubId)
-            put("timeout", 30)
-            put("hbus", hbus)
-        }
+        val envelope =
+            JSONObject().apply {
+                put("hubId", hubId)
+                put("timeout", 30)
+                put("hbus", hbus)
+            }
 
         val payload = envelope.toString()
         Log.d(TAG, "startActivity($activityId): $payload")
@@ -203,13 +231,17 @@ class HarmonyHubClient(
         Log.d(TAG, "send() returned: $sent")
     }
 
-    fun sendCommand(deviceId: String, command: String) {
+    fun sendCommand(
+        deviceId: String,
+        command: String,
+    ) {
         val timestamp = System.currentTimeMillis()
-        val action = JSONObject().apply {
-            put("type", "IRCommand")
-            put("deviceId", deviceId)
-            put("command", command)
-        }
+        val action =
+            JSONObject().apply {
+                put("type", "IRCommand")
+                put("deviceId", deviceId)
+                put("command", command)
+            }
 
         sendHoldAction(status = "press", action = action, timestamp = timestamp)
 
@@ -220,25 +252,32 @@ class HarmonyHubClient(
         }
     }
 
-    private fun sendHoldAction(status: String, action: JSONObject, timestamp: Long) {
-        val params = JSONObject().apply {
-            put("status", status)
-            put("timestamp", timestamp.toString())
-            put("verb", "render")
-            put("action", action.toString())
-        }
+    private fun sendHoldAction(
+        status: String,
+        action: JSONObject,
+        timestamp: Long,
+    ) {
+        val params =
+            JSONObject().apply {
+                put("status", status)
+                put("timestamp", timestamp.toString())
+                put("verb", "render")
+                put("action", action.toString())
+            }
 
-        val hbus = JSONObject().apply {
-            put("cmd", "vnd.logitech.harmony/vnd.logitech.harmony.engine?holdAction")
-            put("id", (nextMsgId++).toString())
-            put("params", params)
-        }
+        val hbus =
+            JSONObject().apply {
+                put("cmd", "vnd.logitech.harmony/vnd.logitech.harmony.engine?holdAction")
+                put("id", (nextMsgId++).toString())
+                put("params", params)
+            }
 
-        val envelope = JSONObject().apply {
-            put("hubId", hubId)
-            put("timeout", 30)
-            put("hbus", hbus)
-        }
+        val envelope =
+            JSONObject().apply {
+                put("hubId", hubId)
+                put("timeout", 30)
+                put("hbus", hbus)
+            }
 
         val payload = envelope.toString()
         Log.d(TAG, "send: $payload")
@@ -256,30 +295,34 @@ class HarmonyHubClient(
      * Safe to call repeatedly (e.g. to refresh after re-pairing a device).
      */
     suspend fun getConfig(): HarmonyConfig? {
-        val socket = webSocket ?: run {
-            Log.w(TAG, "getConfig() called while not connected")
-            return null
-        }
+        val socket =
+            webSocket ?: run {
+                Log.w(TAG, "getConfig() called while not connected")
+                return null
+            }
         val id = (nextMsgId++).toString()
         val deferred = CompletableDeferred<JSONObject>()
         pending[id] = deferred
 
-        val params = JSONObject().apply {
-            put("verb", "get")
-            put("format", "json")
-        }
-        val hbus = JSONObject().apply {
-            put("cmd", "vnd.logitech.harmony/vnd.logitech.harmony.engine?config")
-            put("id", id)
-            put("params", params)
-        }
-        val envelope = JSONObject().apply {
-            put("hubId", hubId)
-            put("timeout", 30)
-            put("hbus", hbus)
-        }
+        val params =
+            JSONObject().apply {
+                put("verb", "get")
+                put("format", "json")
+            }
+        val hbus =
+            JSONObject().apply {
+                put("cmd", "vnd.logitech.harmony/vnd.logitech.harmony.engine?config")
+                put("id", id)
+                put("params", params)
+            }
+        val envelope =
+            JSONObject().apply {
+                put("hubId", hubId)
+                put("timeout", 30)
+                put("hbus", hbus)
+            }
 
-        Log.d(TAG, "getConfig(): ${envelope}")
+        Log.d(TAG, "getConfig(): $envelope")
         socket.send(envelope.toString())
 
         val reply = withTimeoutOrNull(CONFIG_TIMEOUT_MS) { deferred.await() }
@@ -301,44 +344,47 @@ class HarmonyHubClient(
      */
     private fun parseConfig(reply: JSONObject): HarmonyConfig {
         val rawData = reply.opt("data")
-        val data: JSONObject = when (rawData) {
-            is JSONObject -> rawData
-            is String -> JSONObject(rawData)
-            else -> error("no \"data\" field in config response")
-        }
+        val data: JSONObject =
+            when (rawData) {
+                is JSONObject -> rawData
+                is String -> JSONObject(rawData)
+                else -> error("no \"data\" field in config response")
+            }
 
-        val devices = (data.optJSONArray("device") ?: JSONArray()).let { arr ->
-            (0 until arr.length()).map { i ->
-                val d = arr.getJSONObject(i)
-                val commands = mutableListOf<HarmonyCommand>()
-                val groups = d.optJSONArray("controlGroup") ?: JSONArray()
-                for (g in 0 until groups.length()) {
-                    val functions = groups.getJSONObject(g).optJSONArray("function") ?: JSONArray()
-                    for (f in 0 until functions.length()) {
-                        val fn = functions.getJSONObject(f)
-                        val name = fn.optString("name")
-                        if (name.isNotBlank()) {
-                            commands += HarmonyCommand(name = name, label = fn.optString("label", name))
+        val devices =
+            (data.optJSONArray("device") ?: JSONArray()).let { arr ->
+                (0 until arr.length()).map { i ->
+                    val d = arr.getJSONObject(i)
+                    val commands = mutableListOf<HarmonyCommand>()
+                    val groups = d.optJSONArray("controlGroup") ?: JSONArray()
+                    for (g in 0 until groups.length()) {
+                        val functions = groups.getJSONObject(g).optJSONArray("function") ?: JSONArray()
+                        for (f in 0 until functions.length()) {
+                            val fn = functions.getJSONObject(f)
+                            val name = fn.optString("name")
+                            if (name.isNotBlank()) {
+                                commands += HarmonyCommand(name = name, label = fn.optString("label", name))
+                            }
                         }
                     }
+                    HarmonyDevice(
+                        id = d.optString("id"),
+                        label = d.optString("label", d.optString("name", d.optString("id"))),
+                        commands = commands,
+                    )
                 }
-                HarmonyDevice(
-                    id = d.optString("id"),
-                    label = d.optString("label", d.optString("name", d.optString("id"))),
-                    commands = commands,
-                )
             }
-        }
 
-        val activities = (data.optJSONArray("activity") ?: JSONArray()).let { arr ->
-            (0 until arr.length()).map { i ->
-                val a = arr.getJSONObject(i)
-                HarmonyActivity(
-                    id = a.optString("id"),
-                    label = a.optString("label", a.optString("name", a.optString("id"))),
-                )
+        val activities =
+            (data.optJSONArray("activity") ?: JSONArray()).let { arr ->
+                (0 until arr.length()).map { i ->
+                    val a = arr.getJSONObject(i)
+                    HarmonyActivity(
+                        id = a.optString("id"),
+                        label = a.optString("label", a.optString("name", a.optString("id"))),
+                    )
+                }
             }
-        }
 
         return HarmonyConfig(devices = devices, activities = activities)
     }

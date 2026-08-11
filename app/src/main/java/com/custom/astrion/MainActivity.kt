@@ -103,6 +103,13 @@ class MainActivity : ComponentActivity() {
      * persisted, and toggled live via setWakeOnMotion() without a restart. */
     private var wakeOnMotionEnabled by mutableStateOf(true)
 
+    /** Backing state for the settings page's "Local config server" switch —
+     * persisted, and toggled live via setConfigServerEnabled() without a
+     * restart. Defaults to true so a fresh install can still be configured;
+     * meant to be turned off once setup is done, closing the unauthenticated
+     * :8080 admin surface. */
+    private var configServerEnabled by mutableStateOf(true)
+
     private val storagePermission = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { reloadDashboard() }
@@ -142,8 +149,8 @@ class MainActivity : ComponentActivity() {
             onConnectionSaved = { runOnUiThread { recreate() } },
             onDashboardUpdated = { runOnUiThread { reloadDashboard() } },
         )
-        runCatching { configServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false) }
-            .onFailure { Log.e("ConfigServer", "failed to start on :8080", it) }
+        configServerEnabled = prefs.getBoolean("config_server_enabled", true)
+        if (configServerEnabled) startConfigServer()
         lifecycleScope.launch { harmonyRegistry.connectAll() }
 
         currentPageIndex = dashboard.config.startPage
@@ -168,6 +175,8 @@ class MainActivity : ComponentActivity() {
                 },
                 wakeOnMotionEnabled = wakeOnMotionEnabled,
                 setWakeOnMotionEnabled = { enabled -> setWakeOnMotion(enabled) },
+                configServerEnabled = configServerEnabled,
+                setConfigServerEnabled = { enabled -> updateConfigServerEnabled(enabled) },
             )
         }
     }
@@ -337,6 +346,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun startConfigServer() {
+        runCatching { configServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false) }
+            .onFailure { Log.e("ConfigServer", "failed to start on :8080", it) }
+    }
+
+    /** Called from the settings page switch — persists the choice and
+     * starts/stops the :8080 server immediately, no restart needed. Turning
+     * it off also closes /builder/, icon uploads, and dashboard.json
+     * upload/download until it's switched back on from here. */
+    private fun updateConfigServerEnabled(enabled: Boolean) {
+        configServerEnabled = enabled
+        prefs.edit().putBoolean("config_server_enabled", enabled).apply()
+        if (enabled) {
+            startConfigServer()
+        } else {
+            runCatching { configServer.stop() }
+        }
+    }
+
     @Suppress("DEPRECATION")
     private fun wakeScreen() {
         val pm = getSystemService(POWER_SERVICE) as? PowerManager ?: return
@@ -359,7 +387,7 @@ class MainActivity : ComponentActivity() {
         sensorManager?.unregisterListener(motionListener)
         client.disconnect()
         harmonyRegistry.disconnectAll()
-        configServer.stop()
+        runCatching { configServer.stop() }
         super.onDestroy()
     }
 }

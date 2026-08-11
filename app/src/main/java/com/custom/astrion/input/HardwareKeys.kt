@@ -15,42 +15,60 @@ package com.custom.astrion.input
  */
 @Suppress("SpellCheckingInspection")
 enum class HardwareKey {
-    BACK, HOME, POWER,
-    VOLUME_UP, VOLUME_DOWN,
-    PAGE_UP, PAGE_DOWN,
-    UP, DOWN, LEFT, RIGHT, CENTER,
-    MUTE, VOICE, MAIN,
-    REWIND, PLAY, STOP, FASTFORWARD,
-    RED_BUTTON, GREEN_BUTTON, BLUE_BUTTON, YELLOW_BUTTON,
-    UNKNOWN;
+    BACK,
+    HOME,
+    POWER,
+    VOLUME_UP,
+    VOLUME_DOWN,
+    PAGE_UP,
+    PAGE_DOWN,
+    UP,
+    DOWN,
+    LEFT,
+    RIGHT,
+    CENTER,
+    MUTE,
+    VOICE,
+    MAIN,
+    REWIND,
+    PLAY,
+    STOP,
+    FASTFORWARD,
+    RED_BUTTON,
+    GREEN_BUTTON,
+    BLUE_BUTTON,
+    YELLOW_BUTTON,
+    UNKNOWN,
+    ;
 
     companion object {
         // Android keycode -> logical button, straight from device_key_code.json (HA100).
-        private val MAP: Map<Int, HardwareKey> = mapOf(
-            4 to BACK,
-            131 to HOME,
-            132 to POWER,
-            24 to VOLUME_UP,
-            25 to VOLUME_DOWN,
-            92 to PAGE_UP,
-            93 to PAGE_DOWN,
-            19 to UP,
-            20 to DOWN,
-            21 to LEFT,
-            22 to RIGHT,
-            23 to CENTER,
-            82 to MAIN,
-            164 to MUTE,
-            133 to VOICE,
-            134 to REWIND,
-            135 to PLAY,
-            136 to STOP,
-            137 to FASTFORWARD,
-            138 to RED_BUTTON,
-            139 to GREEN_BUTTON,
-            140 to BLUE_BUTTON,
-            141 to YELLOW_BUTTON,
-        )
+        private val MAP: Map<Int, HardwareKey> =
+            mapOf(
+                4 to BACK,
+                131 to HOME,
+                132 to POWER,
+                24 to VOLUME_UP,
+                25 to VOLUME_DOWN,
+                92 to PAGE_UP,
+                93 to PAGE_DOWN,
+                19 to UP,
+                20 to DOWN,
+                21 to LEFT,
+                22 to RIGHT,
+                23 to CENTER,
+                82 to MAIN,
+                164 to MUTE,
+                133 to VOICE,
+                134 to REWIND,
+                135 to PLAY,
+                136 to STOP,
+                137 to FASTFORWARD,
+                138 to RED_BUTTON,
+                139 to GREEN_BUTTON,
+                140 to BLUE_BUTTON,
+                141 to YELLOW_BUTTON,
+            )
 
         fun fromKeyCode(code: Int): HardwareKey = MAP[code] ?: UNKNOWN
     }
@@ -64,11 +82,17 @@ class HardwareKeyRouter {
     private val shortHandlers = mutableMapOf<HardwareKey, () -> Boolean>()
     private val longHandlers = mutableMapOf<HardwareKey, () -> Boolean>()
 
-    fun on(key: HardwareKey, handler: () -> Boolean) {
+    fun on(
+        key: HardwareKey,
+        handler: () -> Boolean,
+    ) {
         shortHandlers[key] = handler
     }
 
-    fun onLong(key: HardwareKey, handler: () -> Boolean) {
+    fun onLong(
+        key: HardwareKey,
+        handler: () -> Boolean,
+    ) {
         longHandlers[key] = handler
     }
 

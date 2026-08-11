@@ -34,9 +34,11 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.astrion.R
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -55,11 +57,11 @@ import kotlinx.serialization.json.JsonPrimitive
  * entity's `entity_picture` — no blocked-zone editing, just a live-ish view.
  *
  * The vacuum's activity state (docked/cleaning/paused/idle/returning/error) is
- * translated via `HaLabels.vacuumState()` — see assets/ha_labels/<lang>.json —
- * since it's one of HA's fixed state values. Fan-speed / cleaning-mode names
- * (e.g. "Quiet", "Turbo", "Max"), on the other hand, are integration-specific
- * (not a fixed HA-wide set), so those stay best-effort prettified rather than
- * looked up.
+ * translated via `HaLabels.vacuumState()` — see assets/ha_labels/<lang>.json.
+ * Fan-speed / cleaning-mode names (e.g. "Quiet", "Turbo", "Max") are
+ * integration-specific (not a fixed HA-wide set), so `HaLabels.vacuumFanSpeed()`
+ * only covers the common ones there; anything else still falls back to a
+ * best-effort prettified version of the raw value (see `HaLabels.fallback()`).
  *
  * Config shape:
  *   { "type": "vacuum", "options": {
@@ -78,13 +80,17 @@ class VacuumCard : CardRenderer {
     override val type = "vacuum"
 
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF1B343D))
-                .padding(14.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF1B343D))
+                    .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             VacuumPanelContent(config.options, ctx)
@@ -99,7 +105,10 @@ class VacuumCard : CardRenderer {
  */
 @Suppress("UNCHECKED_CAST")
 @Composable
-fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
+fun VacuumPanelContent(
+    options: Map<String, Any?>,
+    ctx: CardContext,
+) {
     val entityId = options["entity_id"] as? String ?: return
     val e = ctx.entities[entityId]
     val state = e?.state ?: "unknown"
@@ -125,21 +134,29 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
     var fanExpanded by remember { mutableStateOf(false) }
 
     fun vac(service: String) = ctx.client.callService(ServiceCall("vacuum", service, entityId))
+
     fun cleanSegment(id: Int) {
         ctx.client.callService(
             ServiceCall(
-                "vacuum", "send_command", entityId,
+                "vacuum",
+                "send_command",
+                entityId,
                 mapOf(
                     "command" to JsonPrimitive("app_segment_clean"),
                     "params" to JsonArray(listOf(JsonArray(listOf(JsonPrimitive(id))))),
                 ),
-            )
+            ),
         )
     }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(name, color = Color(0xFFE6F0F1), fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f))
+        Text(
+            name,
+            color = Color(0xFFE6F0F1),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
+        )
         Text(HaLabels.vacuumState(state), color = Color(0xFF93AFB6), fontSize = 13.sp)
     }
 
@@ -147,11 +164,12 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
     // Fixed height (configurable) so the whole card clears the pager dots.
     mapBmp?.let { bmp ->
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(mapHeight.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF0E2229)),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(mapHeight.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF0E2229)),
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -178,17 +196,18 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
     if (fanList.isNotEmpty()) {
         Box {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF1E3841))
-                    .clickable { fanExpanded = true }
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF1E3841))
+                        .clickable { fanExpanded = true }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Cleaning mode", color = Color(0xFF93AFB6), fontSize = 11.sp)
-                    Text(fanSpeed?.let(::prettyVacuumLabel) ?: "—", color = Color(0xFFE6F0F1), fontSize = 15.sp)
+                    Text(stringResource(R.string.vacuum_fan_speed_caption), color = Color(0xFF93AFB6), fontSize = 11.sp)
+                    Text(fanSpeed?.let(HaLabels::vacuumFanSpeed) ?: "—", color = Color(0xFFE6F0F1), fontSize = 15.sp)
                 }
                 Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = Color(0xFFCBDCE0))
             }
@@ -201,7 +220,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                     DropdownMenuItem(
                         text = {
                             Text(
-                                prettyVacuumLabel(f),
+                                HaLabels.vacuumFanSpeed(f),
                                 color = if (f == fanSpeed) Color(0xFF6EA8FE) else Color(0xFFE6F0F1),
                                 fontSize = 14.sp,
                             )
@@ -209,7 +228,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                         onClick = {
                             fanExpanded = false
                             ctx.client.callService(
-                                ServiceCall.of("vacuum", "set_fan_speed", entityId, "fan_speed" to f)
+                                ServiceCall.of("vacuum", "set_fan_speed", entityId, "fan_speed" to f),
                             )
                         },
                     )
@@ -229,12 +248,13 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                     val label = room["name"] as? String ?: "?"
                     val id = (room["id"] as? Number)?.toInt()
                     Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF2A4954))
-                            .clickable(enabled = id != null) { id?.let { cleanSegment(it) } },
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF2A4954))
+                                .clickable(enabled = id != null) { id?.let { cleanSegment(it) } },
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(label, color = Color(0xFFE6F0F1), fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -247,29 +267,29 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
 }
 
 @Composable
-private fun VacuumCtrlBtn(icon: ImageVector, accent: Boolean = false, onClick: () -> Unit) {
+private fun VacuumCtrlBtn(
+    icon: ImageVector,
+    accent: Boolean = false,
+    onClick: () -> Unit,
+) {
     Box(
-        modifier = Modifier
-            .size(52.dp)
-            .clip(CircleShape)
-            .background(if (accent) Color(0xFF4C6EF5) else Color(0xFF2C4C58))
-            .clickable(onClick = onClick),
+        modifier =
+            Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(if (accent) Color(0xFF4C6EF5) else Color(0xFF2C4C58))
+                .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = Color.White)
     }
 }
 
-/**
- * Best-effort prettifier for fan-speed / cleaning-mode names, which are
- * reported verbatim by each vacuum integration (not a fixed HA-wide set like
- * the vacuum activity state), so there's no fixed `ha_labels` entry for them.
- */
-private fun prettyVacuumLabel(s: String): String =
-    s.split('_').joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-
 /** Rotate a bitmap by whole-degree steps (clockwise), swapping width/height as needed. */
-private fun rotateVacuumBitmap(src: ImageBitmap, degrees: Int): ImageBitmap {
+private fun rotateVacuumBitmap(
+    src: ImageBitmap,
+    degrees: Int,
+): ImageBitmap {
     val android = src.asAndroidBitmap()
     val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
     return Bitmap.createBitmap(android, 0, 0, android.width, android.height, matrix, true).asImageBitmap()

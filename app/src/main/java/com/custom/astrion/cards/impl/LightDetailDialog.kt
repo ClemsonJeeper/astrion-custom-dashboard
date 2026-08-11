@@ -42,18 +42,19 @@ import kotlin.math.roundToInt
 @Composable
 fun LightDetailDialog(
     entityId: String,
+    name: String,
     e: EntityState?,
     client: HaClient,
     onClose: () -> Unit,
 ) {
     val on = e?.isOn == true
-    val name = e?.friendlyName ?: entityId
     val brightness = e?.attrInt("brightness")
-    val level: Float = when {
-        !on -> 0f
-        brightness != null -> (brightness / 255f).coerceIn(0f, 1f)
-        else -> 1f
-    }
+    val level: Float =
+        when {
+            !on -> 0f
+            brightness != null -> (brightness / 255f).coerceIn(0f, 1f)
+            else -> 1f
+        }
     var dragLevel by remember(level) { mutableStateOf(level) }
 
     val colorModes = e?.attrStringList("supported_color_modes") ?: emptyList()
@@ -62,10 +63,13 @@ fun LightDetailDialog(
 
     // Fill colour follows the light's live rgb_color where available.
     val rgb = e?.attr("rgb_color") as? JsonArray
-    val fillColor = if (rgb != null && rgb.size >= 3) {
-        fun ch(i: Int) = (rgb[i] as? JsonPrimitive)?.content?.toIntOrNull()?.coerceIn(0, 255) ?: 255
-        Color(ch(0), ch(1), ch(2))
-    } else Color(0xFFFFD9A0)
+    val fillColor =
+        if (rgb != null && rgb.size >= 3) {
+            fun ch(i: Int) = (rgb[i] as? JsonPrimitive)?.content?.toIntOrNull()?.coerceIn(0, 255) ?: 255
+            Color(ch(0), ch(1), ch(2))
+        } else {
+            Color(0xFFFFD9A0)
+        }
 
     fun commit(fraction: Float) {
         val pct = (fraction.coerceIn(0f, 1f) * 100).roundToInt()
@@ -76,12 +80,18 @@ fun LightDetailDialog(
         }
     }
 
-    fun setRgb(r: Int, g: Int, b: Int) {
+    fun setRgb(
+        r: Int,
+        g: Int,
+        b: Int,
+    ) {
         client.callService(
             ServiceCall(
-                "light", "turn_on", entityId,
+                "light",
+                "turn_on",
+                entityId,
                 mapOf("rgb_color" to JsonArray(listOf(JsonPrimitive(r), JsonPrimitive(g), JsonPrimitive(b)))),
-            )
+            ),
         )
     }
 
@@ -91,10 +101,11 @@ fun LightDetailDialog(
 
     Dialog(onDismissRequest = onClose) {
         Column(
-            modifier = Modifier
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF1B343D))
-                .padding(20.dp),
+            modifier =
+                Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color(0xFF1B343D))
+                    .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -108,42 +119,45 @@ fun LightDetailDialog(
 
             // Vertical brightness pill: drag or tap to set; fill rises from the bottom.
             Box(
-                modifier = Modifier
-                    .width(120.dp)
-                    .height(230.dp)
-                    .clip(RoundedCornerShape(30.dp))
-                    .background(Color(0xFF152B33))
-                    .pointerInput(entityId) {
-                        detectVerticalDragGestures(
-                            onDragEnd = { commit(dragLevel) },
-                        ) { change, _ ->
-                            dragLevel = (1f - change.position.y / size.height).coerceIn(0f, 1f)
+                modifier =
+                    Modifier
+                        .width(120.dp)
+                        .height(230.dp)
+                        .clip(RoundedCornerShape(30.dp))
+                        .background(Color(0xFF152B33))
+                        .pointerInput(entityId) {
+                            detectVerticalDragGestures(
+                                onDragEnd = { commit(dragLevel) },
+                            ) { change, _ ->
+                                dragLevel = (1f - change.position.y / size.height).coerceIn(0f, 1f)
+                            }
                         }
-                    }
-                    .pointerInput(entityId) {
-                        detectTapGestures { offset ->
-                            val f = (1f - offset.y / size.height).coerceIn(0f, 1f)
-                            dragLevel = f
-                            commit(f)
-                        }
-                    },
+                        .pointerInput(entityId) {
+                            detectTapGestures { offset ->
+                                val f = (1f - offset.y / size.height).coerceIn(0f, 1f)
+                                dragLevel = f
+                                commit(f)
+                            }
+                        },
             ) {
                 Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .fillMaxHeight(dragLevel.coerceIn(0.02f, 1f))
-                        .background(fillColor.copy(alpha = if (on) 0.9f else 0.35f)),
+                    modifier =
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .fillMaxHeight(dragLevel.coerceIn(0.02f, 1f))
+                            .background(fillColor.copy(alpha = if (on) 0.9f else 0.35f)),
                 )
             }
 
             // Power toggle.
             Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(if (on) Color(0xFFFFC24B) else Color(0xFF2C4C58))
-                    .clickable { client.toggle(entityId) },
+                modifier =
+                    Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(if (on) Color(0xFFFFC24B) else Color(0xFF2C4C58))
+                        .clickable { client.toggle(entityId) },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -155,21 +169,23 @@ fun LightDetailDialog(
 
             // Colour swatches (only for colour-capable lights).
             if (hasColor) {
-                val swatches = listOf(
-                    Triple(244, 67, 54), Triple(255, 152, 0), Triple(255, 235, 59),
-                    Triple(76, 175, 80), Triple(0, 188, 212),
-                    Triple(33, 150, 243), Triple(156, 39, 176), Triple(233, 30, 99),
-                    Triple(255, 182, 193), Triple(255, 255, 255),
-                )
+                val swatches =
+                    listOf(
+                        Triple(244, 67, 54), Triple(255, 152, 0), Triple(255, 235, 59),
+                        Triple(76, 175, 80), Triple(0, 188, 212),
+                        Triple(33, 150, 243), Triple(156, 39, 176), Triple(233, 30, 99),
+                        Triple(255, 182, 193), Triple(255, 255, 255),
+                    )
                 swatches.chunked(5).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         row.forEach { (r, g, b) ->
                             Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(r, g, b))
-                                    .clickable { setRgb(r, g, b) },
+                                modifier =
+                                    Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(r, g, b))
+                                        .clickable { setRgb(r, g, b) },
                             )
                         }
                     }
@@ -181,11 +197,12 @@ fun LightDetailDialog(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("Candle" to 2200, "Warm" to 2700, "Neutral" to 4000, "Cool" to 5500).forEach { (label, k) ->
                         Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF23414B))
-                                .clickable { setKelvin(k) }
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            modifier =
+                                Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF23414B))
+                                    .clickable { setKelvin(k) }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
                         ) {
                             Text(label, color = Color(0xFFCBDCE0), fontSize = 12.sp)
                         }

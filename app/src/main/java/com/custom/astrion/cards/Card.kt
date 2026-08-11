@@ -22,7 +22,6 @@ data class CardConfig(
     fun string(key: String): String? = options[key] as? String
     fun stringList(key: String): List<String> =
         (options[key] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
-    @Suppress("Unused")
     fun bool(key: String, default: Boolean = false): Boolean =
         options[key] as? Boolean ?: default
     fun int(key: String, default: Int = 0): Int =
@@ -50,6 +49,13 @@ class CardContext(
      * used by the settings page (mirrors HaRemote's "Wake on movement" switch). */
     val wakeOnMotionEnabled: Boolean = true,
     val setWakeOnMotionEnabled: (Boolean) -> Unit = {},
+    /** Current state of the local :8080 config/builder server, and a way to
+     * toggle it — used by the settings page. Left running by default; once a
+     * device is fully set up, turning it off closes an unauthenticated LAN
+     * admin surface (connection settings, dashboard.json, icon uploads) that
+     * has no further reason to stay open. */
+    val configServerEnabled: Boolean = true,
+    val setConfigServerEnabled: (Boolean) -> Unit = {},
     /** Live connection state of the direct Harmony hub link — for a status
      * indicator on the settings page (HA's own state is on ctx.client.connection). */
     val harmonyConnected: Boolean = false,

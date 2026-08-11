@@ -34,7 +34,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.jsonPrimitive
 
 /** One row in the media browser. */
 private data class MediaItem(
@@ -51,7 +50,11 @@ private data class MediaItem(
  * Kept to a plain list — no thumbnails — to stay light on the MT6580.
  */
 @Composable
-fun MediaBrowser(entityId: String, client: HaClient, onClose: () -> Unit) {
+fun MediaBrowser(
+    entityId: String,
+    client: HaClient,
+    onClose: () -> Unit,
+) {
     // Navigation stack of (contentId, contentType); root is (null, null).
     val stack = remember { mutableStateListOf<Pair<String?, String?>>(null to null) }
     var title by remember { mutableStateOf("Media") }
@@ -75,12 +78,13 @@ fun MediaBrowser(entityId: String, client: HaClient, onClose: () -> Unit) {
 
     Dialog(onDismissRequest = onClose) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.85f)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1B343D))
-                .padding(12.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.85f)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF1B343D))
+                    .padding(12.dp),
         ) {
             // Header: back (when nested), title, close.
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -102,41 +106,49 @@ fun MediaBrowser(entityId: String, client: HaClient, onClose: () -> Unit) {
             Spacer(Modifier.height(8.dp))
 
             when {
-                items == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFF6EA8FE))
-                }
-                error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(error!!, color = Color(0xFFE0A0A0), fontSize = 14.sp)
-                }
-                items!!.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Nothing here", color = Color(0xFF93AFB6), fontSize = 14.sp)
-                }
-                else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    items(items!!) { item ->
-                        MediaRow(item) {
-                            when {
-                                item.canExpand -> stack.add(item.contentId to item.contentType)
-                                item.canPlay -> {
-                                    client.playMedia(entityId, item.contentId, item.contentType)
-                                    onClose()
+                items == null ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color(0xFF6EA8FE))
+                    }
+                error != null ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(error!!, color = Color(0xFFE0A0A0), fontSize = 14.sp)
+                    }
+                items!!.isEmpty() ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Nothing here", color = Color(0xFF93AFB6), fontSize = 14.sp)
+                    }
+                else ->
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        items(items!!) { item ->
+                            MediaRow(item) {
+                                when {
+                                    item.canExpand -> stack.add(item.contentId to item.contentType)
+                                    item.canPlay -> {
+                                        client.playMedia(entityId, item.contentId, item.contentType)
+                                        onClose()
+                                    }
                                 }
                             }
                         }
                     }
-                }
             }
         }
     }
 }
 
 @Composable
-private fun MediaRow(item: MediaItem, onClick: () -> Unit) {
+private fun MediaRow(
+    item: MediaItem,
+    onClick: () -> Unit,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 12.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 10.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -156,11 +168,15 @@ private fun MediaRow(item: MediaItem, onClick: () -> Unit) {
 }
 
 @Composable
-private fun IconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+private fun IconBtn(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+) {
     Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clickable(onClick = onClick),
+        modifier =
+            Modifier
+                .size(40.dp)
+                .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = Color(0xFFCBDCE0))
@@ -169,7 +185,9 @@ private fun IconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, onCli
 
 private fun parseItem(o: JsonObject?): MediaItem? {
     o ?: return null
+
     fun str(k: String) = (o[k] as? JsonPrimitive)?.content
+
     fun bool(k: String) = (o[k] as? JsonPrimitive)?.booleanOrNull ?: false
     val contentId = str("media_content_id") ?: return null
     val contentType = str("media_content_type") ?: return null

@@ -16,28 +16,31 @@ import kotlinx.serialization.json.longOrNull
  * card option casts like `as? String` or `as? Number`.
  */
 object JsonPlain {
-
-    fun toPlain(el: JsonElement): Any? = when (el) {
-        is JsonNull -> null
-        is JsonPrimitive -> when {
-            el.isString -> el.content
-            else -> el.booleanOrNull
-                ?: el.longOrNull?.let { if (it in Int.MIN_VALUE..Int.MAX_VALUE) it.toInt() else it }
-                ?: el.doubleOrNull
-                ?: el.contentOrNull
+    fun toPlain(el: JsonElement): Any? =
+        when (el) {
+            is JsonNull -> null
+            is JsonPrimitive ->
+                when {
+                    el.isString -> el.content
+                    else ->
+                        el.booleanOrNull
+                            ?: el.longOrNull?.let { if (it in Int.MIN_VALUE..Int.MAX_VALUE) it.toInt() else it }
+                            ?: el.doubleOrNull
+                            ?: el.contentOrNull
+                }
+            is JsonArray -> el.map { toPlain(it) }
+            is JsonObject -> el.entries.associate { (k, v) -> k to toPlain(v) }
         }
-        is JsonArray -> el.map { toPlain(it) }
-        is JsonObject -> el.entries.associate { (k, v) -> k to toPlain(v) }
-    }
 
-    fun toJson(v: Any?): JsonElement = when (v) {
-        null -> JsonNull
-        is JsonElement -> v
-        is Boolean -> JsonPrimitive(v)
-        is Number -> JsonPrimitive(v)
-        is String -> JsonPrimitive(v)
-        is List<*> -> JsonArray(v.map { toJson(it) })
-        is Map<*, *> -> JsonObject(v.entries.associate { (k, vv) -> k.toString() to toJson(vv) })
-        else -> JsonPrimitive(v.toString())
-    }
+    fun toJson(v: Any?): JsonElement =
+        when (v) {
+            null -> JsonNull
+            is JsonElement -> v
+            is Boolean -> JsonPrimitive(v)
+            is Number -> JsonPrimitive(v)
+            is String -> JsonPrimitive(v)
+            is List<*> -> JsonArray(v.map { toJson(it) })
+            is Map<*, *> -> JsonObject(v.entries.associate { (k, vv) -> k.toString() to toJson(vv) })
+            else -> JsonPrimitive(v.toString())
+        }
 }

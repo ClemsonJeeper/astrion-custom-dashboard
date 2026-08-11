@@ -18,4 +18,4 @@ Once you have your file, upload it from the app's local configurator (`http://<r
 
 ## Card types
 
-Ten common card types have full dedicated forms (`bubble_light`, `light`, `switch`, `cover`, `fan`, `climate`, `source_select`, `button_grid`, `scene_grid`, `apple_tv_remote`, `tv_remote`). The remaining types (`clock_weather`, `media_player`, `speaker_group`, `monitor`, `picture_elements`, `plex`, `row`, `vacuum`, or any custom type) use a raw JSON options field — check the corresponding `CardRenderer`'s Kotlin file in `src/main/java/com/custom/astrion/cards/impl/` for its exact fields.
+Ten common card types have full dedicated forms (`light`, `switch`, `cover`, `fan`, `climate`, `source_select`, `button_grid`, `scene_grid`, `apple_tv_remote`, `tv_remote`). The remaining types (`clock_weather`, `media_player`, `speaker_group`, `monitor`, `picture_elements`, `plex`, `row`, `vacuum`, or any custom type) use a raw JSON options field — check the corresponding `CardRenderer`'s Kotlin file in `src/main/java/com/custom/astrion/cards/impl/` for its exact fields.

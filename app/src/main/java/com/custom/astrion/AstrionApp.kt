@@ -3,7 +3,6 @@ package com.custom.astrion
 import android.app.Application
 import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.cards.impl.AppleTvRemoteCard
-import com.custom.astrion.cards.impl.BubbleLightCard
 import com.custom.astrion.cards.impl.ButtonGridCard
 import com.custom.astrion.cards.impl.ClimateCard
 import com.custom.astrion.cards.impl.ClockWeatherCard
@@ -41,7 +40,6 @@ class AstrionApp : Application() {
         HaLabels.init(this)
         CardRegistry.register(
             AppleTvRemoteCard(),
-            BubbleLightCard(),
             ButtonGridCard(),
             ClimateCard(),
             ClockWeatherCard(),

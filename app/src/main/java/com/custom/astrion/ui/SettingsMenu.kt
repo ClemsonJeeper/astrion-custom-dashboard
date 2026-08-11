@@ -77,8 +77,8 @@ fun SettingsMenu(ctx: CardContext) {
 
         localIpAddress()?.let { ip ->
             Text(
-                "Local config: http://$ip:8080",
-                color = Color(0xFF6EA8FE),
+                if (ctx.configServerEnabled) "Local config: http://$ip:8080" else stringResource(R.string.config_server_off_hint),
+                color = if (ctx.configServerEnabled) Color(0xFF6EA8FE) else Color(0xFF9A9A9A),
                 fontSize = 12.sp,
             )
         }
@@ -100,6 +100,7 @@ fun SettingsMenu(ctx: CardContext) {
         }
 
         WakeOnMotionRow(ctx)
+        ConfigServerRow(ctx)
     }
 }
 
@@ -217,6 +218,40 @@ private fun WakeOnMotionRow(ctx: CardContext) {
             checked = ctx.wakeOnMotionEnabled,
             onCheckedChange = { ctx.setWakeOnMotionEnabled(it) },
             colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF6EA8FE)),
+        )
+    }
+}
+
+/**
+ * "Local config server" switch — the :8080 admin surface (connection
+ * settings, dashboard.json, icon uploads, the on-device builder) has no
+ * auth, so once a device is fully set up there's no reason to leave it
+ * reachable on the LAN. Off by default has no upside (a fresh install
+ * couldn't be configured at all), so this defaults to on and is meant to be
+ * switched off here, on the device itself, once setup is done — turning it
+ * back on later only requires this same switch, not the server itself.
+ */
+@Composable
+private fun ConfigServerRow(ctx: CardContext) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(Icons.Filled.Wifi, contentDescription = null, tint = Color(0xFF9A9A9A))
+            Text(stringResource(R.string.config_server_toggle), color = Color(0xFFCFCFCF), fontSize = 14.sp)
+            Spacer(Modifier.weight(1f))
+            Switch(
+                checked = ctx.configServerEnabled,
+                onCheckedChange = { ctx.setConfigServerEnabled(it) },
+                colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF6EA8FE)),
+            )
+        }
+        Text(
+            stringResource(R.string.config_server_toggle_hint),
+            color = Color(0xFF7A7A7A),
+            fontSize = 11.sp,
         )
     }
 }

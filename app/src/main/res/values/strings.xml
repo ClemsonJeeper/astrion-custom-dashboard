@@ -1,39 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- General / App Info -->
     <string name="app_name">Astrion Custom</string>
+    <string name="close">Close</string>
+    <string name="connected">Connected</string>
+    <string name="disconnected">Disconnected</string>
+
+    <!-- Native App Settings UI -->
     <string name="settings_title">Settings</string>
     <string name="wifi_network">Wi-Fi network</string>
     <string name="android_system">Android system</string>
     <string name="wake_on_motion">Wake on motion</string>
+    <string name="config_server_toggle">Local config server</string>
+    <string name="config_server_toggle_hint">Also turns off /builder/, icon uploads, and dashboard.json upload/download. Turn back on here to reconfigure.</string>
+    <string name="config_server_off_hint">Local config server is off</string>
     <string name="brightness">Brightness</string>
     <string name="allow_brightness_write">Allow brightness control (tap)</string>
-    <string name="connected">Connected</string>
-    <string name="disconnected">Disconnected</string>
-    <string name="close">Close</string>
+
+    <!-- Web Config: Header & General -->
     <string name="web_config_title">Astrion Custom — Local configuration</string>
-    <string name="web_config_ha_url_label">Home Assistant URL</string>
-    <string name="web_config_ha_token_label">Home Assistant long-lived access token</string>
     <string name="web_config_save_button">Save &amp; reconnect</string>
     <string name="web_config_save_note">The app restarts itself to reconnect after saving.</string>
-    <string name="web_config_dashboard_heading">dashboard.json</string>
-    <string name="web_config_dashboard_download">Download current dashboard.json</string>
-    <string name="web_config_dashboard_upload_button">Upload &amp; reload dashboard</string>
-    <string name="web_config_icons_heading">Icons</string>
-    <string name="web_config_icons_upload_button">Upload icon</string>
-    <string name="web_config_icons_note">Saved to /sdcard/astrion/icons/&lt;filename&gt; — reference it in dashboard.json as \"/sdcard/astrion/icons/&lt;filename&gt;\".</string>
     <string name="web_config_saved_reconnecting">Settings saved — reconnecting</string>
-    <string name="web_config_dashboard_updated">dashboard.json updated</string>
-    <string name="web_config_icon_uploaded">Icon uploaded</string>
-    <string name="web_config_updates_heading">Updates</string>
-    <string name="web_config_current_version">Current version</string>
-    <string name="web_config_check_update_link">Check for updates</string>
-    <string name="web_config_update_found">Update available: v%1$s</string>
-    <string name="web_config_update_none">Already up to date</string>
-    <string name="web_config_install_update_button">Download &amp; install</string>
-    <string name="web_config_update_installing">Installer launched — approve the install prompt on the panel screen</string>
-    <string name="web_config_update_needs_permission">Allow "Install unknown apps" for this app on the screen that just opened, then tap Download &amp; install again.</string>
-    <string name="web_config_update_failed">Update check failed: %1$s</string>
+    <string name="web_config_status_not_set">not set</string>
+    <string name="web_config_status_hub_singular">hub</string>
+    <string name="web_config_status_hub_plural">hubs</string>
+
+    <!-- Web Config: Home Assistant -->
     <string name="web_config_ha_heading">Home Assistant</string>
+    <string name="web_config_ha_url_label">Home Assistant URL</string>
+    <string name="web_config_ha_token_label">Home Assistant long-lived access token</string>
+
+    <!-- Web Config: Harmony Hubs -->
     <string name="web_config_harmony_heading">Harmony Hubs</string>
     <string name="web_config_harmony_name_label">Name</string>
     <string name="web_config_harmony_ip_label">IP address</string>
@@ -45,19 +43,54 @@
     <string name="web_config_harmony_discover_button">Auto-detect ID</string>
     <string name="web_config_harmony_discover_need_ip">Enter the IP address first</string>
     <string name="web_config_harmony_discover_failed">Could not detect hub ID</string>
-    <string name="web_config_dashboard_builder_link">Open the dashboard editor</string>
-    <string name="web_config_status_not_set">not set</string>
-    <string name="web_config_status_hub_singular">hub</string>
-    <string name="web_config_status_hub_plural">hubs</string>
+
+    <!-- Web Config: Dashboard & Builder -->
+    <string name="web_config_dashboard_heading">dashboard.json</string>
     <string name="web_config_dashboard_sub">Build and edit your dashboard.json visually, right from this device.</string>
+    <string name="web_config_dashboard_builder_link">Open the dashboard editor</string>
+    <string name="web_config_dashboard_download">Download current dashboard.json</string>
+    <string name="web_config_dashboard_upload_button">Upload &amp; reload dashboard</string>
+    <string name="web_config_dashboard_updated">dashboard.json updated</string>
+
+    <!-- Web Config: Icons -->
+    <string name="web_config_icons_heading">Icons</string>
+    <string name="web_config_icons_upload_button">Upload icon</string>
+    <string name="web_config_icons_note">Saved to /sdcard/astrion/icons/&lt;filename&gt; — reference it in dashboard.json as \"/sdcard/astrion/icons/&lt;filename&gt;\".</string>
+    <string name="web_config_icon_uploaded">Icon uploaded</string>
+
+    <!-- Web Config: OTA / Updates -->
+    <string name="web_config_updates_heading">Updates</string>
+    <string name="web_config_current_version">Current version</string>
+    <string name="web_config_check_update_link">Check for updates</string>
+    <string name="web_config_update_found">Update available: v%1$s</string>
+    <string name="web_config_update_none">Already up to date</string>
+    <string name="web_config_install_update_button">Download &amp; install</string>
+    <string name="web_config_update_installing">Installer launched — approve the install prompt on the panel screen</string>
+    <string name="web_config_update_needs_permission">Allow "Install unknown apps" for this app on the screen that just opened, then tap Download &amp; install again.</string>
+    <string name="web_config_update_failed">Update check failed: %1$s</string>
+
     <!-- ClimateCard -->
     <string name="climate_current_temp">Now %1$s°</string>
     <string name="climate_hvac_caption">Mode</string>
     <string name="climate_fan_caption">Fan</string>
     <string name="climate_swing_caption">Swing</string>
-    <!-- TileCard -->
+
+    <!-- FanCard -->
     <string name="fan_preset_caption">Preset</string>
     <string name="fan_oscillate_caption">Oscillate</string>
     <string name="state_on">On</string>
     <string name="state_off">Off</string>
+
+    <!-- VacuumCard -->
+    <string name="vacuum_fan_speed_caption">Cleaning mode</string>
+
+    <!-- CoverCard -->
+    <string name="cover_open">Open</string>
+    <string name="cover_closed">Closed</string>
+    <string name="cover_position_open">%1$d%% open</string>
+
+    <!-- LightCard -->
+    <string name="light_state_on">On</string>
+    <string name="light_state_off">Off</string>
+    <string name="light_brightness_pct">%1$d%%</string>
 </resources>

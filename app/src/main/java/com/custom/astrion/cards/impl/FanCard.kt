@@ -68,18 +68,23 @@ class FanCard : CardRenderer {
     override val type = "fan"
 
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val entityId = config.string("entity_id") ?: return
         val e = ctx.entities[entityId]
         val name = config.string("name") ?: e?.friendlyName ?: entityId
         val on = e?.isOn == true
         val percentage = e?.attrInt("percentage")
-        val step = (config.options["step"] as? Number)?.toInt()
-            ?: e?.attrInt("percentage_step")
-            ?: 20
-        val presetModes = config.stringList("preset_modes")
-            .ifEmpty { e?.attrStringList("preset_modes").orEmpty() }
-            .filter { !it.equals("off", ignoreCase = true) }
+        val step =
+            (config.options["step"] as? Number)?.toInt()
+                ?: e?.attrInt("percentage_step")
+                ?: 20
+        val presetModes =
+            config.stringList("preset_modes")
+                .ifEmpty { e?.attrStringList("preset_modes").orEmpty() }
+                .filter { !it.equals("off", ignoreCase = true) }
         val presetMode = e?.attrString("preset_mode")
         // Presence of the attribute (not its value) is what indicates support —
         // a fan that can't oscillate simply doesn't report this attribute at all.
@@ -90,30 +95,37 @@ class FanCard : CardRenderer {
         val useFull = styleOpt == "full" || (styleOpt != "simple" && (presetModes.isNotEmpty() || oscillateSupported))
         val showCaptions = config.options["show_captions"] as? Boolean ?: true
 
-        fun setPercentage(p: Int) = ctx.client.callService(
-            ServiceCall.of("fan", "set_percentage", entityId, "percentage" to p.coerceIn(0, 100))
-        )
-        fun setPreset(m: String) = ctx.client.callService(
-            ServiceCall.of("fan", "set_preset_mode", entityId, "preset_mode" to m)
-        )
-        fun setOscillate(v: Boolean) = ctx.client.callService(
-            ServiceCall.of("fan", "oscillate", entityId, "oscillating" to v)
-        )
+        fun setPercentage(p: Int) =
+            ctx.client.callService(
+                ServiceCall.of("fan", "set_percentage", entityId, "percentage" to p.coerceIn(0, 100)),
+            )
+
+        fun setPreset(m: String) =
+            ctx.client.callService(
+                ServiceCall.of("fan", "set_preset_mode", entityId, "preset_mode" to m),
+            )
+
+        fun setOscillate(v: Boolean) =
+            ctx.client.callService(
+                ServiceCall.of("fan", "oscillate", entityId, "oscillating" to v),
+            )
 
         if (!useFull) {
             val pct = percentage ?: 0
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(if (on) Color(0xFF2B3A67) else Color(0xFF1E3841))
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(if (on) Color(0xFF2B3A67) else Color(0xFF1E3841))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { ctx.client.toggle(entityId) }
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .clickable { ctx.client.toggle(entityId) },
                 ) {
                     Text(name, color = Color(0xFFE6F0F1), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                     Text(
@@ -131,11 +143,12 @@ class FanCard : CardRenderer {
         }
 
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF1B343D))
-                .padding(14.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF1B343D))
+                    .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // Header: name + a dedicated power button (mirrors ClimateCard).
@@ -146,11 +159,12 @@ class FanCard : CardRenderer {
             ) {
                 Text(name, color = Color(0xFFE6F0F1), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(if (on) Color(0xFF1E3A2E) else Color(0xFF3A2E2E))
-                        .clickable { ctx.client.toggle(entityId) },
+                    modifier =
+                        Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(if (on) Color(0xFF1E3A2E) else Color(0xFF3A2E2E))
+                            .clickable { ctx.client.toggle(entityId) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -241,11 +255,12 @@ private fun FanChip(
     onClick: () -> Unit,
 ) {
     Box(
-        modifier = modifier
-            .height(34.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) Color(0xFF4C6EF5) else Color(0xFF23414B))
-            .clickable(onClick = onClick),
+        modifier =
+            modifier
+                .height(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (selected) Color(0xFF4C6EF5) else Color(0xFF23414B))
+                .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -262,7 +277,10 @@ private fun FanChip(
  * max 4 -> 3+2, not a lopsided 4+1). Used by [FanCard]; [ClimateCard] has its
  * own private copy of the same logic.
  */
-private fun <T> balancedChunks(items: List<T>, maxPerRow: Int): List<List<T>> {
+private fun <T> balancedChunks(
+    items: List<T>,
+    maxPerRow: Int,
+): List<List<T>> {
     if (items.isEmpty()) return emptyList()
     val rows = (items.size + maxPerRow - 1) / maxPerRow
     val perRow = (items.size + rows - 1) / rows
@@ -276,11 +294,12 @@ private fun CircleBtn(
     onClick: () -> Unit,
 ) {
     Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(Color(0xFF2C4C58))
-            .clickable(onClick = onClick),
+        modifier =
+            Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF2C4C58))
+                .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = Color(0xFFCBDCE0))

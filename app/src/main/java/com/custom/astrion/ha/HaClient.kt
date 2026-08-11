@@ -42,12 +42,12 @@ import kotlin.time.Duration.Companion.seconds
  * This speaks the *standard* HA websocket API — exactly the same handshake and
  * commands the stock HaRemote app uses (confirmed by decompiling it):
  *
- *   1. Server sends   { type: "auth_required" }
- *   2. We send        { type: "auth", access_token: "<long-lived token>" }
- *   3. Server sends   { type: "auth_ok" }  (or "auth_invalid")
- *   4. We call        get_states  to seed the entity cache
- *   5. We             subscribe_events (state_changed) for live updates
- *   6. Heartbeat via  { type: "ping" } / { type: "pong" }
+ *   1. Server sends        { type: "auth_required" }
+ *   2. We send             { type: "auth", access_token: "<long-lived token>" }
+ *   3. Server sends        { type: "auth_ok" }  (or "auth_invalid")
+ *   4. We call             get_states  to seed the entity cache
+ *   5. We                  subscribe_events (state_changed) for live updates
+ *   6. Heartbeat via       { type: "ping" } / { type: "pong" }
  *
  * Because it's the stock protocol, this app needs nothing from Sanytron's
  * cloud or their custom integration to function — only a reachable HA instance
@@ -58,8 +58,10 @@ import kotlin.time.Duration.Companion.seconds
  */
 @Suppress("SpellCheckingInspection")
 class HaClient(
-    private val baseUrl: String,   // e.g. "http://10.0.1.10:8123" or "https://ha.example.com"
-    private val token: String,     // long-lived access token
+    // e.g. "http://10.0.1.10:8123" or "https://ha.example.com"
+    private val baseUrl: String,
+    // long-lived access token
+    private val token: String,
 ) {
     companion object {
         private const val TAG = "HaClient"
@@ -69,19 +71,25 @@ class HaClient(
         private val RESPONSE_TIMEOUT = 8.seconds
     }
 
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val idCounter = AtomicInteger(1)
 
-    private val http = OkHttpClient.Builder()
-        .pingInterval(20, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS)
-        .build()
+    private val http =
+        OkHttpClient.Builder()
+            .pingInterval(20, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .build()
 
     // Separate, sanely-timed client for one-shot HTTP GETs (album art).
-    private val imageHttp = OkHttpClient.Builder()
-        .callTimeout(10, TimeUnit.SECONDS)
-        .build()
+    private val imageHttp =
+        OkHttpClient.Builder()
+            .callTimeout(10, TimeUnit.SECONDS)
+            .build()
 
     private var socket: WebSocket? = null
     private var heartbeatJob: Job? = null
@@ -93,6 +101,7 @@ class HaClient(
     val connection: StateFlow<ConnectionState> = _connection.asStateFlow()
 
     private val _entities = MutableStateFlow<EntityMap>(emptyMap())
+
     /** Live map of every entity's current state. Cards observe this. */
     val entities: StateFlow<EntityMap> = _entities.asStateFlow()
 
@@ -100,7 +109,9 @@ class HaClient(
     // per PUBLISH_INTERVAL so a chatty sensor (e.g. mmWave radar at several
     // Hz) can't force the whole UI to repaint faster than the SoC can handle.
     private val entityStore = ConcurrentHashMap<String, EntityState>()
+
     @Volatile private var entitiesDirty = false
+
     @Volatile private var publisherStarted = false
 
     // ---- public API ---------------------------------------------------------
@@ -128,19 +139,21 @@ class HaClient(
 
     /** Fire an HA service call, e.g. light.toggle on light.kitchen. */
     fun callService(call: ServiceCall) {
-        val target = buildJsonObject {
-            call.entityId?.let { put("entity_id", it) }
-        }
-        val msg = buildJsonObject {
-            put("id", idCounter.getAndIncrement())
-            put("type", "call_service")
-            put("domain", call.domain)
-            put("service", call.service)
-            if (call.data.isNotEmpty()) {
-                put("service_data", JsonObject(call.data))
+        val target =
+            buildJsonObject {
+                call.entityId?.let { put("entity_id", it) }
             }
-            put("target", target)
-        }
+        val msg =
+            buildJsonObject {
+                put("id", idCounter.getAndIncrement())
+                put("type", "call_service")
+                put("domain", call.domain)
+                put("service", call.service)
+                if (call.data.isNotEmpty()) {
+                    put("service_data", JsonObject(call.data))
+                }
+                put("target", target)
+            }
         send(msg)
     }
 
@@ -155,20 +168,21 @@ class HaClient(
      * `path` may be absolute or an HA-relative path like /api/media_player_proxy/…;
      * the bearer token is attached so proxied/authenticated art loads too.
      */
-    suspend fun fetchBitmap(path: String): ImageBitmap? = withContext(Dispatchers.IO) {
-        try {
-            val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
-            val req = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
-            imageHttp.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return@withContext null
-                val bytes = resp.body?.bytes() ?: return@withContext null
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+    suspend fun fetchBitmap(path: String): ImageBitmap? =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
+                val req = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
+                imageHttp.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return@withContext null
+                    val bytes = resp.body?.bytes() ?: return@withContext null
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "fetchBitmap failed for $path", e)
+                null
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "fetchBitmap failed for $path", e)
-            null
         }
-    }
 
     /**
      * Browse a media_player's library via the standard `media_player/browse_media`
@@ -183,13 +197,14 @@ class HaClient(
         val id = idCounter.getAndIncrement()
         val deferred = CompletableDeferred<JsonObject>()
         pending[id] = deferred
-        val msg = buildJsonObject {
-            put("id", id)
-            put("type", "media_player/browse_media")
-            put("entity_id", entityId)
-            contentId?.let { put("media_content_id", it) }
-            contentType?.let { put("media_content_type", it) }
-        }
+        val msg =
+            buildJsonObject {
+                put("id", id)
+                put("type", "media_player/browse_media")
+                put("entity_id", entityId)
+                contentId?.let { put("media_content_id", it) }
+                contentType?.let { put("media_content_type", it) }
+            }
         send(msg)
         val reply = withTimeoutOrNull(RESPONSE_TIMEOUT) { deferred.await() }
         pending.remove(id)
@@ -201,19 +216,23 @@ class HaClient(
      * exposes `forecast` as an attribute). Returns the forecast array
      * (each item: datetime, condition, temperature, templow), or null.
      */
-    suspend fun getForecast(entityId: String, forecastType: String = "daily"): JsonArray? {
+    suspend fun getForecast(
+        entityId: String,
+        forecastType: String = "daily",
+    ): JsonArray? {
         val id = idCounter.getAndIncrement()
         val deferred = CompletableDeferred<JsonObject>()
         pending[id] = deferred
-        val msg = buildJsonObject {
-            put("id", id)
-            put("type", "call_service")
-            put("domain", "weather")
-            put("service", "get_forecasts")
-            put("service_data", buildJsonObject { put("type", forecastType) })
-            put("target", buildJsonObject { put("entity_id", entityId) })
-            put("return_response", true)
-        }
+        val msg =
+            buildJsonObject {
+                put("id", id)
+                put("type", "call_service")
+                put("domain", "weather")
+                put("service", "get_forecasts")
+                put("service_data", buildJsonObject { put("type", forecastType) })
+                put("target", buildJsonObject { put("entity_id", entityId) })
+                put("return_response", true)
+            }
         send(msg)
         val reply = withTimeoutOrNull(RESPONSE_TIMEOUT) { deferred.await() }
         pending.remove(id)
@@ -222,63 +241,85 @@ class HaClient(
     }
 
     /** Play a specific media item on a player. */
-    fun playMedia(entityId: String, contentId: String, contentType: String) {
+    fun playMedia(
+        entityId: String,
+        contentId: String,
+        contentType: String,
+    ) {
         callService(
             ServiceCall.of(
-                "media_player", "play_media", entityId,
+                "media_player",
+                "play_media",
+                entityId,
                 "media_content_id" to contentId,
                 "media_content_type" to contentType,
-            )
+            ),
         )
     }
 
     // ---- internals ----------------------------------------------------------
 
-    private val listener = object : WebSocketListener() {
-        override fun onOpen(webSocket: WebSocket, response: Response) {
-            Log.i(TAG, "Socket open, waiting for auth_required")
-            _connection.value = ConnectionState.AUTHENTICATING
-        }
+    private val listener =
+        object : WebSocketListener() {
+            override fun onOpen(
+                webSocket: WebSocket,
+                response: Response,
+            ) {
+                Log.i(TAG, "Socket open, waiting for auth_required")
+                _connection.value = ConnectionState.AUTHENTICATING
+            }
 
-        override fun onMessage(webSocket: WebSocket, text: String) {
-            try {
-                val obj = json.parseToJsonElement(text).jsonObject
-                when (obj["type"]?.jsonPrimitive?.content) {
-                    "auth_required" -> sendAuth()
-                    "auth_ok" -> onAuthOk()
-                    "auth_invalid" -> _connection.value = ConnectionState.AUTH_FAILED
-                    "result" -> {
-                        // Route replies to an awaiting command if one matches this
-                        // id; otherwise treat it as the get_states seed.
-                        val id = obj["id"]?.jsonPrimitive?.intOrNull
-                        val waiter = id?.let { pending.remove(it) }
-                        if (waiter != null) waiter.complete(obj) else onResult(obj)
+            override fun onMessage(
+                webSocket: WebSocket,
+                text: String,
+            ) {
+                try {
+                    val obj = json.parseToJsonElement(text).jsonObject
+                    when (obj["type"]?.jsonPrimitive?.content) {
+                        "auth_required" -> sendAuth()
+                        "auth_ok" -> onAuthOk()
+                        "auth_invalid" -> _connection.value = ConnectionState.AUTH_FAILED
+                        "result" -> {
+                            // Route replies to an awaiting command if one matches this
+                            // id; otherwise treat it as the get_states seed.
+                            val id = obj["id"]?.jsonPrimitive?.intOrNull
+                            val waiter = id?.let { pending.remove(it) }
+                            if (waiter != null) waiter.complete(obj) else onResult(obj)
+                        }
+                        "event" -> onEvent(obj)
+                        "pong" -> { /* heartbeat ok */ }
                     }
-                    "event" -> onEvent(obj)
-                    "pong" -> { /* heartbeat ok */ }
+                } catch (e: Exception) {
+                    Log.e(TAG, "onMessage parse error", e)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "onMessage parse error", e)
+            }
+
+            override fun onFailure(
+                webSocket: WebSocket,
+                t: Throwable,
+                response: Response?,
+            ) {
+                Log.e(TAG, "Socket failure", t)
+                _connection.value = ConnectionState.ERROR
+                scheduleReconnect()
+            }
+
+            override fun onClosed(
+                webSocket: WebSocket,
+                code: Int,
+                reason: String,
+            ) {
+                Log.w(TAG, "Socket closed $code $reason")
+                if (_connection.value != ConnectionState.DISCONNECTED) scheduleReconnect()
             }
         }
 
-        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            Log.e(TAG, "Socket failure", t)
-            _connection.value = ConnectionState.ERROR
-            scheduleReconnect()
-        }
-
-        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            Log.w(TAG, "Socket closed $code $reason")
-            if (_connection.value != ConnectionState.DISCONNECTED) scheduleReconnect()
-        }
-    }
-
     private fun sendAuth() {
-        val msg = buildJsonObject {
-            put("type", "auth")
-            put("access_token", token)
-        }
+        val msg =
+            buildJsonObject {
+                put("type", "auth")
+                put("access_token", token)
+            }
         // NOTE: auth message must NOT include an id (HA rejects it otherwise).
         socket?.send(msg.toString())
     }
@@ -308,34 +349,38 @@ class HaClient(
     }
 
     private fun requestStates() {
-        val msg = buildJsonObject {
-            put("id", idCounter.getAndIncrement())
-            put("type", "get_states")
-        }
+        val msg =
+            buildJsonObject {
+                put("id", idCounter.getAndIncrement())
+                put("type", "get_states")
+            }
         send(msg)
     }
 
     private fun subscribeStateChanges() {
-        val msg = buildJsonObject {
-            put("id", idCounter.getAndIncrement())
-            put("type", "subscribe_events")
-            put("event_type", "state_changed")
-        }
+        val msg =
+            buildJsonObject {
+                put("id", idCounter.getAndIncrement())
+                put("type", "subscribe_events")
+                put("event_type", "state_changed")
+            }
         send(msg)
     }
 
     private fun startHeartbeat() {
         heartbeatJob?.cancel()
-        heartbeatJob = scope.launch {
-            while (_connection.value == ConnectionState.CONNECTED) {
-                delay(PING_INTERVAL)
-                val ping = buildJsonObject {
-                    put("id", idCounter.getAndIncrement())
-                    put("type", "ping")
+        heartbeatJob =
+            scope.launch {
+                while (_connection.value == ConnectionState.CONNECTED) {
+                    delay(PING_INTERVAL)
+                    val ping =
+                        buildJsonObject {
+                            put("id", idCounter.getAndIncrement())
+                            put("type", "ping")
+                        }
+                    send(ping)
                 }
-                send(ping)
             }
-        }
     }
 
     /** Result of get_states arrives as an array in the `result` field. */
@@ -344,13 +389,14 @@ class HaClient(
         for (el in result) {
             val e = el.jsonObject
             val entityId = e["entity_id"]?.jsonPrimitive?.content ?: continue
-            entityStore[entityId] = EntityState(
-                entityId = entityId,
-                state = e["state"]?.jsonPrimitive?.content ?: "unknown",
-                attributes = e["attributes"]?.jsonObject ?: JsonObject(emptyMap()),
-                lastChanged = e["last_changed"]?.jsonPrimitive?.content,
-                lastUpdated = e["last_updated"]?.jsonPrimitive?.content,
-            )
+            entityStore[entityId] =
+                EntityState(
+                    entityId = entityId,
+                    state = e["state"]?.jsonPrimitive?.content ?: "unknown",
+                    attributes = e["attributes"]?.jsonObject ?: JsonObject(emptyMap()),
+                    lastChanged = e["last_changed"]?.jsonPrimitive?.content,
+                    lastUpdated = e["last_updated"]?.jsonPrimitive?.content,
+                )
         }
         // Seed is important — publish immediately so the first frame has data.
         _entities.value = HashMap(entityStore)
@@ -361,13 +407,14 @@ class HaClient(
         val data = obj["event"]?.jsonObject?.get("data")?.jsonObject ?: return
         val newState = data["new_state"]?.jsonObject ?: return
         val entityId = newState["entity_id"]?.jsonPrimitive?.content ?: return
-        entityStore[entityId] = EntityState(
-            entityId = entityId,
-            state = newState["state"]?.jsonPrimitive?.content ?: "unknown",
-            attributes = newState["attributes"]?.jsonObject ?: JsonObject(emptyMap()),
-            lastChanged = newState["last_changed"]?.jsonPrimitive?.content,
-            lastUpdated = newState["last_updated"]?.jsonPrimitive?.content,
-        )
+        entityStore[entityId] =
+            EntityState(
+                entityId = entityId,
+                state = newState["state"]?.jsonPrimitive?.content ?: "unknown",
+                attributes = newState["attributes"]?.jsonObject ?: JsonObject(emptyMap()),
+                lastChanged = newState["last_changed"]?.jsonPrimitive?.content,
+                lastUpdated = newState["last_updated"]?.jsonPrimitive?.content,
+            )
         entitiesDirty = true // published by the coalescing publisher loop
     }
 
@@ -384,11 +431,12 @@ class HaClient(
 
     private fun toWebSocketUrl(base: String): String {
         val trimmed = base.trimEnd('/')
-        val ws = when {
-            trimmed.startsWith("https://") -> "wss://" + trimmed.removePrefix("https://")
-            trimmed.startsWith("http://") -> "ws://" + trimmed.removePrefix("http://")
-            else -> "ws://$trimmed"
-        }
+        val ws =
+            when {
+                trimmed.startsWith("https://") -> "wss://" + trimmed.removePrefix("https://")
+                trimmed.startsWith("http://") -> "ws://" + trimmed.removePrefix("http://")
+                else -> "ws://$trimmed"
+            }
         return "$ws/api/websocket"
     }
 }

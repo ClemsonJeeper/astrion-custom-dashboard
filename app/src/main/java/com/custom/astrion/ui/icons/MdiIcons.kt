@@ -1,7 +1,7 @@
 package com.custom.astrion.ui.icons
 
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
@@ -198,7 +198,63 @@ object MdiIcons {
         )
     }
 
-    private fun mdi(name: String, pathData: String): ImageVector {
+    /** Mushroom-style window shutter, closed — used by [CoverCard] when the cover is closed/partway. */
+    val WindowShutterClosed: ImageVector by lazy {
+        mdi(
+            "mdi_window_shutter",
+            "M3,4H21V8H19V20H17V8H7V20H5V8H3V4M8,9H16V11H8V9M8,12H16V14H8V12M8,15H16V17H8V15M8,18H16V20H8V18Z",
+        )
+    }
+
+    /** Mushroom-style window shutter, fully open — used by [CoverCard] when the cover is 100% open. */
+    val WindowShutterOpen: ImageVector by lazy {
+        mdi(
+            "mdi_window_shutter_open",
+            "M3,4H21V8H19V20H17V8H7V20H5V8H3V4M8,9H16V11H8V9Z",
+        )
+    }
+
+    /** Cover "raise" control — used by [CoverCard] for the open/up button. */
+    val CoverUp: ImageVector by lazy {
+        mdi(
+            "mdi_arrow_up_bold_box",
+            "M21,19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3H19C20.11,3 21,3.9 21,5V19M13,18V9.5L16.5," +
+                "13L17.92,11.58L12,5.66L6.08,11.58L7.5,13L11,9.5V18H13Z",
+        )
+    }
+
+    /** Cover "lower" control — used by [CoverCard] for the close/down button. */
+    val CoverDown: ImageVector by lazy {
+        mdi(
+            "mdi_arrow_down_bold_box",
+            "M3,5A2,2 0 0,1 5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5M11,6V14.5L7.5," +
+                "11L6.08,12.42L12,18.34L17.92,12.42L16.5,11L13,14.5V6H11Z",
+        )
+    }
+
+    /** Mushroom-style lit bulb — used by [LightCard] when the light is on. */
+    val LightbulbOn: ImageVector by lazy {
+        mdi(
+            "mdi_lightbulb",
+            "M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81," +
+                "13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z",
+        )
+    }
+
+    /** Mushroom-style unlit (slashed) bulb — used by [LightCard] when the light is off. */
+    val LightbulbOff: ImageVector by lazy {
+        mdi(
+            "mdi_lightbulb_off_outline",
+            "M12,2C9.76,2 7.78,3.05 6.5,4.68L16.31,14.5C17.94,13.21 19,11.24 19,9A7,7 0 0,0 12,2M3.28,4L2," +
+                "5.27L5.04,8.3C5,8.53 5,8.76 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H14.73L18.73," +
+                "22L20,20.72L3.28,4M9,20V21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9Z",
+        )
+    }
+
+    private fun mdi(
+        name: String,
+        pathData: String,
+    ): ImageVector {
         val nodes = PathParser().parsePathString(pathData).toNodes()
         return ImageVector.Builder(
             name = name,

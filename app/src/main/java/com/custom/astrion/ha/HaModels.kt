@@ -34,8 +34,7 @@ data class EntityState(
     fun attr(key: String): JsonElement? = attributes[key]
 
     /** Attribute as String, or null if absent/not a primitive. */
-    fun attrString(key: String): String? =
-        attributes[key]?.jsonPrimitive?.contentOrNull
+    fun attrString(key: String): String? = attributes[key]?.jsonPrimitive?.contentOrNull
 
     /** Attribute as Double, or null. Handles ints and numeric strings too. */
     fun attrDouble(key: String): Double? =
@@ -101,19 +100,21 @@ data class ServiceCall(
             entityId: String? = null,
             vararg data: Pair<String, Any?>,
         ): ServiceCall {
-            val mapped = buildMap {
-                for ((k, v) in data) {
-                    val el: JsonElement? = when (v) {
-                        null -> null
-                        is JsonElement -> v
-                        is Boolean -> JsonPrimitive(v)
-                        is Number -> JsonPrimitive(v)
-                        is String -> JsonPrimitive(v)
-                        else -> JsonPrimitive(v.toString())
+            val mapped =
+                buildMap {
+                    for ((k, v) in data) {
+                        val el: JsonElement? =
+                            when (v) {
+                                null -> null
+                                is JsonElement -> v
+                                is Boolean -> JsonPrimitive(v)
+                                is Number -> JsonPrimitive(v)
+                                is String -> JsonPrimitive(v)
+                                else -> JsonPrimitive(v.toString())
+                            }
+                        if (el != null) put(k, el)
                     }
-                    if (el != null) put(k, el)
                 }
-            }
             return ServiceCall(domain, service, entityId, mapped)
         }
 

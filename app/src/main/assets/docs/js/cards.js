@@ -1,6 +1,6 @@
 // ---- Cards ---------------------------------------------------------------
 
-const NAME_ENTITY_TYPES = ['bubble_light', 'light', 'switch', 'cover', 'source_select'];
+const NAME_ENTITY_TYPES = ['switch', 'source_select'];
 
 function updateCardFormInputs() {
   const type = document.getElementById('cardTypeSelect').value;
@@ -10,7 +10,34 @@ function updateCardFormInputs() {
     container.innerHTML = `
       <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room">
       <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., light.living_room">
-      <label>Icon (optional, PNG path)</label><input type="text" id="optIcon" placeholder="/sdcard/astrion/icons/xxx.png">
+      ${iconFieldHtml('optIcon')}
+    `;
+  } else if (type === 'cover') {
+    container.innerHTML = `
+      <label>Name (optional, defaults to the entity's friendly name)</label><input type="text" id="optName" placeholder="e.g., Volet Chambre">
+      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., cover.volet_chambre">
+      ${iconFieldHtml('optIcon')}
+      <label>Layout</label>
+      <select id="optCoverLayout">
+        <option value="default">Default (icon + name/state, buttons full-width below)</option>
+        <option value="horizontal">Horizontal (icon + name/state left, buttons right)</option>
+        <option value="vertical">Vertical (icon, name, state, buttons — all centered/stacked)</option>
+      </select>
+      <div class="hint">Status shows "Open"/"Closed" at 0%/100%, otherwise "N% open" — translated automatically in the app. Up/down buttons auto-disable once fully open/closed.</div>
+    `;
+  } else if (type === 'light') {
+    container.innerHTML = `
+      <label>Name (optional, defaults to the entity's friendly name)</label><input type="text" id="optName" placeholder="e.g., Kitchen">
+      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., light.kitchen">
+      <label>Layout</label>
+      <select id="optLightLayout">
+        <option value="default">Default (icon + name/state, brightness bar below)</option>
+        <option value="horizontal">Horizontal (icon + name/state, single row)</option>
+        <option value="vertical">Vertical (icon, name, state — centered/stacked)</option>
+      </select>
+      <label><input type="checkbox" id="optLightUseColor"> Tint the icon with the light's own colour (when it reports one)</label>
+      <label><input type="checkbox" id="optLightShowBrightness" checked> Show brightness ("N%") instead of just "On"</label>
+      <div class="hint">Tap toggles the light; long-press opens the brightness/colour detail popup. Status shows "Éteint"/"Off" at 0%, otherwise the live "N%" brightness — translated automatically in the app.</div>
     `;
   } else if (type === 'fan') {
     container.innerHTML = `
@@ -82,7 +109,7 @@ function updateCardFormInputs() {
           ${(dashboardData.irActivities || []).length === 0 ? '<div class="hint">No IR activities yet — create one in the "IR Activities" section below, then come back here.</div>' : ''}
           <label>Color (optional, ARGB hex — defaults to the standard tile color)</label><input type="text" id="giColor" placeholder="#66009688">
         `}
-        <label>Icon (optional, PNG path)</label><input type="text" id="giIcon" placeholder="/sdcard/astrion/icons/xxx.png">
+        ${iconFieldHtml('giIcon')}
         <button type="button" class="secondary" onclick="addGridItem('${type}')" id="giSubmitBtn">+ Add ${label.toLowerCase()} to this card</button>
         <button type="button" class="secondary" onclick="cancelGridItemEdit()" id="giCancelBtn" style="display:none">Cancel edit</button>
       </div>
@@ -221,6 +248,7 @@ async function fillGiHarmonySection(item) {
 function fillGridItemForm(type, item) {
   document.getElementById('giName').value = item.name || '';
   document.getElementById('giIcon').value = item.icon || '';
+  updateIconThumb('giIcon');
   if (type === 'button_grid') {
     document.getElementById('giService').value = item.service || '';
     document.getElementById('giEntityId').value = item.entity_id || '';
@@ -273,6 +301,7 @@ function cancelGridItemEdit() {
   editingGridItem = null;
   document.getElementById('giName').value = '';
   document.getElementById('giIcon').value = '';
+  updateIconThumb('giIcon');
   ['giService', 'giEntityId', 'giData', 'giPage', 'giIrActivity', 'giColor'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
@@ -406,6 +435,19 @@ function fillCardForm(card) {
     document.getElementById('optName').value = o.name || '';
     document.getElementById('optEntityId').value = o.entity_id || '';
     document.getElementById('optIcon').value = o.icon || '';
+    updateIconThumb('optIcon');
+  } else if (type === 'cover') {
+    document.getElementById('optName').value = o.name || '';
+    document.getElementById('optEntityId').value = o.entity_id || '';
+    document.getElementById('optIcon').value = o.icon || '';
+    updateIconThumb('optIcon');
+    document.getElementById('optCoverLayout').value = ['horizontal', 'vertical'].includes(o.layout) ? o.layout : 'default';
+  } else if (type === 'light') {
+    document.getElementById('optName').value = o.name || '';
+    document.getElementById('optEntityId').value = o.entity_id || '';
+    document.getElementById('optLightLayout').value = ['horizontal', 'vertical'].includes(o.layout) ? o.layout : 'default';
+    document.getElementById('optLightUseColor').checked = o.use_light_color === true;
+    document.getElementById('optLightShowBrightness').checked = o.show_brightness !== false;
   } else if (type === 'fan') {
     document.getElementById('optName').value = o.name || '';
     document.getElementById('optEntityId').value = o.entity_id || '';
@@ -474,6 +516,22 @@ function addCardToPage() {
     newCard.options.entity_id = document.getElementById('optEntityId').value || 'domain.entity';
     const icon = document.getElementById('optIcon').value.trim();
     if (icon) newCard.options.icon = icon;
+  } else if (type === 'cover') {
+    const coverName = document.getElementById('optName').value.trim();
+    if (coverName) newCard.options.name = coverName;
+    newCard.options.entity_id = document.getElementById('optEntityId').value || 'cover.entity';
+    const coverIcon = document.getElementById('optIcon').value.trim();
+    if (coverIcon) newCard.options.icon = coverIcon;
+    const coverLayout = document.getElementById('optCoverLayout').value;
+    if (coverLayout !== 'default') newCard.options.layout = coverLayout;
+  } else if (type === 'light') {
+    const lightName = document.getElementById('optName').value.trim();
+    if (lightName) newCard.options.name = lightName;
+    newCard.options.entity_id = document.getElementById('optEntityId').value || 'light.entity';
+    const lightLayout = document.getElementById('optLightLayout').value;
+    if (lightLayout !== 'default') newCard.options.layout = lightLayout;
+    if (document.getElementById('optLightUseColor').checked) newCard.options.use_light_color = true;
+    if (!document.getElementById('optLightShowBrightness').checked) newCard.options.show_brightness = false;
   } else if (type === 'fan') {
     newCard.options.name = document.getElementById('optName').value || 'Fan';
     newCard.options.entity_id = document.getElementById('optEntityId').value || 'fan.entity';
@@ -563,4 +621,157 @@ function removeCard(idx) {
   dashboardData.pages[currentActivePage].cards.splice(idx, 1);
   if (editingCard === idx) cancelCardEdit();
   renderPreview(); updateJsonOutput();
+}
+
+// ---- Icon / color helpers for scene_grid & button_grid previews -----------
+// Icons are configured as absolute on-device paths (e.g.
+// "/sdcard/astrion/icons/disco.png"). The browser preview can't read the
+// device filesystem directly, but when this page is served by the remote's
+// own local web server (http://<remote-ip>:8080/builder/) that server also
+// exposes those files at /icons/<filename> (see ConfigServer.kt), so we just
+// point an <img> there and gracefully fall back (blank/no icon) if it 404s —
+// e.g. when running the standalone GitHub Pages copy with no device behind it.
+function iconUrl(path) {
+  if (!path) return null;
+  const name = String(path).split(/[\\/]/).pop();
+  return name ? `/icons/${encodeURIComponent(name)}` : null;
+}
+
+// Mirrors SceneGridCard.kt's parseHexColor: "#RRGGBB" is treated as opaque,
+// "#AARRGGBB" carries its own alpha channel.
+function parseHexColorCss(hex) {
+  if (!hex) return null;
+  const clean = hex.replace(/^#/, '');
+  if (!/^[0-9a-fA-F]{6}$|^[0-9a-fA-F]{8}$/.test(clean)) return null;
+  if (clean.length === 6) return `#${clean}`;
+  const a = parseInt(clean.slice(0, 2), 16) / 255;
+  const r = parseInt(clean.slice(2, 4), 16);
+  const g = parseInt(clean.slice(4, 6), 16);
+  const b = parseInt(clean.slice(6, 8), 16);
+  return `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`;
+}
+
+// Mirrors SceneGridCard.kt's luminance() + textColor threshold (0.75).
+function textColorForBg(cssColor) {
+  const m = cssColor.match(/rgba?\(([^)]+)\)/);
+  let r, g, b;
+  if (m) {
+    [r, g, b] = m[1].split(',').map(s => parseFloat(s));
+  } else {
+    const clean = cssColor.replace('#', '');
+    r = parseInt(clean.slice(0, 2), 16);
+    g = parseInt(clean.slice(2, 4), 16);
+    b = parseInt(clean.slice(4, 6), 16);
+  }
+  const luminance = 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
+  return luminance > 0.75 ? '#141414' : '#F0F2F6';
+}
+
+// Icon not found (wrong filename, or previewing outside the remote's own
+// server where /icons/ isn't served) — fall back to the same blank-spacer
+// look the real app uses when BitmapFactory.decodeFile() returns null.
+function onSceneIconError(img) {
+  const spacer = document.createElement('div');
+  spacer.className = 'st-icon-spacer';
+  img.replaceWith(spacer);
+}
+
+function onButtonIconError(img) {
+  const tile = img.closest('.preview-button-tile');
+  img.remove();
+  if (tile) tile.classList.replace('has-icon', 'no-icon');
+}
+
+// ---- Icon field: text input + live thumbnail + picker button --------------
+// Every card option that takes an icon path (optIcon on name/entity cards and
+// cover, giIcon on scene_grid/button_grid items) renders through this one
+// helper, so the picker/thumbnail behaviour stays identical everywhere
+// instead of hand-typing a path being the only option.
+
+function iconFieldHtml(id) {
+  return `
+    <label>Icon (optional, PNG path)</label>
+    <div class="icon-field-row">
+      <input type="text" id="${id}" placeholder="/sdcard/astrion/icons/xxx.png" oninput="updateIconThumb('${id}')">
+      <img class="icon-field-thumb" id="${id}Thumb" alt="">
+      <button type="button" class="secondary" onclick="openIconPicker('${id}')">Choose…</button>
+    </div>
+  `;
+}
+
+// Keeps the little thumbnail next to an icon field in sync with its current
+// value — called on typing (oninput, see iconFieldHtml) and whenever a field
+// is populated programmatically (editing an existing card/item). Same
+// silent-fallback rule as everywhere else: no thumbnail if the path is empty,
+// unresolvable, or this copy of the builder has no device behind /icons/.
+function updateIconThumb(id) {
+  const input = document.getElementById(id);
+  const thumb = document.getElementById(id + 'Thumb');
+  if (!input || !thumb) return;
+  const url = iconUrl(input.value.trim());
+  if (!url) {
+    thumb.classList.remove('shown');
+    return;
+  }
+  thumb.onerror = () => thumb.classList.remove('shown');
+  thumb.src = url;
+  thumb.classList.add('shown');
+}
+
+// Which icon field the picker modal is currently filling in — set by
+// openIconPicker, read by selectIcon.
+let iconPickerTarget = null;
+
+// Opens the icon-picker modal for the given field id, listing every icon
+// already uploaded to the device (GET /icons-list, see ConfigServer.kt) as
+// clickable thumbnails. Only resolves anything when this copy of the builder
+// is served by the device itself (http://<remote-ip>:8080/builder/) — the
+// standalone GitHub Pages copy, or opening index.html straight from disk,
+// has no device behind it to list icons from, so the grid explains that
+// instead of silently doing nothing.
+async function openIconPicker(targetId) {
+  iconPickerTarget = targetId;
+  const grid = document.getElementById('iconPickerGrid');
+  grid.innerHTML = '<div class="icon-picker-empty">Loading…</div>';
+  document.getElementById('iconPickerModal').classList.add('open');
+
+  let names;
+  try {
+    const res = await fetch('/icons-list');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    names = await res.json();
+  } catch (e) {
+    grid.innerHTML = `
+      <div class="icon-picker-error">
+        Can't list icons from here — this only works when the builder is opened
+        from the device itself (<code>http://&lt;remote-ip&gt;:8080/builder/</code>),
+        not the standalone copy. Type the path by hand instead, or upload icons
+        first from the device's home page (<code>/</code>).
+      </div>`;
+    return;
+  }
+
+  if (!names.length) {
+    grid.innerHTML = '<div class="icon-picker-empty">No icons uploaded yet — add some from the "Icons" section on the device\'s home page (<code>/</code>) first.</div>';
+    return;
+  }
+
+  grid.innerHTML = names.map(name => `
+    <div class="icon-picker-item" onclick="selectIcon('${name.replace(/'/g, "\\'")}')">
+      <img src="${iconUrl(name)}" alt="" loading="lazy">
+      <span>${name}</span>
+    </div>
+  `).join('');
+}
+
+function selectIcon(name) {
+  if (!iconPickerTarget) return;
+  document.getElementById(iconPickerTarget).value = `/sdcard/astrion/icons/${name}`;
+  updateIconThumb(iconPickerTarget);
+  closeIconPicker();
+}
+
+function closeIconPicker() {
+  document.getElementById('iconPickerModal').classList.remove('open');
+  iconPickerTarget = null;
 }

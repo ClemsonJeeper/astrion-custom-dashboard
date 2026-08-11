@@ -71,16 +71,20 @@ class SpeakerGroupCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val master = config.string("master") ?: return
         val speakers = (config.options["speakers"] as? List<Map<String, Any?>>) ?: emptyList()
 
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1B343D))
-                .padding(14.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF1B343D))
+                    .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
@@ -121,9 +125,11 @@ class SpeakerGroupCard : CardRenderer {
             } else {
                 ctx.client.callService(
                     ServiceCall(
-                        "media_player", "join", master,
+                        "media_player",
+                        "join",
+                        master,
                         mapOf("group_members" to JsonArray(listOf(JsonPrimitive(entityId)))),
-                    )
+                    ),
                 )
             }
         }
@@ -147,10 +153,11 @@ class SpeakerGroupCard : CardRenderer {
                         if (grouped) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
                         contentDescription = if (grouped) "Ungroup" else "Group",
                         tint = if (grouped) Color(0xFF6EA8FE) else Color(0xFF5A7783),
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clip(CircleShape)
-                            .clickable { toggleGroup() },
+                        modifier =
+                            Modifier
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .clickable { toggleGroup() },
                     )
                 }
                 Text(
@@ -176,7 +183,7 @@ class SpeakerGroupCard : CardRenderer {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SmallBtn(Icons.Filled.VolumeOff, active = muted) {
                     ctx.client.callService(
-                        ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted)
+                        ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted),
                     )
                 }
                 SmallBtn(Icons.Filled.VolumeDown) {
@@ -191,7 +198,12 @@ class SpeakerGroupCard : CardRenderer {
 
     /** Tap/drag volume bar. Local state responds instantly; commits to HA. */
     @Composable
-    private fun VolumeBar(entityId: String, vol: Double?, muted: Boolean, ctx: CardContext) {
+    private fun VolumeBar(
+        entityId: String,
+        vol: Double?,
+        muted: Boolean,
+        ctx: CardContext,
+    ) {
         val level = (vol ?: 0.0).toFloat().coerceIn(0f, 1f)
         // Re-syncs to the live level whenever HA reports a new one.
         var dragLevel by remember(level) { mutableStateOf(level) }
@@ -199,57 +211,67 @@ class SpeakerGroupCard : CardRenderer {
         fun commit(fraction: Float) {
             ctx.client.callService(
                 ServiceCall.of(
-                    "media_player", "volume_set", entityId,
+                    "media_player",
+                    "volume_set",
+                    entityId,
                     "volume_level" to fraction.coerceIn(0f, 1f).toDouble(),
-                )
+                ),
             )
         }
 
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp) // taller touch target than the visible bar
-                .pointerInput(entityId) {
-                    detectTapGestures { offset ->
-                        val f = (offset.x / size.width).coerceIn(0f, 1f)
-                        dragLevel = f
-                        commit(f)
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(24.dp) // taller touch target than the visible bar
+                    .pointerInput(entityId) {
+                        detectTapGestures { offset ->
+                            val f = (offset.x / size.width).coerceIn(0f, 1f)
+                            dragLevel = f
+                            commit(f)
+                        }
                     }
-                }
-                .pointerInput(entityId) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = { commit(dragLevel) },
-                    ) { change, _ ->
-                        dragLevel = (change.position.x / size.width).coerceIn(0f, 1f)
-                    }
-                },
+                    .pointerInput(entityId) {
+                        detectHorizontalDragGestures(
+                            onDragEnd = { commit(dragLevel) },
+                        ) { change, _ ->
+                            dragLevel = (change.position.x / size.width).coerceIn(0f, 1f)
+                        }
+                    },
             contentAlignment = Alignment.CenterStart,
         ) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFF152B33)),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF152B33)),
             ) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth(dragLevel)
-                        .fillMaxHeight()
-                        .background(if (muted) Color(0xFF5A7783) else Color(0xFF57C4A3)),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth(dragLevel)
+                            .fillMaxHeight()
+                            .background(if (muted) Color(0xFF5A7783) else Color(0xFF57C4A3)),
                 )
             }
         }
     }
 
     @Composable
-    private fun SmallBtn(icon: ImageVector, active: Boolean = false, onClick: () -> Unit) {
+    private fun SmallBtn(
+        icon: ImageVector,
+        active: Boolean = false,
+        onClick: () -> Unit,
+    ) {
         Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(if (active) Color(0xFF3A2E2E) else Color(0xFF2C4C58))
-                .clickable(onClick = onClick),
+            modifier =
+                Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(if (active) Color(0xFF3A2E2E) else Color(0xFF2C4C58))
+                    .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

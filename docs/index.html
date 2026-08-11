@@ -43,8 +43,7 @@
       <label>Card type</label>
       <select id="cardTypeSelect" onchange="updateCardFormInputs()">
         <optgroup label="Common">
-          <option value="bubble_light">Light — dimmable (bubble_light)</option>
-          <option value="light">Light — simple toggle (light)</option>
+          <option value="light">Light (light)</option>
           <option value="switch">Switch (switch)</option>
           <option value="cover">Cover / Shutter (cover)</option>
           <option value="fan">Fan (fan)</option>
@@ -183,6 +182,15 @@
   <div class="preview-modal-inner">
     <button class="preview-modal-close" onclick="closePreviewModal()">✕ Close</button>
     <div id="modalScreenSlot"></div>
+  </div>
+</div>
+
+<div id="iconPickerModal" class="preview-modal" onclick="if (event.target === this) closeIconPicker()">
+  <div class="preview-modal-inner icon-picker-inner">
+    <button class="preview-modal-close" onclick="closeIconPicker()">✕ Close</button>
+    <h2 style="margin-top:0">Choose an icon</h2>
+    <div class="hint">Icons already uploaded via the "Icons" section on the device's home page (<code>/</code>).</div>
+    <div id="iconPickerGrid" class="icon-picker-grid"></div>
   </div>
 </div>
 

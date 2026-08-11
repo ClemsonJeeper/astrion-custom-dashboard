@@ -38,7 +38,9 @@ object UpdateChecker {
      */
     sealed class CheckResult {
         data class Available(val info: UpdateInfo) : CheckResult()
+
         data object UpToDate : CheckResult()
+
         data class Failed(val reason: String) : CheckResult()
     }
 
@@ -48,35 +50,39 @@ object UpdateChecker {
     fun checkForUpdate(): CheckResult {
         val request = Request.Builder().url(API_URL).header("Accept", "application/vnd.github+json").build()
 
-        val response = try {
-            http.newCall(request).execute()
-        } catch (e: IOException) {
-            return CheckResult.Failed("Network error: ${e.message}")
-        }
+        val response =
+            try {
+                http.newCall(request).execute()
+            } catch (e: IOException) {
+                return CheckResult.Failed("Network error: ${e.message}")
+            }
 
         response.use { resp ->
             if (!resp.isSuccessful) {
                 return CheckResult.Failed(
                     "GitHub API returned HTTP ${resp.code} for $REPO — check the REPO constant " +
-                            "in UpdateChecker.kt, and that the release isn't a draft or pre-release " +
-                            "(the /latest endpoint ignores both)."
+                        "in UpdateChecker.kt, and that the release isn't a draft or pre-release " +
+                        "(the /latest endpoint ignores both).",
                 )
             }
             val bodyText = resp.body?.string() ?: return CheckResult.Failed("Empty response from GitHub")
 
-            val root = runCatching { Json.parseToJsonElement(bodyText).jsonObject }
-                .getOrElse { return CheckResult.Failed("Could not parse GitHub response: ${it.message}") }
+            val root =
+                runCatching { Json.parseToJsonElement(bodyText).jsonObject }
+                    .getOrElse { return CheckResult.Failed("Could not parse GitHub response: ${it.message}") }
 
-            val tag = root["tag_name"]?.jsonPrimitive?.content?.removePrefix("v")
-                ?: return CheckResult.Failed("Latest release has no tag_name")
+            val tag =
+                root["tag_name"]?.jsonPrimitive?.content?.removePrefix("v")
+                    ?: return CheckResult.Failed("Latest release has no tag_name")
 
             if (!isNewer(tag, BuildConfig.VERSION_NAME)) return CheckResult.UpToDate
 
-            val apkUrl = root["assets"]?.jsonArray
-                ?.map { it.jsonObject }
-                ?.firstOrNull { it["name"]?.jsonPrimitive?.content?.endsWith(".apk") == true }
-                ?.get("browser_download_url")?.jsonPrimitive?.content
-                ?: return CheckResult.Failed("Release $tag has no .apk file attached as an asset")
+            val apkUrl =
+                root["assets"]?.jsonArray
+                    ?.map { it.jsonObject }
+                    ?.firstOrNull { it["name"]?.jsonPrimitive?.content?.endsWith(".apk") == true }
+                    ?.get("browser_download_url")?.jsonPrimitive?.content
+                    ?: return CheckResult.Failed("Release $tag has no .apk file attached as an asset")
 
             val notes = root["body"]?.jsonPrimitive?.content.orEmpty()
             return CheckResult.Available(UpdateInfo(version = tag, notes = notes, apkUrl = apkUrl))
@@ -84,7 +90,10 @@ object UpdateChecker {
     }
 
     /** Minimal x.y.z comparison — good enough for plain semver-ish tags like "1.4.0". */
-    private fun isNewer(remote: String, local: String): Boolean {
+    private fun isNewer(
+        remote: String,
+        local: String,
+    ): Boolean {
         val r = remote.split(".").mapNotNull { it.toIntOrNull() }
         val l = local.split(".").mapNotNull { it.toIntOrNull() }
         for (i in 0 until maxOf(r.size, l.size)) {
@@ -96,12 +105,16 @@ object UpdateChecker {
     }
 
     /** Downloads the APK into the app cache dir. Blocking — invoke off the main thread. */
-    fun download(context: Context, apkUrl: String): File? {
+    fun download(
+        context: Context,
+        apkUrl: String,
+    ): File? {
         val request = Request.Builder().url(apkUrl).build()
-        val bytes = http.newCall(request).execute().use { resp ->
-            if (!resp.isSuccessful) return null
-            resp.body?.bytes() ?: return null
-        }
+        val bytes =
+            http.newCall(request).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                resp.body?.bytes() ?: return null
+            }
         val file = File(context.cacheDir, "astrion-update.apk")
         file.writeBytes(bytes)
         return file
@@ -116,12 +129,16 @@ object UpdateChecker {
      * surfacing later, uncaught, on the main thread (which would crash the
      * whole app — and with it, the local web server used to trigger this).
      */
-    fun promptInstall(context: Context, apkFile: File) {
+    fun promptInstall(
+        context: Context,
+        apkFile: File,
+    ) {
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apkFile)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
+        val intent =
+            Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
         context.startActivity(intent)
     }
 }

@@ -3,6 +3,46 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.0] - 2026-08-11
+
+### Added
+
+- Settings: new "Local config server" switch, next to "Wake on motion". `ConfigServer` (the unauthenticated `:8080` admin surface — connection settings, `dashboard.json`, icon uploads, `/builder/`) now defaults to on but can be switched off once a device is fully set up, closing that LAN-reachable surface for good; it's started/stopped live from `MainActivity` with no app restart, and can always be switched back on from this same on-device screen (never from the web page itself, to avoid a lockout). Persisted in `SharedPreferences` alongside the existing motion-wake setting.
+- `CoverCard`: `layout` config option (`"default"`, `"horizontal"`, `"vertical"`), matching Home Assistant's Mushroom cover card:
+  - `"default"` (new) — icon + name/state row, with the open/stop/close buttons full-width on their own row below.
+  - `"horizontal"` — icon + name/state on the left, buttons inline on the right (the card's only layout before this release, kept as-is).
+  - `"vertical"` (new) — icon, name, state, and buttons all centered and stacked in one column.
+- `CoverCard`: dedicated icons via new `MdiIcons` entries — `WindowShutterClosed`/`WindowShutterOpen` for the main icon (reflects the cover's last known open/closed state, updated live), and `CoverUp`/`CoverDown` for the raise/lower buttons, replacing the earlier generic Material icons (`Blinds`, `KeyboardArrowUp`/`KeyboardArrowDown`).
+- `CoverCard`: the raise button now disables (dimmed, non-clickable) once the cover is fully open, and the lower button disables once fully closed — the stop button stays active either way.
+- `LightCard`: `layout` config option (`"default"`, `"horizontal"`, `"vertical"`), matching Home Assistant's Mushroom light card — same pattern `CoverCard` got in 0.6.0:
+  - `"default"` (new) — icon + name/state row, with a slim brightness bar full-width below it (only drawn while on and dimmable).
+  - `"horizontal"` (new) — icon + name/state, single row, no bar.
+  - `"vertical"` (new) — icon, name, and state, all centered and stacked in one column.
+- `LightCard`: `use_light_color` option — when true and the light reports an `rgb_color`, the icon (and the default layout's brightness bar) tint with that colour instead of the plain amber "on" look.
+- `LightCard`: `show_brightness` option (default true) — shows the live brightness as `"N%"` on the state line while on; set false to always show a plain "On" instead.
+- `LightCard`: icon now swaps between a filled and an outline lightbulb depending on on/off state (Mushroom's own look), instead of a static tile background swap — new `MdiIcons.LightbulbOn`/`MdiIcons.LightbulbOff` (the latter a slashed bulb, clearer than a plain outline for "off"), same pattern as `WindowShutterOpen`/`Closed`.
+- `LightCard`: tap toggles, long-press opens the same brightness/colour detail dialog the bubble-style card used (`LightDetailDialog`, unchanged) — see Removed, below.
+- New `light_state_on` / `light_state_off` / `light_brightness_pct` string resources (English and French — "Allumé"/"Éteint" rather than the generic switch-style "Marche"/"Arrêt") so the state line is translated: 0% brightness (or a plain off state) reads as "Off"/"Éteint", anything else reads as its live percentage.
+- Dashboard builder (`docs/index.html`): `light` cards now have their own dedicated form (previously grouped in with the generic name/entity/icon-only cards) with a `Layout` picker and the two new checkboxes, plus a real preview for all three layouts driven by a generic example entity (color_temp/xy profile, no real device name or local IP baked into a publicly-shipped file), including the icon colour tint and brightness bar.
+- `HaLabels.coverState()` / `assets/ha_labels/*.json`'s new `cover_state` category (open/closed/opening/closing/stopped/unknown, English and French) — used as `CoverCard`'s fallback label for covers that report no `current_position` attribute at all, matching the pattern already used for `VacuumCard`.
+- Dashboard builder (`docs/index.html`): `cover` cards now have their own dedicated form (previously grouped in with the generic name/entity/icon-only cards) with a `Layout` picker, plus a real preview for all three layouts driven by an example entity (`cover.volet_chambre_noham`).
+- Dashboard builder preview: `scene_grid`/`button_grid` tiles now render their actual configured icon (uploaded to `/sdcard/astrion/icons/` on the remote) as an image, instead of only showing the tile's name — via a new `GET /icons/<filename>` endpoint on `ConfigServer.kt` that serves files back out of that folder (the same one `POST /icons` writes into). Only works when the builder is opened from the remote itself (`/builder/`); the standalone GitHub Pages copy has no device behind it to serve the files from and falls back to the same blank-icon layout the app uses when a file is missing.
+- Dashboard builder: every icon field (name/entity cards, `cover`, and `scene_grid`/`button_grid` items) now has a "Choose…" button and a live thumbnail alongside the path text field, opening a picker that lists every icon already uploaded to the device as clickable thumbnails (new `GET /icons-list` endpoint on `ConfigServer.kt`) — typing the `/sdcard/astrion/icons/xxx.png` path by hand is still possible but no longer the only way. Same "only works when served by the device itself" caveat as the preview thumbnails above; the picker explains that inline instead of doing nothing when it can't reach `/icons-list`.
+- `CoverCard`: new `CoverDetailDialog`, opened by long-pressing the card's icon/name area (same gesture `LightCard` uses) — a vertical position pill you can drag or tap to set an exact 0–100% position, plus quick-preset chips (Closed/25%/50%/75%/Open) for jumping straight to a common position. Uses `cover.set_cover_position` (or `open_cover`/`close_cover` at the 0%/100% ends).
+- `LightCard`: the `"default"` layout's brightness bar is now a real slider instead of a read-only indicator — drag or tap it to raise/lower brightness directly from the card, no need to open `LightDetailDialog` first. Made a bit thicker (20dp) to stay easy to grab on a touch panel.
+
+### Removed
+
+- `BubbleLightCard` (`bubble_light` card type) — its slider-pill interaction and long-press detail popup are superseded by `LightCard`'s new layouts (the `"default"` layout's brightness bar is itself now draggable, see Added above) plus its existing long-press into `LightDetailDialog`. Existing `bubble_light` cards in a saved `dashboard.json` should be changed to `"type": "light"` (same `entity_id`/`name` options still apply).
+- Dashboard builder: the separate "Light — dimmable (bubble_light)" entry — the builder's `light` entry now covers both use cases.
+
+### Fixed
+
+- `CoverCard`'s status label wasn't translated at all — it was a hardcoded `"$position% open"` English string. It now reads "Open"/"Closed" (translated) at 100%/0% position, and a translated "N% open" in between — new `cover_open`, `cover_closed`, `cover_position_open` string resources (English and French).
+- Dashboard builder preview: `scene_grid`/`button_grid` tiles used a generic fixed-size placeholder (`preview-tile`) that didn't match the real on-device sizing at all. Tile height now matches the real dp values (74dp/58dp icon vs. text-only for `scene_grid`, 68dp/48dp per button for `button_grid`), and `scene_grid` tiles use each scene's configured color (with the same luminance-based text-color logic as `SceneGridCard.kt`) instead of a flat gray background.
+- Dashboard builder preview: `scene_grid`/`button_grid` real-icon preview (see Added, above) never actually worked — `docs/js/cards.js`'s `iconUrl()` correctly pointed at `/icons/<filename>`, but `ConfigServer.kt` only ever wired up `POST /icons` (upload); the matching `GET /icons/<filename>` to serve an uploaded icon back out didn't exist, so every icon request 404'd and silently fell back to the blank-icon look. Added the missing route.
+- `Dashboard`: jumping to a page (menu-card `navigateToPage`, a physical hotkey, or a page-indicator dot) used `pagerState.animateScrollToPage()`, which visibly scrolls through every page in between the current one and the target — on the HA100's weak CPU this showed up as the previous page flashing up right before the intended one landed. Switched to `scrollToPage()` (instant, no animation) for all three, so a direct jump lands directly; swipe gestures between adjacent pages are unaffected.
+
 ## [0.5.0] - 2026-08-10
 
 ### Added

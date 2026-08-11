@@ -55,7 +55,10 @@ class AppleTvRemoteCard : CardRenderer {
     override val type = "apple_tv_remote"
 
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val deviceId = config.string("deviceId") ?: return
         val hub = config.string("hub") // HarmonyHubConfig.localId; falls back to the first hub if absent
 
@@ -64,11 +67,12 @@ class AppleTvRemoteCard : CardRenderer {
         var isPlaying by remember { mutableStateOf(true) }
 
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF161616))
-                .padding(20.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color(0xFF161616))
+                    .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
@@ -89,14 +93,15 @@ class AppleTvRemoteCard : CardRenderer {
             }
 
             Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF2A2A2A))
-                    .clickable {
-                        send(if (isPlaying) "Pause" else "Play")
-                        isPlaying = !isPlaying
-                    },
+                modifier =
+                    Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF2A2A2A))
+                        .clickable {
+                            send(if (isPlaying) "Pause" else "Play")
+                            isPlaying = !isPlaying
+                        },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -117,11 +122,12 @@ class AppleTvRemoteCard : CardRenderer {
         onSelect: () -> Unit,
     ) {
         Box(
-            modifier = Modifier
-                .size(220.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF232323))
-                .clickable(onClick = onSelect),
+            modifier =
+                Modifier
+                    .size(220.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF232323))
+                    .clickable(onClick = onSelect),
             contentAlignment = Alignment.Center,
         ) {
             EdgeIcon(Icons.Filled.KeyboardArrowUp, Alignment.TopCenter, onUp)
@@ -129,27 +135,34 @@ class AppleTvRemoteCard : CardRenderer {
             EdgeIcon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, Alignment.CenterStart, onLeft)
             EdgeIcon(Icons.AutoMirrored.Filled.KeyboardArrowRight, Alignment.CenterEnd, onRight)
             Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF303030)),
+                modifier =
+                    Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF303030)),
             )
         }
     }
 
     @Composable
-    private fun EdgeIcon(icon: ImageVector, align: Alignment, onClick: () -> Unit) {
+    private fun EdgeIcon(
+        icon: ImageVector,
+        align: Alignment,
+        onClick: () -> Unit,
+    ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(14.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(14.dp),
             contentAlignment = align,
         ) {
             Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = onClick),
+                modifier =
+                    Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onClick),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(icon, contentDescription = null, tint = Color(0xFF9A9A9A))
@@ -158,13 +171,18 @@ class AppleTvRemoteCard : CardRenderer {
     }
 
     @Composable
-    private fun PillButton(icon: ImageVector? = null, label: String, onClick: () -> Unit) {
+    private fun PillButton(
+        icon: ImageVector? = null,
+        label: String,
+        onClick: () -> Unit,
+    ) {
         Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(Color(0xFF2A2A2A))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 18.dp, vertical = 10.dp),
+            modifier =
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xFF2A2A2A))
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {

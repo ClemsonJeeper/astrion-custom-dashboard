@@ -15,7 +15,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -64,6 +63,7 @@ class PlexCard : CardRenderer {
     override val type = "plex"
 
     private data class PlexItem(val key: String, val title: String, val subtitle: String, val thumb: String?)
+
     private data class PlexRow(val title: String, val items: List<PlexItem>)
 
     private companion object {
@@ -71,16 +71,26 @@ class PlexCard : CardRenderer {
         val json = Json { ignoreUnknownKeys = true }
 
         // Tiny LRU poster cache (~40 posters ≈ a few MB) so swiping doesn't refetch.
-        val posterCache = object : LinkedHashMap<String, ImageBitmap>(0, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 40
-        }
+        val posterCache =
+            object : LinkedHashMap<String, ImageBitmap>(0, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 40
+            }
 
         @Synchronized fun cacheGet(k: String): ImageBitmap? = posterCache[k]
-        @Synchronized fun cachePut(k: String, v: ImageBitmap) { posterCache[k] = v }
+
+        @Synchronized fun cachePut(
+            k: String,
+            v: ImageBitmap,
+        ) {
+            posterCache[k] = v
+        }
     }
 
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val host = config.string("host")?.trimEnd('/') ?: return
         val token = config.string("token") ?: return
         // Android-TV media_player entity. Tapping launches Plex on it via
@@ -98,8 +108,9 @@ class PlexCard : CardRenderer {
 
         LaunchedEffect(host, token) {
             try {
-                machineId = get(url(host, token, "/identity"))
-                    ?.mc()?.strOf("machineIdentifier")
+                machineId =
+                    get(url(host, token, "/identity"))
+                        ?.mc()?.strOf("machineIdentifier")
                 val out = mutableListOf<PlexRow>()
                 fetchItems(host, token, "/library/onDeck")?.takeIf { it.isNotEmpty() }
                     ?.let { out += PlexRow("On Deck", it) }
@@ -119,25 +130,28 @@ class PlexCard : CardRenderer {
                 val id = machineId ?: return
                 ctx.client.callService(
                     ServiceCall.of(
-                        "media_player", "play_media", playEntity,
+                        "media_player",
+                        "play_media",
+                        playEntity,
                         "media_content_type" to "video",
                         "media_content_id" to "plex://preplay/?metadataKey=${item.key}&server=$id",
-                    )
+                    ),
                 )
             } else {
                 // Reliable fallback: open Plex on the TV so you can pick it.
                 ctx.client.callService(
-                    ServiceCall.of("media_player", "select_source", mediaEntity, "source" to source)
+                    ServiceCall.of("media_player", "select_source", mediaEntity, "source" to source),
                 )
             }
         }
 
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF1B343D))
-                .padding(vertical = 14.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF1B343D))
+                    .padding(vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
@@ -148,63 +162,81 @@ class PlexCard : CardRenderer {
                 modifier = Modifier.padding(horizontal = 14.dp),
             )
             when {
-                rows == null -> Text(
-                    "Loading…", color = Color(0xFF93AFB6), fontSize = 13.sp,
-                    modifier = Modifier.padding(horizontal = 14.dp),
-                )
-                error != null -> Text(
-                    error!!, color = Color(0xFFE0A0A0), fontSize = 13.sp,
-                    modifier = Modifier.padding(horizontal = 14.dp),
-                )
-                else -> rows!!.forEach { row ->
+                rows == null ->
                     Text(
-                        row.title, color = Color(0xFF93AFB6), fontSize = 13.sp,
+                        "Loading…",
+                        color = Color(0xFF93AFB6),
+                        fontSize = 13.sp,
                         modifier = Modifier.padding(horizontal = 14.dp),
                     )
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp),
-                    ) {
-                        items(row.items) { item ->
-                            PosterTile(host, token, item) { play(item) }
+                error != null ->
+                    Text(
+                        error!!,
+                        color = Color(0xFFE0A0A0),
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                    )
+                else ->
+                    rows!!.forEach { row ->
+                        Text(
+                            row.title,
+                            color = Color(0xFF93AFB6),
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 14.dp),
+                        )
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp),
+                        ) {
+                            items(row.items) { item ->
+                                PosterTile(host, token, item) { play(item) }
+                            }
                         }
                     }
-                }
             }
         }
     }
 
     @Composable
-    private fun PosterTile(host: String, token: String, item: PlexItem, onClick: () -> Unit) {
+    private fun PosterTile(
+        host: String,
+        token: String,
+        item: PlexItem,
+        onClick: () -> Unit,
+    ) {
         Column(
-            modifier = Modifier
-                .width(104.dp)
-                .clickable(onClick = onClick),
+            modifier =
+                Modifier
+                    .width(104.dp)
+                    .clickable(onClick = onClick),
         ) {
-            val posterUrl = item.thumb?.let {
-                "$host/photo/:/transcode?width=140&height=210&minSize=1&upscale=1" +
-                    "&url=${URLEncoder.encode(it, "UTF-8")}&X-Plex-Token=$token"
-            }
+            val posterUrl =
+                item.thumb?.let {
+                    "$host/photo/:/transcode?width=140&height=210&minSize=1&upscale=1" +
+                        "&url=${URLEncoder.encode(it, "UTF-8")}&X-Plex-Token=$token"
+                }
             var bmp by remember(posterUrl) { mutableStateOf(posterUrl?.let { cacheGet(it) }) }
             LaunchedEffect(posterUrl) {
                 if (bmp == null && posterUrl != null) {
-                    val loaded = withContext(Dispatchers.IO) {
-                        runCatching {
-                            http.newCall(Request.Builder().url(posterUrl).build()).execute().use { r ->
-                                r.body?.bytes()?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
-                            }
-                        }.getOrNull()?.asImageBitmap()
-                    }
+                    val loaded =
+                        withContext(Dispatchers.IO) {
+                            runCatching {
+                                http.newCall(Request.Builder().url(posterUrl).build()).execute().use { r ->
+                                    r.body?.bytes()?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                                }
+                            }.getOrNull()?.asImageBitmap()
+                        }
                     if (loaded != null) {
                         cachePut(posterUrl, loaded)
                         bmp = loaded
                     }
                 }
             }
-            val posterMod = Modifier
-                .fillMaxWidth()
-                .height(150.dp)
-                .clip(RoundedCornerShape(10.dp))
+            val posterMod =
+                Modifier
+                    .fillMaxWidth()
+                    .height(150.dp)
+                    .clip(RoundedCornerShape(10.dp))
             if (bmp != null) {
                 Image(bmp!!, contentDescription = item.title, modifier = posterMod, contentScale = ContentScale.Crop)
             } else {
@@ -212,33 +244,50 @@ class PlexCard : CardRenderer {
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                item.title, color = Color(0xFFE6F0F1), fontSize = 12.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                item.title,
+                color = Color(0xFFE6F0F1),
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
-                item.subtitle, color = Color(0xFF93AFB6), fontSize = 10.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                item.subtitle,
+                color = Color(0xFF93AFB6),
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
 
     // ---- Plex HTTP helpers ----------------------------------------------------
 
-    private fun url(host: String, token: String, path: String): String =
-        host + path + (if ('?' in path) "&" else "?") + "X-Plex-Token=$token"
+    private fun url(
+        host: String,
+        token: String,
+        path: String,
+    ): String = host + path + (if ('?' in path) "&" else "?") + "X-Plex-Token=$token"
 
-    private suspend fun get(u: String): JsonObject? = withContext(Dispatchers.IO) {
-        runCatching {
-            http.newCall(
-                Request.Builder().url(u).header("Accept", "application/json").build()
-            ).execute().use { r ->
-                if (!r.isSuccessful) null
-                else json.parseToJsonElement(r.body?.string() ?: return@use null) as? JsonObject
-            }
-        }.getOrNull()
-    }
+    private suspend fun get(u: String): JsonObject? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                http.newCall(
+                    Request.Builder().url(u).header("Accept", "application/json").build(),
+                ).execute().use { r ->
+                    if (!r.isSuccessful) {
+                        null
+                    } else {
+                        json.parseToJsonElement(r.body?.string() ?: return@use null) as? JsonObject
+                    }
+                }
+            }.getOrNull()
+        }
 
-    private suspend fun fetchItems(host: String, token: String, path: String): List<PlexItem>? {
+    private suspend fun fetchItems(
+        host: String,
+        token: String,
+        path: String,
+    ): List<PlexItem>? {
         val container = get(url(host, token, path) + "&X-Plex-Container-Size=12")?.mc() ?: return null
         val meta = container["Metadata"] as? JsonArray ?: return emptyList()
         return meta.mapNotNull { el ->
@@ -267,6 +316,8 @@ class PlexCard : CardRenderer {
     }
 
     private fun JsonObject.mc(): JsonObject? = this["MediaContainer"] as? JsonObject
+
     private fun JsonObject.strOf(k: String): String? = (this[k] as? JsonPrimitive)?.content
+
     private fun JsonObject.intOf(k: String): Int? = (this[k] as? JsonPrimitive)?.content?.toIntOrNull()
 }
