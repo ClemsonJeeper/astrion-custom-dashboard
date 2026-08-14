@@ -1,24 +1,20 @@
 package com.custom.astrion.cards.impl
 
-import android.graphics.Bitmap
+import androidx.core.graphics.scale
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.VolumeDown
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -30,31 +26,55 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.astrion.R
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.icons.MdiIcons
+import kotlin.time.Duration.Companion.seconds
 
 /**
- * Media player card with two layouts:
- *  - "compact" (default): a single row — round album art, title/artist, and
- *    prev / play-pause / next / vol- / vol+ controls. Blurred art background.
- *  - "full": a big square album art on top, title/artist, then transport and
- *    volume rows. For the dedicated Media page.
+ * Media player card — styled after Home Assistant's Mushroom media-player
+ * card for its "compact" layout, with two variants:
  *
- * Album art is loaded from the entity's `entity_picture` (auth'd fetch). Since
- * Modifier.blur is a no-op on this API 26 device, the blurred background is a
- * heavily downscaled copy upscaled to fill the card.
+ *  - "compact" (default): one Mushroom-style tile — round album-art/icon
+ *    avatar, name + state line, and a control row below that can show either
+ *    the transport buttons (prev/play-pause/next/shuffle/repeat/...) or the
+ *    volume controls (mute/-/+ or a slider), with a small swap button to
+ *    switch between the two — exactly how Mushroom's own media-player card
+ *    behaves. Tap the tile to toggle play/pause; long-press to open
+ *    [MediaPlayerDetailDialog] for the full transport, volume slider, and
+ *    (when supported) power control.
+ *  - "full": big album art, title/artist, a live progress bar, then the
+ *    transport and volume rows — meant for a dedicated media page. Optional
+ *    `top_buttons` fire arbitrary services (e.g. Group / Ungroup a speaker).
  *
  * Config:
- *   { "type": "media_player", "options": { "entity_id": "media_player.club",
- *       "variant": "full" } }   // omit variant for compact
+ *   { "type": "media_player", "options": {
+ *       "entity_id": "media_player.club",
+ *       "variant": "full",                  // omit for compact
+ *       "name": "Club",                      // optional override
+ *       "use_media_info": true,              // show media_title/app instead of friendly_name/state
+ *       "show_volume_level": false,          // append " ⸱ N%" to the state line
+ *       "media_controls": "previous,play_pause,next",   // comma list, see MEDIA_CONTROL_KEYS
+ *       "volume_controls": "mute,buttons",               // comma list, see VOLUME_CONTROL_KEYS
+ *       "top_buttons": [ { "name": "Group", "service": "...", "entity_id": "...", "data": {} } ]
+ *   } }
+ *
+ * All controls are filtered live against the entity's `supported_features`
+ * bitmask, so an unsupported button (e.g. volume buttons on a group-only
+ * speaker target) never renders even if requested in config.
  */
 class MediaPlayerCard : CardRenderer {
     override val type = "media_player"
@@ -68,29 +88,44 @@ class MediaPlayerCard : CardRenderer {
         val entityId = config.string("entity_id") ?: return
         val full = config.string("variant") == "full"
         val topButtons = (config.options["top_buttons"] as? List<Map<String, Any?>>) ?: emptyList()
-        val e = ctx.entities[entityId]
-        val playing = e?.state == "playing"
-        val title = e?.attrString("media_title") ?: e?.friendlyName ?: entityId
-        val artist =
-            e?.attrString("media_artist")
-                ?: e?.attrString("media_series_title")
-                ?: e?.attrString("app_name")
-                ?: "—"
-        val artPath = e?.attrString("entity_picture")
+        val useMediaInfo = config.bool("use_media_info", true)
+        val showVolumeLevel = config.bool("show_volume_level", false)
+        val mediaControls =
+            (config.string("media_controls") ?: DEFAULT_MEDIA_CONTROLS)
+                .split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        val volumeControls =
+            (config.string("volume_controls") ?: DEFAULT_VOLUME_CONTROLS)
+                .split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
+        val e = ctx.entities[entityId]
+        val isOff = e == null || e.state == "off" || e.isUnavailable
+
+        val title =
+            if (useMediaInfo && !isOff) {
+                e?.attrString("media_title") ?: config.string("name") ?: e?.friendlyName ?: entityId
+            } else {
+                config.string("name") ?: e?.friendlyName ?: entityId
+            }
+        val subtitle =
+            if (useMediaInfo && !isOff) {
+                e?.attrString("media_artist")
+                    ?: e?.attrString("media_series_title")
+                    ?: e?.attrString("app_name")
+            } else {
+                null
+            }
+        val stateLabel = subtitle ?: mediaStateLabel(e?.state)
+        val finalState =
+            if (showVolumeLevel && e?.attrDouble("volume_level") != null) {
+                val pct = ((e.attrDouble("volume_level") ?: 0.0) * 100).toInt()
+                "$stateLabel ⸱ $pct%"
+            } else {
+                stateLabel
+            }
+
+        val artPath = e?.attrString("entity_picture")
         var art by remember(artPath) { mutableStateOf<ImageBitmap?>(null) }
         LaunchedEffect(artPath) { art = artPath?.let { ctx.client.fetchBitmap(it) } }
-
-        val blurredBg =
-            remember(art) {
-                art?.let { img ->
-                    val src = img.asAndroidBitmap()
-                    if (src.width <= 0) return@let null
-                    val w = 32
-                    val h = (w * src.height / src.width).coerceAtLeast(1)
-                    Bitmap.createScaledBitmap(src, w, h, true).asImageBitmap()
-                }
-            }
 
         fun mp(
             service: String,
@@ -99,28 +134,52 @@ class MediaPlayerCard : CardRenderer {
             ctx.client.callService(ServiceCall.of("media_player", service, entityId, *data))
         }
 
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF1B343D)),
-        ) {
-            // Blurred album art background + scrim for legibility.
-            blurredBg?.let { bg ->
-                Image(
-                    bitmap = bg,
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.Crop,
-                )
-                Box(modifier = Modifier.matchParentSize().background(Color(0xB30D1E24)))
+        if (full) {
+            val blurredBg =
+                remember(art) {
+                    art?.let { img ->
+                        val src = img.asAndroidBitmap()
+                        if (src.width <= 0) return@let null
+                        val w = 32
+                        val h = (w * src.height / src.width).coerceAtLeast(1)
+                        src.scale(w, h, filter = true).asImageBitmap()
+                    }
+                }
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF1B343D)),
+            ) {
+                blurredBg?.let { bg ->
+                    Image(bg, null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+                    Box(modifier = Modifier.matchParentSize().background(Color(0xB30D1E24)))
+                }
+                FullContent(ctx, e, entityId, title, subtitle ?: stateLabel, art, ::mp, topButtons, mediaControls, volumeControls)
             }
-
-            if (full) {
-                FullContent(ctx, title, artist, playing, art, ::mp, topButtons)
-            } else {
-                CompactContent(title, artist, art, ::mp)
+        } else {
+            var showDetail by remember { mutableStateOf(false) }
+            CompactTile(
+                entityId = entityId,
+                e = e,
+                title = title,
+                state = finalState,
+                art = art,
+                mediaControls = mediaControls,
+                volumeControls = volumeControls,
+                onTap = { mp("media_play_pause") },
+                onLongPress = { showDetail = true },
+                mp = ::mp,
+            )
+            if (showDetail) {
+                MediaPlayerDetailDialog(
+                    entityId = entityId,
+                    name = title,
+                    e = e,
+                    client = ctx.client,
+                    onClose = { showDetail = false },
+                )
             }
         }
     }
@@ -140,76 +199,214 @@ class MediaPlayerCard : CardRenderer {
         )
     }
 
-    // ---- compact (main page): one row, volume only, buttons right-justified --
+    // ---- compact: Mushroom-style tile ---------------------------------------
+
     @Composable
-    private fun CompactContent(
+    private fun CompactTile(
+        entityId: String,
+        e: EntityState?,
         title: String,
-        artist: String,
+        state: String,
         art: ImageBitmap?,
+        mediaControls: List<String>,
+        volumeControls: List<String>,
+        onTap: () -> Unit,
+        onLongPress: () -> Unit,
         mp: (String, Array<out Pair<String, Any?>>) -> Unit,
     ) {
-        Row(
+        val mediaButtons = remember(e, mediaControls) { computeMediaButtons(e, mediaControls) }
+        val volumeButtons = remember(e, volumeControls) { computeVolumeButtons(e, volumeControls) }
+        val hasVolumeSlider = volumeControls.contains("set") && e?.supports(Feature.VOLUME_SET) == true
+        val hasVolumeGroup = volumeButtons.isNotEmpty() || hasVolumeSlider
+        val hasMediaGroup = mediaButtons.isNotEmpty()
+
+        // Which group is showing right now — Mushroom lets you flip between
+        // them with a small swap button when both are available.
+        var showVolume by remember(entityId) { mutableStateOf(!hasMediaGroup && hasVolumeGroup) }
+        val activeIsVolume = showVolume && hasVolumeGroup
+
+        val gestureModifier =
+            Modifier.pointerInput(entityId) {
+                detectTapGestures(onTap = { onTap() }, onLongPress = { onLongPress() })
+            }
+
+        Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    // Tap the card body to toggle play/pause (volume buttons still
-                    // handle their own taps).
-                    .clickable { mp("media_play_pause", emptyArray()) }
-                    .padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF1E3841))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            val artMod = Modifier.size(44.dp).clip(CircleShape)
-            if (art != null) {
-                Image(art, null, modifier = artMod, contentScale = ContentScale.Crop)
-            } else {
-                Box(artMod.background(Color(0xFF3A2E5A)))
+            Row(
+                modifier = Modifier.fillMaxWidth().then(gestureModifier),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val avatarMod = Modifier.size(42.dp).clip(CircleShape)
+                if (art != null) {
+                    Image(art, null, modifier = avatarMod, contentScale = ContentScale.Crop)
+                } else {
+                    val isOff = e == null || e.state == "off" || e.isUnavailable
+                    Box(
+                        avatarMod.background(if (isOff) Color(0xFF2A4954) else Color(0xFF4C6EF5)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            if (isOff) MdiIcons.CastOff else MdiIcons.Cast,
+                            contentDescription = null,
+                            tint = if (isOff) Color(0xFFB6C9CE) else Color.White,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        color = Color(0xFFE6F0F1),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        state,
+                        color = Color(0xFF93AFB6),
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    title,
-                    color = Color(0xFFF1F4FA),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    artist,
-                    color = Color(0xFFB6BECC),
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+
+            if (hasMediaGroup || hasVolumeGroup) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (activeIsVolume) {
+                        if (hasVolumeSlider) {
+                            VolumeSlider(entityId, e, Modifier.weight(1f)) { level ->
+                                mp("volume_set", arrayOf("volume_level" to level))
+                            }
+                        }
+                        volumeButtons.forEach { b -> TileButton(b.icon) { mp(b.action, b.data.toTypedArray()) } }
+                    } else {
+                        mediaButtons.forEach { b ->
+                            TileButton(b.icon, accent = b.active || b.action == "media_play" || b.action == "media_pause") {
+                                mp(b.action, b.data.toTypedArray())
+                            }
+                        }
+                    }
+                    if (hasMediaGroup && hasVolumeGroup) {
+                        // The slider already has weight(1f) and fills the row on
+                        // its own — only insert a spacer to push the swap button
+                        // to the end when there's no slider doing that already
+                        // (Modifier.weight requires a value > 0, so this can't
+                        // just be a conditional weight(0f) on an always-present Spacer).
+                        if (!(activeIsVolume && hasVolumeSlider)) {
+                            Spacer(Modifier.weight(1f))
+                        }
+                        TileButton(if (activeIsVolume) MdiIcons.Play else MdiIcons.VolumeHigh) {
+                            showVolume = !showVolume
+                        }
+                    }
+                }
             }
-            // Only volume, sitting at the right after the weighted text.
-            CircleControl(Icons.Filled.VolumeDown, 40.dp) { mp("volume_down", emptyArray()) }
-            CircleControl(Icons.Filled.VolumeUp, 40.dp) { mp("volume_up", emptyArray()) }
+        }
+    }
+
+    @Composable
+    private fun TileButton(
+        icon: ImageVector,
+        accent: Boolean = false,
+        onClick: () -> Unit,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (accent) Color(0xFF4C6EF5) else Color(0xFF23414B))
+                    .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = Color(0xFFE6F0F1), modifier = Modifier.size(18.dp))
+        }
+    }
+
+    @Composable
+    private fun VolumeSlider(
+        entityId: String,
+        e: EntityState?,
+        modifier: Modifier,
+        onCommit: (Float) -> Unit,
+    ) {
+        val level = (e?.attrDouble("volume_level") ?: 0.0).toFloat().coerceIn(0f, 1f)
+        var dragLevel by remember(entityId) { mutableStateOf<Float?>(null) }
+        val shown = dragLevel ?: level
+        Box(
+            modifier =
+                modifier
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF152B33))
+                    .pointerInput(entityId) {
+                        detectHorizontalDragGestures(
+                            onDragEnd = { dragLevel?.let(onCommit); dragLevel = null },
+                            onDragCancel = { dragLevel = null },
+                        ) { change, _ ->
+                            change.consume()
+                            dragLevel = (change.position.x / size.width).coerceIn(0f, 1f)
+                        }
+                    }
+                    .pointerInput(entityId) {
+                        detectTapGestures { offset ->
+                            val f = (offset.x / size.width).coerceIn(0f, 1f)
+                            dragLevel = f
+                            onCommit(f)
+                            dragLevel = null
+                        }
+                    },
+        ) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(shown.coerceIn(0.02f, 1f))
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF4C6EF5)),
+            )
         }
     }
 
     // ---- full (media page) --------------------------------------------------
+
     @Composable
     private fun FullContent(
         ctx: CardContext,
+        e: EntityState?,
+        entityId: String,
         title: String,
         artist: String,
-        playing: Boolean,
         art: ImageBitmap?,
         mp: (String, Array<out Pair<String, Any?>>) -> Unit,
         topButtons: List<Map<String, Any?>>,
+        mediaControls: List<String>,
+        volumeControls: List<String>,
     ) {
+        val mediaButtons = remember(e, mediaControls) { computeMediaButtons(e, mediaControls) }
+        val volumeButtons = remember(e, volumeControls) { computeVolumeButtons(e, volumeControls) }
+        val hasVolumeSlider = volumeControls.contains("set") && e?.supports(Feature.VOLUME_SET) == true
+
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Top action buttons (e.g. Group / Ungroup).
             if (topButtons.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     topButtons.forEach { b ->
                         Box(
                             modifier =
@@ -217,32 +414,35 @@ class MediaPlayerCard : CardRenderer {
                                     .weight(1f)
                                     .height(44.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0x662C4C58)) // semi-transparent
+                                    .background(Color(0x662C4C58))
                                     .clickable { fireService(ctx, b) },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                b["name"] as? String ?: "",
-                                color = Color(0xFFE6F0F1),
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
+                            Text(b["name"] as? String ?: "", color = Color(0xFFE6F0F1), fontSize = 15.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
             }
-            // Big album art.
+
             val artMod = Modifier.fillMaxWidth().aspectRatio(1.2f).clip(RoundedCornerShape(16.dp))
             if (art != null) {
                 Image(art, null, modifier = artMod, contentScale = ContentScale.Crop)
             } else {
-                Box(artMod.background(Color(0xFF3A2E5A)))
+                val isOff = e == null || e.state == "off" || e.isUnavailable
+                Box(
+                    artMod.background(if (isOff) Color(0xFF3A2E5A) else Color(0xFF4C6EF5)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        if (isOff) MdiIcons.CastOff else MdiIcons.Cast,
+                        contentDescription = null,
+                        tint = if (isOff) Color(0x99FFFFFF) else Color.White,
+                        modifier = Modifier.size(48.dp),
+                    )
+                }
             }
-            // Centered now-playing text.
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
+
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     title,
                     color = Color(0xFFF1F4FA),
@@ -263,27 +463,85 @@ class MediaPlayerCard : CardRenderer {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            // Single control row: vol- prev play/pause next vol+, justified.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CircleControl(Icons.Filled.VolumeDown, 48.dp) { mp("volume_down", emptyArray()) }
-                CircleControl(Icons.Filled.SkipPrevious, 52.dp) { mp("media_previous_track", emptyArray()) }
-                CircleControl(if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, 68.dp, accent = true) {
-                    mp("media_play_pause", emptyArray())
+
+            if (e?.attrDouble("media_duration") != null) {
+                MediaProgressBar(e)
+            }
+
+            if (mediaButtons.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    mediaButtons.forEach { b ->
+                        val big = b.action == "media_play" || b.action == "media_pause"
+                        FullCircleControl(b.icon, if (big) 64.dp else 50.dp, accent = big || b.active) {
+                            mp(b.action, b.data.toTypedArray())
+                        }
+                    }
                 }
-                CircleControl(Icons.Filled.SkipNext, 52.dp) { mp("media_next_track", emptyArray()) }
-                CircleControl(Icons.Filled.VolumeUp, 48.dp) { mp("volume_up", emptyArray()) }
+            }
+
+            if (volumeButtons.isNotEmpty() || hasVolumeSlider) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (hasVolumeSlider) {
+                        VolumeSlider(entityId, e, Modifier.weight(1f).height(44.dp)) { level ->
+                            mp("volume_set", arrayOf("volume_level" to level))
+                        }
+                    }
+                    volumeButtons.forEach { b -> FullCircleControl(b.icon, 44.dp) { mp(b.action, b.data.toTypedArray()) } }
+                }
             }
         }
     }
 
     @Composable
-    private fun CircleControl(
+    private fun MediaProgressBar(e: EntityState) {
+        val duration = e.attrDouble("media_duration") ?: 0.0
+        var elapsed by remember(e.entityId, e.attrString("media_content_id")) {
+            mutableDoubleStateOf(currentMediaPosition(e))
+        }
+        LaunchedEffect(e.entityId, e.state, e.attrString("media_content_id")) {
+            while (e.state == "playing") {
+                elapsed = currentMediaPosition(e)
+                kotlinx.coroutines.delay(1.seconds)
+            }
+            elapsed = currentMediaPosition(e)
+        }
+        val fraction = if (duration > 0) (elapsed / duration).toFloat().coerceIn(0f, 1f) else 0f
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0x33FFFFFF)),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(fraction.coerceAtLeast(0.01f))
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFF4C6EF5)),
+                )
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(formatMediaTime(elapsed), color = Color(0xFF93AFB6), fontSize = 11.sp)
+                Text(formatMediaTime(duration), color = Color(0xFF93AFB6), fontSize = 11.sp)
+            }
+        }
+    }
+
+    @Composable
+    private fun FullCircleControl(
         icon: ImageVector,
-        size: androidx.compose.ui.unit.Dp,
+        size: Dp,
         accent: Boolean = false,
         onClick: () -> Unit,
     ) {
@@ -299,4 +557,154 @@ class MediaPlayerCard : CardRenderer {
             Icon(icon, contentDescription = null, tint = Color.White)
         }
     }
+
+    companion object {
+        const val DEFAULT_MEDIA_CONTROLS = "previous,play_pause,next"
+        const val DEFAULT_VOLUME_CONTROLS = "mute,buttons"
+
+        /** All keys accepted by the `media_controls` option, in Mushroom's own display order. */
+        val MEDIA_CONTROL_KEYS = listOf("on_off", "shuffle", "previous", "play_pause", "next", "repeat")
+
+        /** All keys accepted by the `volume_controls` option. */
+        val VOLUME_CONTROL_KEYS = listOf("mute", "buttons", "set")
+    }
+}
+
+// ---- shared feature/state helpers, also used by MediaPlayerDetailDialog ---
+
+internal object Feature {
+    const val PAUSE = 1
+    const val SEEK = 2
+    const val VOLUME_SET = 4
+    const val VOLUME_MUTE = 8
+    const val PREVIOUS_TRACK = 16
+    const val NEXT_TRACK = 32
+    const val TURN_ON = 128
+    const val TURN_OFF = 256
+    const val VOLUME_STEP = 1024
+    const val STOP = 4096
+    const val PLAY = 16384
+    const val SHUFFLE_SET = 32768
+    const val REPEAT_SET = 262144
+}
+
+internal fun EntityState.supports(bit: Int): Boolean {
+    val features = attrInt("supported_features") ?: 0
+    return (features and bit) == bit
+}
+
+internal data class MpButton(
+    val icon: ImageVector,
+    val action: String,
+    val data: List<Pair<String, Any?>> = emptyList(),
+    /** True when this button reflects an already-active toggle (shuffle on,
+     *  repeat != off) — [MediaPlayerCard] tints these buttons instead of
+     *  swapping their icon, since only one glyph exists for each. */
+    val active: Boolean = false,
+)
+
+/** Live playback position in seconds, accounting for time elapsed since `media_position_updated_at`. */
+internal fun currentMediaPosition(e: EntityState): Double {
+    val pos = e.attrDouble("media_position") ?: return 0.0
+    if (e.state != "playing") return pos
+    val updatedAt = e.attrString("media_position_updated_at") ?: return pos
+    return try {
+        val then = java.time.Instant.parse(updatedAt)
+        val elapsedSince = java.time.Duration.between(then, java.time.Instant.now()).toMillis() / 1000.0
+        (pos + elapsedSince.coerceAtLeast(0.0))
+    } catch (_: Exception) {
+        pos
+    }
+}
+
+internal fun formatMediaTime(seconds: Double): String {
+    if (seconds.isNaN() || seconds.isInfinite() || seconds < 0) return "0:00"
+    val total = seconds.toInt()
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    val s = total % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+}
+
+/**
+ * Translated state label (assets/ha_labels/<lang>.json convention used
+ * elsewhere would be overkill for 6 fixed values — these go through
+ * strings.xml/values-fr like [LightCard]'s state strings instead).
+ */
+@Composable
+internal fun mediaStateLabel(state: String?): String {
+    return when (state) {
+        "playing" -> stringResource(R.string.media_state_playing)
+        "paused" -> stringResource(R.string.media_state_paused)
+        "idle" -> stringResource(R.string.media_state_idle)
+        "buffering" -> stringResource(R.string.media_state_buffering)
+        "on" -> stringResource(R.string.media_state_on)
+        "off", null -> stringResource(R.string.media_state_off)
+        else -> state.replaceFirstChar { it.uppercase() }
+    }
+}
+
+internal fun computeMediaButtons(
+    e: EntityState?,
+    controls: List<String>,
+): List<MpButton> {
+    if (e == null) return emptyList()
+    val state = e.state
+    val out = mutableListOf<MpButton>()
+
+    if (state == "off") {
+        if ("on_off" in controls && e.supports(Feature.TURN_ON)) out += MpButton(MdiIcons.Power, "turn_on")
+        return out
+    }
+
+    if ("on_off" in controls && e.supports(Feature.TURN_OFF)) out += MpButton(MdiIcons.Power, "turn_off")
+
+    val isActiveState = state == "playing" || state == "paused" || state == "idle" || state == "on"
+
+    if (isActiveState && "shuffle" in controls && e.supports(Feature.SHUFFLE_SET)) {
+        val shuffleOn = e.attrBoolean("shuffle") == true
+        out += MpButton(MdiIcons.Shuffle, "shuffle_set", listOf("shuffle" to !shuffleOn), active = shuffleOn)
+    }
+
+    if (isActiveState && "previous" in controls && e.supports(Feature.PREVIOUS_TRACK)) {
+        out += MpButton(MdiIcons.SkipPrevious, "media_previous_track")
+    }
+
+    if ("play_pause" in controls) {
+        when {
+            state == "playing" && e.supports(Feature.PAUSE) -> out += MpButton(MdiIcons.Pause, "media_pause")
+            state == "playing" && e.supports(Feature.STOP) -> out += MpButton(MdiIcons.Pause, "media_stop")
+            (state == "paused" || state == "idle" || state == "on") && e.supports(Feature.PLAY) ->
+                out += MpButton(MdiIcons.Play, "media_play")
+        }
+    }
+
+    if (isActiveState && "next" in controls && e.supports(Feature.NEXT_TRACK)) {
+        out += MpButton(MdiIcons.SkipNext, "media_next_track")
+    }
+
+    if (isActiveState && "repeat" in controls && e.supports(Feature.REPEAT_SET)) {
+        val current = e.attrString("repeat") ?: "off"
+        val next = when (current) { "off" -> "all"; "all" -> "one"; else -> "off" }
+        out += MpButton(MdiIcons.Repeat, "repeat_set", listOf("repeat" to next), active = current != "off")
+    }
+
+    return out
+}
+
+internal fun computeVolumeButtons(
+    e: EntityState?,
+    controls: List<String>,
+): List<MpButton> {
+    if (e == null || e.isUnavailable || e.state == "off") return emptyList()
+    val out = mutableListOf<MpButton>()
+    if ("mute" in controls && e.supports(Feature.VOLUME_MUTE)) {
+        val muted = e.attrBoolean("is_volume_muted") == true
+        out += MpButton(if (muted) MdiIcons.VolumeOff else MdiIcons.VolumeHigh, "volume_mute", listOf("is_volume_muted" to !muted))
+    }
+    if ("buttons" in controls && e.supports(Feature.VOLUME_STEP)) {
+        out += MpButton(MdiIcons.VolumeOff, "volume_down")
+        out += MpButton(MdiIcons.VolumeHigh, "volume_up")
+    }
+    return out
 }

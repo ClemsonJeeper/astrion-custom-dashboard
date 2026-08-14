@@ -78,8 +78,8 @@
     <!-- FanCard -->
     <string name="fan_preset_caption">Preset</string>
     <string name="fan_oscillate_caption">Oscillate</string>
-    <string name="state_on">On</string>
-    <string name="state_off">Off</string>
+    <string name="astrion_state_on">On</string>
+    <string name="astrion_state_off">Off</string>
 
     <!-- VacuumCard -->
     <string name="vacuum_fan_speed_caption">Cleaning mode</string>
@@ -93,4 +93,12 @@
     <string name="light_state_on">On</string>
     <string name="light_state_off">Off</string>
     <string name="light_brightness_pct">%1$d%%</string>
+
+    <!-- MediaPlayerCard / MediaPlayerDetailDialog -->
+    <string name="media_state_playing">Playing</string>
+    <string name="media_state_paused">Paused</string>
+    <string name="media_state_idle">Idle</string>
+    <string name="media_state_buffering">Buffering</string>
+    <string name="media_state_on">On</string>
+    <string name="media_state_off">Off</string>
 </resources>

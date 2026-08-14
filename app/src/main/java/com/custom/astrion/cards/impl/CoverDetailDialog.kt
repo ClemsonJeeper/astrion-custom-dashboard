@@ -9,7 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,11 +53,11 @@ fun CoverDetailDialog(
             rawState == "open" -> 1f
             else -> 0f
         }
-    var dragLevel by remember(level) { mutableStateOf(level) }
+    var dragLevel by remember(level) { mutableFloatStateOf(level) }
 
     fun commit(fraction: Float) {
-        val pct = (fraction.coerceIn(0f, 1f) * 100).roundToInt()
-        when (pct) {
+        when (val pct = (fraction.coerceIn(0f, 1f) * 100).roundToInt()) {
+
             0 -> client.callService(ServiceCall(domain = "cover", service = "close_cover", entityId = entityId))
             100 -> client.callService(ServiceCall(domain = "cover", service = "open_cover", entityId = entityId))
             else -> client.callService(ServiceCall.of("cover", "set_cover_position", entityId, "position" to pct))

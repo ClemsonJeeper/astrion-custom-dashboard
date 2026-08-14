@@ -72,7 +72,7 @@ class SwitchCard : CardRenderer {
             Column(Modifier.weight(1f)) {
                 Text(name, color = Color(0xFFE6F0F1), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (on) stringResource(R.string.state_on) else stringResource(R.string.state_off),
+                    if (on) stringResource(R.string.astrion_state_on) else stringResource(R.string.astrion_state_off),
                     color = Color(0xFF93AFB6),
                     fontSize = 13.sp,
                 )

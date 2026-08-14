@@ -64,7 +64,7 @@ object HarmonyHubDiscovery {
                     Log.d(TAG, "discoverHubId($ip): HTTP ${response.code} ${response.message} | body: ${text?.take(500)}")
                     if (!response.isSuccessful || text.isNullOrBlank()) return@use null
 
-                    // Extraction de la nouvelle clé JSON "activeRemoteId"
+                    // Extraction of the new "activeRemoteId" JSON key.
                     runCatching { JSONObject(text).getJSONObject("data").getString("activeRemoteId") }
                         .onFailure { Log.e(TAG, "discoverHubId($ip): unexpected JSON shape in body above", it) }
                         .getOrNull()

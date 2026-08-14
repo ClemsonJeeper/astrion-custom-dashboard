@@ -43,7 +43,7 @@ import com.custom.astrion.ha.ServiceCall
  *   chips (or a percentage stepper if there are no presets), and an
  *   oscillate on/off toggle.
  *
- * Uses fan.toggle, fan.set_percentage, fan.set_preset_mode, and fan.oscillate.
+ * Uses `fan.toggle`, `fan.set_percentage`, `fan.set_preset_mode`, and `fan.oscillate`.
  *
  * Config shape:
  * ```json
@@ -129,7 +129,7 @@ class FanCard : CardRenderer {
                 ) {
                     Text(name, color = Color(0xFFE6F0F1), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        if (on) "$pct%" else stringResource(R.string.state_off),
+                        if (on) "$pct%" else stringResource(R.string.astrion_state_off),
                         color = Color(0xFF93AFB6),
                         fontSize = 13.sp,
                     )
@@ -277,6 +277,7 @@ private fun FanChip(
  * max 4 -> 3+2, not a lopsided 4+1). Used by [FanCard]; [ClimateCard] has its
  * own private copy of the same logic.
  */
+@Suppress("SameParameterValue")
 private fun <T> balancedChunks(
     items: List<T>,
     maxPerRow: Int,

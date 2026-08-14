@@ -2,6 +2,7 @@ let dashboardData = { startPage: 0, pages: [ { name: "Home", cards: [], hotkeys:
 let currentActivePage = 0;
 let editingCard = null;    // index of the card being edited within the current page, or null
 let editingHotkey = null;  // { scope, listType, i } of the hotkey being edited, or null
+let editingPage = null;    // index of the page being edited in the page dialog, or null (= adding a new one)
 
 function resetAll() {
   dashboardData = { startPage: 0, pages: [ { name: "Home", cards: [], hotkeys: [], longHotkeys: [] } ], hotkeys: [], longHotkeys: [], irActivities: [] };
@@ -39,95 +40,72 @@ function importJson() {
 function initEditor() {
   editingCard = null;
   editingHotkey = null;
-  renderPageSelect();
-  renderStartPageSelect();
-  renderPagesList();
+  editingPage = null;
   renderTabs();
   renderPreview();
   renderHotkeysList();
   renderIrActivitiesList();
   updateJsonOutput();
-  updateCardFormInputs();
   updateHotkeyActionInputs();
 }
 
-// ---- Pages: rename / delete -------------------------------------------------
+// ---- Pages: add / rename / delete, all via the page dialog -----------------
+// Mirrors Home Assistant's "views" editor: pages live as tabs above the
+// preview; a "+" tab adds one, and each tab's own settings (rename, delete,
+// set-as-start-page) open in a small dialog instead of a permanent form.
 
-function renderPagesList() {
-  const container = document.getElementById('pagesList');
-  if (!container) return;
-  container.innerHTML = '';
-  dashboardData.pages.forEach((page, i) => {
-    const row = document.createElement('div');
-    row.className = 'list-item';
-    row.innerHTML = `
-      <input type="text" value="${page.name.replace(/"/g, '&quot;')}" style="margin:0" onchange="renamePage(${i}, this.value)">
-      <span class="remove" onclick="deletePage(${i})">✕</span>
-    `;
-    container.appendChild(row);
-  });
+function onPageChange(index) {
+  currentActivePage = index;
+  cancelCardEdit();
+  renderTabs();
+  renderPreview();
+  renderHotkeysList();
 }
 
-function renamePage(i, newName) {
-  newName = newName.trim();
-  if (!newName) { renderPagesList(); return; }
-  dashboardData.pages[i].name = newName;
-  renderPageSelect(); renderStartPageSelect(); renderTabs(); renderPreview(); updateJsonOutput();
+function openPageDialog(index) {
+  editingPage = index; // null = adding a new page
+  const isNew = index === null;
+  document.getElementById('pageDialogTitle').textContent = isNew ? 'Add page' : 'Page settings';
+  document.getElementById('pageDialogName').value = isNew ? '' : dashboardData.pages[index].name;
+  document.getElementById('pageDialogStart').checked = isNew ? false : (dashboardData.startPage === index);
+  document.getElementById('pageDialogDeleteBtn').style.display = isNew ? 'none' : '';
+  document.getElementById('pageDialogModal').classList.add('open');
+  document.getElementById('pageDialogName').focus();
 }
 
-function deletePage(i) {
+function closePageDialog() {
+  document.getElementById('pageDialogModal').classList.remove('open');
+  editingPage = null;
+}
+
+function savePageDialog() {
+  const name = document.getElementById('pageDialogName').value.trim();
+  if (!name) { alert('Give the page a name.'); return; }
+  const makeStart = document.getElementById('pageDialogStart').checked;
+
+  if (editingPage === null) {
+    dashboardData.pages.push({ name, cards: [], hotkeys: [], longHotkeys: [] });
+    currentActivePage = dashboardData.pages.length - 1;
+    if (makeStart) dashboardData.startPage = currentActivePage;
+  } else {
+    dashboardData.pages[editingPage].name = name;
+    if (makeStart) dashboardData.startPage = editingPage;
+    else if (dashboardData.startPage === editingPage) dashboardData.startPage = 0;
+  }
+
+  closePageDialog();
+  renderTabs(); renderPreview(); renderHotkeysList(); updateJsonOutput();
+}
+
+function deletePageFromDialog() {
+  const i = editingPage;
+  if (i === null) return;
   if (dashboardData.pages.length <= 1) { alert('You need at least one page.'); return; }
   if (!confirm(`Delete page "${dashboardData.pages[i].name}" and everything on it (cards, page hotkeys)?`)) return;
   dashboardData.pages.splice(i, 1);
   if (currentActivePage >= dashboardData.pages.length) currentActivePage = dashboardData.pages.length - 1;
   if (dashboardData.startPage >= dashboardData.pages.length) dashboardData.startPage = 0;
   editingCard = null; editingHotkey = null;
-  renderPageSelect(); renderStartPageSelect(); renderPagesList(); renderTabs();
-  renderPreview(); renderHotkeysList(); updateJsonOutput(); updateCardFormInputs();
+  closePageDialog();
+  renderTabs(); renderPreview(); renderHotkeysList(); updateJsonOutput();
 }
-
-function renderPageSelect() {
-  const select = document.getElementById('pageSelect');
-  select.innerHTML = '';
-  dashboardData.pages.forEach((page, index) => {
-    const opt = document.createElement('option');
-    opt.value = index; opt.innerText = page.name;
-    if (index === currentActivePage) opt.selected = true;
-    select.appendChild(opt);
-  });
-}
-
-function renderStartPageSelect() {
-  const select = document.getElementById('startPageSelect');
-  select.innerHTML = '';
-  dashboardData.pages.forEach((page, index) => {
-    const opt = document.createElement('option');
-    opt.value = index; opt.innerText = page.name;
-    if (index === dashboardData.startPage) opt.selected = true;
-    select.appendChild(opt);
-  });
-}
-
-function setStartPage() {
-  dashboardData.startPage = parseInt(document.getElementById('startPageSelect').value, 10);
-  updateJsonOutput();
-}
-
-function onPageChange() {
-  currentActivePage = parseInt(document.getElementById('pageSelect').value, 10);
-  cancelCardEdit();
-  renderTabs();
-  renderPreview();
-  renderHotkeysList();
-  updateCardFormInputs();
-}
-
-function addPage() {
-  const nameInput = document.getElementById('newPageName');
-  if (!nameInput.value.trim()) return;
-  dashboardData.pages.push({ name: nameInput.value.trim(), cards: [], hotkeys: [], longHotkeys: [] });
-  nameInput.value = '';
-  currentActivePage = dashboardData.pages.length - 1;
-  renderPageSelect(); renderStartPageSelect(); renderPagesList(); renderTabs(); renderPreview(); renderHotkeysList(); updateJsonOutput();
-}
-

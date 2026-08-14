@@ -13,7 +13,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -35,7 +35,7 @@ import kotlin.math.roundToInt
 /**
  * Long-press detail popup for a light (bubble-card style): a big vertical
  * brightness pill, a power toggle, and — only when the light's
- * `supported_color_modes` allow — colour swatches and colour-temperature
+ * `supported_color_modes` allow — color swatches and color-temperature
  * presets. Everything fires standard light.turn_on/turn_off service data
  * (brightness_pct / rgb_color / color_temp_kelvin).
  */
@@ -55,13 +55,14 @@ fun LightDetailDialog(
             brightness != null -> (brightness / 255f).coerceIn(0f, 1f)
             else -> 1f
         }
-    var dragLevel by remember(level) { mutableStateOf(level) }
+    var dragLevel by remember(level) { mutableFloatStateOf(level) }
 
     val colorModes = e?.attrStringList("supported_color_modes") ?: emptyList()
+    @Suppress("SpellCheckingInspection")
     val hasColor = colorModes.any { it in listOf("hs", "rgb", "rgbw", "rgbww", "xy") }
     val hasTemp = colorModes.contains("color_temp") || hasColor
 
-    // Fill colour follows the light's live rgb_color where available.
+    // Fill color follows the light's live rgb_color where available.
     val rgb = e?.attr("rgb_color") as? JsonArray
     val fillColor =
         if (rgb != null && rgb.size >= 3) {
@@ -167,7 +168,7 @@ fun LightDetailDialog(
                 )
             }
 
-            // Colour swatches (only for colour-capable lights).
+            // Color swatches (only for color-capable lights).
             if (hasColor) {
                 val swatches =
                     listOf(
@@ -192,7 +193,7 @@ fun LightDetailDialog(
                 }
             }
 
-            // Colour-temperature presets (warm → cool).
+            // Color-temperature presets (warm → cool).
             if (hasTemp) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("Candle" to 2200, "Warm" to 2700, "Neutral" to 4000, "Cool" to 5500).forEach { (label, k) ->

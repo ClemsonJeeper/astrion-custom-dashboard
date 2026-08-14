@@ -3,6 +3,37 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.0] - 2026-08-xx
+
+### Added
+
+- `MediaPlayerCard`: full Mushroom-style rewrite of the `compact` layout — round album-art/icon avatar, name + state row, and a control row below that switches between transport buttons (previous/play-pause/next, plus optional power/shuffle/repeat) and volume controls (mute, -/+ buttons, or a slider) via a small swap button, matching Home Assistant's own Mushroom media-player card behavior. Tap the tile to toggle play/pause; long-press opens the new `MediaPlayerDetailDialog` (see below).
+- `MediaPlayerCard`: new `MediaPlayerDetailDialog`, opened by long-pressing the compact tile (same gesture `LightCard`/`CoverCard` use) — large artwork, a live progress bar, the full transport row, a volume slider with mute, and a power toggle when the entity supports it.
+- `MediaPlayerCard`: `variant` config option (`"compact"` (default) / `"full"`) replaces the old fixed layout; the `full` variant keeps the dedicated-media-page look (large art, `top_buttons`) but adds a live progress bar (computed from `media_position` + `media_position_updated_at`, advancing every second while playing) and the same feature-gated transport/volume rows as the compact tile.
+- `MediaPlayerCard`: `use_media_info` (default true — shows `media_title`/`media_artist`/`app_name` instead of the entity's friendly name/state), `show_volume_level` (appends "⸱ N%" to the state line), `media_controls` (comma list: `on_off,shuffle,previous,play_pause,next,repeat`), and `volume_controls` (comma list: `mute,buttons,set`) config options — every button is checked live against the entity's `supported_features` bitmask, so a control requested in config but not supported by the entity never renders.
+- `MdiIcons`: `Play`, `Pause`, `SkipPrevious`, `SkipNext`, `VolumeHigh`, `VolumeOff`, `Repeat`, `Shuffle`, `Cast`, `CastOff` glyphs, replacing the generic Material icons the old media player card used. `Cast`/`CastOff` also become the compact tile's (and full page's) fallback avatar — device on/off — whenever the entity reports no `entity_picture`, instead of guessing a play/pause icon.
+- New `media_state_playing`/`paused`/`idle`/`buffering`/`on`/`off` string resources (English and French), used on the state line whenever the entity reports no `media_title`/`media_artist`/`app_name`.
+- Dashboard builder (`docs/index.html`): `media_player` cards now have their own dedicated form (previously only the raw-JSON fallback) — variant, name, entity, `use_media_info`/`show_volume_level` checkboxes, per-control checkboxes for `media_controls`/`volume_controls`, and a `top_buttons` JSON field (full variant only) — plus a real preview matching the on-device look, including the swap-button behavior and shuffle/repeat's tinted-not-swapped active state.
+- `CoverCard`/`LightCard`: new optional controls, matching Home Assistant's Mushroom cards. Covers can show open/stop/close buttons, a position slider, and a tilt slider (any combination); lights can show a brightness slider, a colour temperature slider, and colour swatches. If more than one is turned on for a card, a small button lets you flip between them. All configurable from the dashboard builder, with a matching preview. Existing dashboards aren't affected unless you turn these on.
+- Dashboard builder: the remote preview now lights up the physical buttons that already have a hotkey assigned to them (on the current page or globally), so it's easy to see at a glance what's already mapped.
+
+### Changed
+
+- `MediaPlayerCard`: the compact layout's control row now offers mute and full transport (previous/play/pause/next, optionally shuffle/repeat/power) — the previous compact layout only ever showed a fixed volume up/down pair with no way to control playback.
+- Shuffle and repeat only have one glyph each (no separate "active" variant) — `MediaPlayerCard`/`MediaPlayerDetailDialog` tint the button instead of swapping its icon when shuffle is on or repeat isn't `"off"`.
+- Dashboard builder: the remote preview is now a proper redrawing of the physical remote instead of a photo, and much closer to true scale — icon/text sizes, how many cards fit on screen before scrolling, and button positions all now match the real device.
+
+### Fixed
+
+- `CoverCard`/`LightCard`: the new sliders' fill bar was centering and shrinking from both sides instead of filling left to right.
+- Dashboard builder: the zoomed-in preview rendered everything about 9% smaller than the real device.
+- Dashboard builder: some elements in the remote preview (screen, buttons) could end up slightly out of position depending on your browser.
+- Dashboard builder: two of the physical media buttons could render slightly past the edge of the remote.
+
+### Removed
+
+- `remote.png` — the static photo the dashboard builder used to overlay the preview onto, now unused: the remote preview is a fully HTML/CSS recreation of the physical device (see *Changed* above).
+
 ## [0.6.0] - 2026-08-11
 
 ### Added

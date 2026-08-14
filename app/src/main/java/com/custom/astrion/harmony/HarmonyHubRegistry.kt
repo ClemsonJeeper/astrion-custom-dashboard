@@ -18,7 +18,7 @@ import kotlinx.coroutines.withContext
  * unchanged).
  */
 class HarmonyHubRegistry(
-    hubs: List<HarmonyHubConfig>,
+    val hubs: List<HarmonyHubConfig>,
     private val onError: (hubName: String, message: String) -> Unit = { _, _ -> },
     /** Called once per hub right after its hubId was auto-discovered (blank ->
      * resolved), with the full up-to-date hub list — wire this to
@@ -35,16 +35,17 @@ class HarmonyHubRegistry(
     private val clients: Map<String, HarmonyHubClient> =
         hubs.associate { hub ->
             hub.localId to
-                HarmonyHubClient(
-                    hubIp = hub.ip,
-                    hubId = hub.hubId,
-                    onError = { msg -> onError(hub.name, msg) },
-                )
+                    HarmonyHubClient(
+                        hubIp = hub.ip,
+                        hubId = hub.hubId,
+                        onError = { msg -> onError(hub.name, msg) },
+                    )
         }
 
     /** Same order as the configured hubs — first() is the implicit default hub. */
     val configs: List<HarmonyHubConfig> = hubs
 
+    @Suppress("Unused")
     val isEmpty: Boolean get() = clients.isEmpty()
 
     /**

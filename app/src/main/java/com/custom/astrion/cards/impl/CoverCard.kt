@@ -2,12 +2,14 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -16,11 +18,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,31 +48,47 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.icons.MdiIcons
+import kotlin.math.roundToInt
 
 /**
  * Cover / curtain card: open / stop / close controls plus a position readout —
  * styled after Home Assistant's Mushroom cover card, including its 3 layout
- * options.
+ * options AND its 3 independently-configurable controls
+ * (show_buttons_control / show_position_control / show_tilt_position_control).
  *
- * Long-press anywhere on the tile (outside the open/stop/close buttons) opens
+ * Long-press anywhere on the tile (outside the controls area) opens
  * CoverDetailDialog, where the position can be dragged to an exact percentage
  * or set via 25/50/75% quick presets — mirrors LightCard's long-press-for-detail
  * pattern.
  *
- * Uses cover.open_cover / cover.close_cover / cover.stop_cover / cover.set_cover_position.
+ * Uses cover.open_cover / cover.close_cover / cover.stop_cover /
+ * cover.set_cover_position / cover.set_cover_tilt_position.
  *
  * Config shape:
  *   { "type": "cover", "options": {
  *       "entity_id": "cover.living_room", "name": "Curtains",
  *       "layout": "default"
- *       //   "default"    — icon + name/state row, open/stop/close buttons
- *       //                  full-width on their own row below (Mushroom's
- *       //                  own default look)
- *       //   "horizontal" — icon + name/state on the left, buttons inline on
+ *       //   "default"    — icon + name/state row, controls area full-width
+ *       //                  below (Mushroom's own default look)
+ *       //   "horizontal" — icon + name/state on the left, controls inline on
  *       //                  the right, single row (this card's previous —
  *       //                  and only — layout)
- *       //   "vertical"   — icon, name, state and buttons all centered and
+ *       //   "vertical"   — icon, name, state and controls all centered and
  *       //                  stacked in one column
+ *
+ *       // Mushroom-style controls — same 3 flags as the Mushroom cover
+ *       // card, all independent. When none of the 3 are present at all,
+ *       // the card falls back to its historical behaviour (buttons always
+ *       // shown) so existing configs keep working untouched. As soon as
+ *       // ANY of the 3 is set, only what's explicitly enabled shows —
+ *       // exactly like Mushroom.
+ *       "show_buttons_control": true,          // open/stop/close buttons
+ *       "show_position_control": false,        // draggable position slider
+ *       "show_tilt_position_control": false,   // draggable tilt slider
+ *       //   When more than one control is enabled, only the first is shown
+ *       //   at a time; a small chevron button cycles to the next one — same
+ *       //   as Mushroom. Position/tilt controls only render when the
+ *       //   entity actually reports that attribute.
  *   } }
  */
 class CoverCard : CardRenderer {
@@ -80,26 +100,14 @@ class CoverCard : CardRenderer {
         val e = ctx.entities[entityId]
         val name = config.string("name") ?: e?.friendlyName ?: entityId
         val position = e?.attrInt("current_position") // 0..100
+        val tilt = e?.attrInt("current_tilt_position") // 0..100, null if unsupported
         val rawState = e?.state ?: "unknown"
 
         // A cover with no position attribute (some cover devices don't report
         // one) falls back to its raw open/closed state instead.
         val isOpen = position?.let { it >= 100 } ?: (rawState == "open")
         val isClosed = position?.let { it <= 0 } ?: (rawState == "closed")
-        // Only 2 icon variants exist (fully open / fully closed shutter) — show
-        // "closed" only when truly closed (0%); anything else (1-99%, or fully
-        // open) reads as "open" since the shutter isn't down. isOpen/isClosed
-        // themselves stay tied to the exact 0/100 thresholds for the status
-        // label and the up/down button enable state below.
         val showOpenIcon = !isClosed
-        // Previously went blank (null icon) while rawState was "opening"/
-        // "closing", to avoid showing a stale open/closed icon mid-move. That
-        // backfired: HA's opening/closing state itself lags the real motor by
-        // several seconds, so the icon sat blank for that whole stretch — a
-        // worse look than a briefly-stale icon. The up/down/stop buttons in
-        // ControlsRow are the actual real-time affordance (their enabled state
-        // still updates live off isOpen/isClosed); this icon just reflects the
-        // last known open/closed state, full stop.
         val coverIcon = if (showOpenIcon) MdiIcons.WindowShutterOpen else MdiIcons.WindowShutterClosed
 
         val stateLabel = when {
@@ -113,18 +121,91 @@ class CoverCard : CardRenderer {
             ctx.client.callService(ServiceCall(domain = "cover", service = service, entityId = entityId))
         }
 
+        fun setPosition(pct: Int) {
+            ctx.client.callService(ServiceCall.of("cover", "set_cover_position", entityId, "position" to pct))
+        }
+
+        fun setTiltPosition(pct: Int) {
+            ctx.client.callService(ServiceCall.of("cover", "set_cover_tilt_position", entityId, "tilt_position" to pct))
+        }
+
+        // ---- which controls are enabled -----------------------------------
+        // Mirrors Mushroom's cover card: 3 independent flags. If none of the
+        // 3 keys are present in the config at all, fall back to the
+        // historical default (buttons only) so existing dashboards keep
+        // rendering exactly as before.
+        val opts = config.options
+        val hasExplicitControls = opts.containsKey("show_buttons_control") ||
+            opts.containsKey("show_position_control") ||
+            opts.containsKey("show_tilt_position_control")
+        val showButtons = config.bool("show_buttons_control", !hasExplicitControls)
+        val showPosition = config.bool("show_position_control", false) && position != null
+        val showTilt = config.bool("show_tilt_position_control", false) && tilt != null
+
+        val controls = buildList {
+            if (showButtons) add(CoverControl.BUTTONS)
+            if (showPosition) add(CoverControl.POSITION)
+            if (showTilt) add(CoverControl.TILT)
+        }
+
         // Long-press anywhere on the tile opens the detail dialog — same
         // gesture LightCard uses to open LightDetailDialog.
         var showDetail by remember { mutableStateOf(false) }
-        val gestureModifier =
+        val tileGestureModifier =
             Modifier.pointerInput(entityId) {
                 detectTapGestures(onLongPress = { showDetail = true })
             }
 
+        // Hoisted here (not inside a layout function) so the active-control
+        // state survives regardless of which layout renders it.
+        var activeControl by remember(entityId) { mutableStateOf(controls.firstOrNull()) }
+        val resolvedActive = activeControl?.takeIf { it in controls } ?: controls.firstOrNull()
+
+        val controlsSlot: @Composable (fillWidth: Boolean) -> Unit = { fillWidth ->
+            if (controls.isNotEmpty()) {
+                Row(
+                    modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier,
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(Modifier.weight(1f, fill = fillWidth)) {
+                        when (resolvedActive) {
+                            CoverControl.BUTTONS -> ControlsRow(
+                                isOpen,
+                                isClosed,
+                                ::call,
+                                modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier,
+                                arrangement = if (fillWidth) Arrangement.SpaceEvenly else Arrangement.spacedBy(8.dp),
+                            )
+                            CoverControl.POSITION -> PercentSlider(
+                                entityId = "$entityId-position",
+                                value = position ?: 0,
+                                color = Color(0xFF6FA8DC),
+                                onCommit = ::setPosition,
+                            )
+                            CoverControl.TILT -> PercentSlider(
+                                entityId = "$entityId-tilt",
+                                value = tilt ?: 0,
+                                color = Color(0xFF8FBF7F),
+                                onCommit = ::setTiltPosition,
+                            )
+                            null -> {}
+                        }
+                    }
+                    if (controls.size > 1) {
+                        CycleControlButton {
+                            val idx = controls.indexOf(resolvedActive)
+                            activeControl = controls[(idx + 1) % controls.size]
+                        }
+                    }
+                }
+            }
+        }
+
         when (config.string("layout")) {
-            "horizontal" -> HorizontalLayout(name, stateLabel, coverIcon, isOpen, isClosed, ::call, gestureModifier)
-            "vertical" -> VerticalLayout(name, stateLabel, coverIcon, isOpen, isClosed, ::call, gestureModifier)
-            else -> DefaultLayout(name, stateLabel, coverIcon, isOpen, isClosed, ::call, gestureModifier)
+            "horizontal" -> HorizontalLayout(name, stateLabel, coverIcon, controlsSlot, modifier = tileGestureModifier)
+            "vertical" -> VerticalLayout(name, stateLabel, coverIcon, controlsSlot, modifier = tileGestureModifier)
+            else -> DefaultLayout(name, stateLabel, coverIcon, controlsSlot, modifier = tileGestureModifier)
         }
 
         if (showDetail) {
@@ -138,6 +219,8 @@ class CoverCard : CardRenderer {
         }
     }
 }
+
+private enum class CoverControl { BUTTONS, POSITION, TILT }
 
 // ---- shared pieces ---------------------------------------------------------
 
@@ -209,17 +292,93 @@ private fun CircleBtn(
     }
 }
 
-// ---- "default": icon + name/state row, buttons full-width below -----------
+/** Small round "next control" button — cycles through the enabled controls, Mushroom-style. */
+@Composable
+private fun CycleControlButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(Color(0xFF2C4C58))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color(0xFFCBDCE0))
+    }
+}
+
+/**
+ * Draggable 0-100% slider used for both the position and tilt controls —
+ * drag or tap anywhere on it, released value fires [onCommit]. Shows the
+ * live percentage as a centered label, Mushroom-slider-style.
+ */
+@Composable
+private fun PercentSlider(
+    entityId: String,
+    value: Int,
+    color: Color,
+    onCommit: (Int) -> Unit,
+) {
+    // Uses -1f as a sentinel to denote 'no active drag', avoiding Float autoboxing.
+    var dragFraction by remember(entityId) { mutableFloatStateOf(-1f) }
+    val liveFraction = (value / 100f).coerceIn(0f, 1f)
+    val shownFraction = if (dragFraction >= 0f) dragFraction else liveFraction
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFF152B33))
+            .pointerInput(entityId) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (dragFraction >= 0f) {
+                            onCommit((dragFraction * 100).roundToInt())
+                        }
+                        dragFraction = -1f
+                    },
+                    onDragCancel = { dragFraction = -1f },
+                ) { change, _ ->
+                    dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                }
+            }
+            .pointerInput(entityId) {
+                detectTapGestures { offset ->
+                    val f = (offset.x / size.width).coerceIn(0f, 1f)
+                    dragFraction = f
+                    onCommit((f * 100).roundToInt())
+                    dragFraction = -1f
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .fillMaxHeight()
+                .fillMaxWidth(shownFraction.coerceIn(0.02f, 1f))
+                .clip(RoundedCornerShape(18.dp))
+                .background(color),
+        )
+        Text(
+            "${(shownFraction * 100).roundToInt()}%",
+            color = Color(0xFFE6F0F1),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+// ---- "default": icon + name/state row, controls area full-width below -----
 
 @Composable
 private fun DefaultLayout(
     name: String,
     stateLabel: String,
     icon: ImageVector,
-    isOpen: Boolean,
-    isClosed: Boolean,
-    call: (String) -> Unit,
-    gestureModifier: Modifier = Modifier,
+    controls: @Composable (fillWidth: Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = Modifier
@@ -229,32 +388,24 @@ private fun DefaultLayout(
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().then(gestureModifier)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().then(modifier)) {
             CoverIcon(icon)
             Spacer(Modifier.width(12.dp))
             NameState(name, stateLabel)
         }
-        ControlsRow(
-            isOpen,
-            isClosed,
-            call,
-            modifier = Modifier.fillMaxWidth(),
-            arrangement = Arrangement.SpaceEvenly,
-        )
+        controls(true)
     }
 }
 
-// ---- "horizontal": icon + name/state on the left, buttons on the right ----
+// ---- "horizontal": icon + name/state on the left, controls on the right ---
 
 @Composable
 private fun HorizontalLayout(
     name: String,
     stateLabel: String,
     icon: ImageVector,
-    isOpen: Boolean,
-    isClosed: Boolean,
-    call: (String) -> Unit,
-    gestureModifier: Modifier = Modifier,
+    controls: @Composable (fillWidth: Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = Modifier
@@ -264,24 +415,22 @@ private fun HorizontalLayout(
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.then(gestureModifier)) { CoverIcon(icon) }
+        Box(Modifier.then(modifier)) { CoverIcon(icon) }
         Spacer(Modifier.width(12.dp))
-        Box(Modifier.weight(1f).then(gestureModifier)) { NameState(name, stateLabel) }
-        ControlsRow(isOpen, isClosed, call)
+        Box(Modifier.weight(1f).then(modifier)) { NameState(name, stateLabel) }
+        Box(Modifier.width(140.dp)) { controls(false) }
     }
 }
 
-// ---- "vertical": icon, name, state, buttons — all centered and stacked ----
+// ---- "vertical": icon, name, state, controls — all centered and stacked ---
 
 @Composable
 private fun VerticalLayout(
     name: String,
     stateLabel: String,
     icon: ImageVector,
-    isOpen: Boolean,
-    isClosed: Boolean,
-    call: (String) -> Unit,
-    gestureModifier: Modifier = Modifier,
+    controls: @Composable (fillWidth: Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = Modifier
@@ -291,12 +440,12 @@ private fun VerticalLayout(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().then(gestureModifier)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().then(modifier)) {
             CoverIcon(icon, size = 48.dp)
             Spacer(Modifier.height(8.dp))
             NameState(name, stateLabel, horizontalAlignment = Alignment.CenterHorizontally, textAlign = TextAlign.Center)
         }
         Spacer(Modifier.height(10.dp))
-        ControlsRow(isOpen, isClosed, call)
+        controls(true)
     }
 }

@@ -17,7 +17,7 @@ import java.io.IOException
  * Checks this project's GitHub Releases for a build newer than the one
  * currently installed, and can download + launch the system installer for
  * it. There is no silent auto-apply: Android always requires the user to
- * approve the install through the system package installer UI (and, once,
+ * approve the installation through the system package installer UI (and, once,
  * to allow "install unknown apps" for this app) — this only automates
  * finding and downloading the right APK.
  */
@@ -61,8 +61,8 @@ object UpdateChecker {
             if (!resp.isSuccessful) {
                 return CheckResult.Failed(
                     "GitHub API returned HTTP ${resp.code} for $REPO — check the REPO constant " +
-                        "in UpdateChecker.kt, and that the release isn't a draft or pre-release " +
-                        "(the /latest endpoint ignores both).",
+                            "in UpdateChecker.kt, and that the release isn't a draft or pre-release " +
+                            "(the /latest endpoint ignores both).",
                 )
             }
             val bodyText = resp.body?.string() ?: return CheckResult.Failed("Empty response from GitHub")
@@ -75,7 +75,7 @@ object UpdateChecker {
                 root["tag_name"]?.jsonPrimitive?.content?.removePrefix("v")
                     ?: return CheckResult.Failed("Latest release has no tag_name")
 
-            if (!isNewer(tag, BuildConfig.VERSION_NAME)) return CheckResult.UpToDate
+            if (!isNewer(tag)) return CheckResult.UpToDate
 
             val apkUrl =
                 root["assets"]?.jsonArray
@@ -89,13 +89,10 @@ object UpdateChecker {
         }
     }
 
-    /** Minimal x.y.z comparison — good enough for plain semver-ish tags like "1.4.0". */
-    private fun isNewer(
-        remote: String,
-        local: String,
-    ): Boolean {
+    /** Minimal x.y.z comparison against current BuildConfig.VERSION_NAME — good enough for plain semver-ish tags like "1.4.0". */
+    private fun isNewer(remote: String): Boolean {
         val r = remote.split(".").mapNotNull { it.toIntOrNull() }
-        val l = local.split(".").mapNotNull { it.toIntOrNull() }
+        val l = BuildConfig.VERSION_NAME.split(".").mapNotNull { it.toIntOrNull() }
         for (i in 0 until maxOf(r.size, l.size)) {
             val rv = r.getOrElse(i) { 0 }
             val lv = l.getOrElse(i) { 0 }

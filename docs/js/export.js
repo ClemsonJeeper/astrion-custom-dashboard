@@ -17,4 +17,3 @@ function downloadJson() {
   a.click();
   URL.revokeObjectURL(url);
 }
-

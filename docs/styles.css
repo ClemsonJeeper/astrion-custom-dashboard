@@ -9,7 +9,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
   label { font-size: 0.8rem; color: #aaa; display: block; margin: 8px 0 4px; }
   input, select, textarea { width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #444; color: #fff; border-radius: 6px; box-sizing: border-box; font-size: 0.88rem; }
   textarea { font-family: monospace; resize: vertical; }
-  button { background: #00E5FF; color: #121212; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; margin-top: 8px; }
+  button { background: #00E5FF; color: #121212; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; margin-top: 0px; }
   button:hover { background: #00b8cc; }
   button.secondary { background: #333; color: #eee; }
   button.secondary:hover { background: #444; }
@@ -18,57 +18,325 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
   .section-box { background: #252525; padding: 14px; border-radius: 8px; border: 1px solid #383838; margin-bottom: 14px; }
   .row { display: flex; gap: 10px; }
   .row > * { flex: 1; }
+  .ha-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .ha-toolbar .tabs { margin-bottom: 0; flex: 1; }
+  .ha-icon-btn { background: #2d2d2d; color: #fff; border: 1px solid #444; border-radius: 50%; width: 30px; height: 30px; padding: 0; line-height: 1; font-size: 1.1rem; flex-shrink: 0; }
+  .ha-icon-btn:hover { background: #383838; }
   .tabs { display: flex; gap: 8px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 6px; }
-  .tab { background: #2d2d2d; border: 1px solid #444; padding: 6px 12px; cursor: pointer; border-radius: 6px; color: #fff; white-space: nowrap; font-size: 0.85rem; }
+  .tab { background: #2d2d2d; border: 1px solid #444; padding: 6px 12px; cursor: pointer; border-radius: 6px; color: #fff; white-space: nowrap; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; }
   .tab.active { background: #00E5FF; color: #121212; font-weight: bold; border-color: #00E5FF; }
-  .card { background: #222; border: 1px solid #333; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
-  .card-title { font-size: 0.7rem; color: #888; text-transform: uppercase; margin-bottom: 5px; display: flex; justify-content: space-between; }
+  .tab-settings { opacity: 0.7; }
+  .tab-settings:hover { opacity: 1; }
+  .tab.active .tab-settings { color: #121212; }
+  /* Card dialog (add/edit) and page dialog reuse .preview-modal, just wider
+     and left-aligned like the rest of the form fields, mirroring the way
+     Home Assistant edits a card in a dedicated dialog rather than inline. */
+  .ha-dialog { width: min(520px, 90vw); max-height: 85vh; overflow-y: auto; text-align: left; }
+  .inline-check { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #ccc; }
+  .inline-check input { width: auto; }
+  /* Drag-and-drop card reordering in the preview, same interaction as
+     dragging a card to a new position in the HA dashboard editor. */
+  .ha-draggable-card { cursor: grab; transition: opacity 0.15s ease; }
+  .ha-draggable-card.dragging { opacity: 0.4; }
+  .ha-draggable-card.drag-over { outline: 2px dashed #00E5FF; outline-offset: 2px; border-radius: 8px; }
+  /* Wraps each preview card so card-title (below) can float over a corner
+     without affecting layout. NO padding/border/background here on purpose:
+     every real card type already draws its own background/radius/padding
+     1:1 from Card.kt-equivalent dp values (.preview-cover, .preview-light,
+     .preview-climate, etc.) — an extra box here doesn't exist on-device and
+     was inflating each card's height, throwing off how many actually fit on
+     screen before scrolling. margin-bottom matches PageContent's real
+     Arrangement.spacedBy(10.dp) between cards.[cite: 1] */
+  .card { position: relative; margin-bottom: 10px; }
+  /* Edit/remove affordance for the builder only — never shown on-device.
+     Floats over the card's own corner instead of a full-width bar so it
+     costs zero extra vertical space (unlike the wrapper above, this WOULD
+     throw off the "how many cards fit" preview if it pushed content down).[cite: 1] */
+  .card-title {
+    position: absolute; top: 4px; right: 4px; z-index: 2;
+    background: rgba(0,0,0,0.6); border-radius: 6px; padding: 3px 7px;
+    font-size: 0.62rem; color: #aaa; text-transform: uppercase;
+    display: flex; align-items: center; gap: 7px; line-height: 1;
+  }
   .list-item { background: #1c1c1c; border: 1px solid #333; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; gap: 8px; }
   .list-item .remove { color: #ff8a8a; cursor: pointer; font-weight: bold; flex-shrink: 0; }
+  .card-title .remove { cursor: pointer; color: #ccc; }
+  .card-title .remove:hover { color: #fff; }
   .hotkeys-badge { background: #0d2b30; border: 1px solid #00E5FF; padding: 8px 10px; border-radius: 6px; margin-bottom: 10px; font-size: 0.78rem; }
   .hint { font-size: 0.75rem; color: #777; margin-top: 4px; }
+  .hint-row { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .hint-row .inline-check { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #ccc; margin: 0; }
+  .hint-row .inline-check input { margin: 0; }
   #jsonOutput { height: 260px; margin-top: 8px; color: #00ff66; }
   .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .btn-row button { margin-top: 0; }
 
-  /* Device-frame preview: overlays the app content onto the physical remote's
-     screen area (remote.png), sized to the real HA100 resolution (480x800)
-     so the preview matches what actually renders on-device, status bar
-     included. Screen coordinates below are measured as % of the source
-     image so they hold at any display width. Tap the screen to expand it
-     into a larger modal — editing at the small in-frame size isn't practical. */
-  .remote-frame { position: relative; width: 100%; max-width: 260px; margin: 0 auto; user-select: none; }
-  .remote-img { width: 100%; display: block; pointer-events: none; }
-  .remote-screen {
-    position: absolute; left: 4.9%; top: 1.1%; width: 90.8%;
-    aspect-ratio: 480 / 800; overflow: hidden; border-radius: 13px 13px 0 0;
-    background: #000; display: flex; flex-direction: column;
-    cursor: zoom-in;
+  /* Toggle switches instead of native checkboxes — same HTML (plain
+     <input type="checkbox">), just restyled, so every existing checkbox in
+     the app (card option forms, hotkeys, page dialog...) picks this up with
+     no markup changes needed. */
+  input[type="checkbox"] {
+    -webkit-appearance: none; -moz-appearance: none; appearance: none;
+    width: 38px !important; height: 22px !important; min-width: 38px;
+    background: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 999px;
+    position: relative; cursor: pointer; padding: 0; margin: 0;
+    vertical-align: middle; flex-shrink: 0; box-sizing: border-box;
+    transition: background 0.15s ease, border-color 0.15s ease;
   }
+  input[type="checkbox"]::before {
+    content: ''; position: absolute; top: 1px; left: 1px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #ccc;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  input[type="checkbox"]:hover { border-color: #666; }
+  input[type="checkbox"]:checked { background: #00E5FF; border-color: #00E5FF; }
+  input[type="checkbox"]:checked::before { transform: translateX(16px); background: #121212; }
+  input[type="checkbox"]:focus-visible { outline: 2px solid #00E5FF; outline-offset: 2px; }
+
+  /* Device-frame preview: a fully HTML/CSS recreation of the physical
+     SANYTRON remote (replaces the old remote.png photo overlay — no more
+     measuring crop coordinates on a photo, the frame's own dimensions ARE
+     the source of truth). App content renders inside .remote-screen, sized
+     to the real HA100 resolution (480x800) via .remote-screen-scaler below,
+     status bar included, so the preview matches what actually runs
+     on-device. Tap the screen to expand it into a larger modal — editing at
+     the small in-frame size isn't practical.[cite: 1] */
+
+  /* remote_test.html (the source for this whole block) had a page-wide
+     `* { box-sizing: border-box; }` reset that didn't carry over when this
+     was merged into the builder's own styles.css (which sets box-sizing
+     per-rule instead of globally). Every width/height value below assumes
+     border-box — without this, padding/border were adding ON TOP of the
+     specified sizes instead of being included in them, so .remote-frame
+     rendered 212x884 instead of 208x880, .remote-screen-container 240px
+     wide instead of 208px, each zone 186px instead of 178px, etc. — the
+     screen and every button progressively drifting out of position/off the
+     edge. Scoped to this subtree only, not added to the rest of the file.
+     .remote-screen is listed separately (not just covered by ".remote-frame
+     *") because openPreviewModal() moves it out into #modalScreenSlot,
+     outside .remote-frame entirely — without its own explicit entry here it
+     would silently lose border-box the moment it's expanded.[cite: 1] */
+  .remote-frame-scale-wrap, .remote-frame, .remote-frame *,
+  .remote-screen, .remote-screen * { box-sizing: border-box; }
+
+  /* .remote-frame is a fixed 208x880px design (matches the physical device's
+     proportions) — this wrapper scales it via updateRemoteFrameScale()
+     (preview.js) to fit whatever width is actually available, using a CSS
+     transform + a JS-measured height (deliberately not `aspect-ratio`: that
+     turned out unreliable across browsers/webviews for the old remote.png
+     crop and cost a debugging round-trip, so this preview avoids it
+     entirely). Never scales up past 1:1 (see updateRemoteFrameScale).[cite: 1] */
+  .remote-frame-scale-wrap { width: 100%; max-width: 208px; margin: 0 auto; overflow: hidden; }
+  .remote-frame {
+    width: 208px; height: 880px;
+    transform-origin: top left;
+    position: relative;
+    background: #111215; border-radius: 20px; border: 2px solid #8a94a0;
+    box-shadow: 0 0 0 1px #4a525d, 0 25px 60px rgba(0, 0, 0, 0.95), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+    user-select: none; overflow: hidden;
+  }
+
+  .remote-screen-container {
+    position: absolute; top: 0; left: 0; width: 100%; height: 324px;
+    background: linear-gradient(135deg, #1f2229 0%, #08080a 50%, #15171c 100%);
+    padding: 20px 16px 32px 16px;
+    border-bottom: 1px solid #2a2d35;
+    display: flex; justify-content: center;
+  }
+  /* Pure clipping/sizing box (164x272px at the frame's native 208px width) —
+     does NOT size any content itself; .remote-screen-scaler below does
+     that, always at the device's true dp size, then gets scaled down/up by
+     updateRemoteScreenScale() (preview.js) via a CSS transform to exactly
+     fill whatever pixel width this box currently has (164px in-frame, 349px
+     expanded, or anything in between on window resize). That's what keeps
+     every child element's raw-px sizing (copied 1:1 from the app's dp/sp
+     values, e.g. .pc-icon's 42px = CoverIcon's 42.dp) proportionally
+     correct at ANY preview size, not just one specific width.[cite: 1] */
+  .remote-screen {
+    width: 164px; height: 272px;
+    overflow: hidden; border-radius: 4px;
+    background: #0d0f14; border: 1px solid #050608;
+    cursor: zoom-in;
+    display: flex; flex-direction: column;
+  }
+  /* True dp size of the device's screen: 480x800px physical ÷ its active
+     density (Settings -> Developer options -> "Override density" if set,
+     else the physical density; check both with `adb shell wm density`).
+     Currently 480px / (220/160) ≈ 349dp wide, 800/(220/160) ≈ 582dp tall.
+     If you change the device's density override, recompute both the same
+     way (this is independent of the frame's own 164x272 screen cutout size
+     above — it's the app's real dp canvas, always 480:800 in proportion).[cite: 1] */
+  .remote-screen-scaler {
+    width: 349px; height: 582px;
+    transform-origin: top left;
+    display: flex; flex-direction: column;
+    flex-shrink: 0; /* belt-and-braces: never let flex contexts resize this away from its true dp size, which the scale-factor maths above assumes */
+    position: relative; /* anchors .preview-add-fab below */
+  }
+  /* Floating "+" button, fixed to the bottom-right corner of the screen
+     itself (not the scrolling card list) so it's visible the instant the
+     preview is opened — same spot/role as the FAB in the Home Assistant
+     dashboard editor. Sized in the same true-dp px scale as everything else
+     here, so it stays proportionally correct at thumbnail or expanded size. */
+  .preview-add-fab {
+    position: absolute; right: 16px; bottom: 16px; z-index: 5;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: #00E5FF; color: #121212; border: none;
+    font-size: 28px; font-weight: 600; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    cursor: pointer; padding: 0;
+  }
+  .preview-add-fab:hover { background: #00b8cc; }
+  /* Sized to match TopStatusBar.kt exactly: 30dp height, 14dp horizontal
+     padding, 13sp clock text, 16dp wifi/battery icons.[cite: 1] */
   .remote-status-bar {
-    flex: 0 0 auto; height: 5.2%; min-height: 12px; background: #000;
+    flex: 0 0 auto; height: 30px; background: #000;
     display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
-    box-sizing: border-box; font-size: 6.5px; color: #dfe6ea;
+    box-sizing: border-box; padding: 0 14px; font-size: 13px; color: #dfe6ea;
     font-variant-numeric: tabular-nums;
   }
-  .remote-status-bar .sb-wifi { justify-self: start; padding-left: 4%; }
+  .remote-status-bar .sb-wifi, .remote-status-bar .sb-battery { font-size: 16px; }
+  .remote-status-bar .sb-wifi { justify-self: start; }
   .remote-status-bar .sb-time { justify-self: center; }
-  .remote-status-bar .sb-battery { justify-self: end; padding-right: 4%; }
-  .remote-screen-content { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 3%; font-size: 8px; box-sizing: border-box; }
+  .remote-status-bar .sb-battery { justify-self: end; }
+  /* Matches PageContent's real padding: 10dp horizontal, 8dp vertical.[cite: 1] */
+  .remote-screen-content { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 10px; box-sizing: border-box; }
   .remote-tap-hint { text-align: center; font-size: 0.72rem; color: #666; margin-top: 8px; }
 
+  /* --- physical buttons: mirror the real remote's layout/labels; no
+     on-click behaviour (nothing to trigger from a builder preview), but
+     hover/focus glow the same cyan as the real device's touch feedback, and
+     data-hwkey buttons get a persistent glow when a hotkey is already bound
+     to them — see updateHardwareKeyHighlights() in hotkeys.js. --- */
+  .hw-btn {
+    background: linear-gradient(180deg, #22252c 0%, #141518 100%);
+    color: #8c929c; border: 1px solid #25272e; border-radius: 4px; cursor: default;
+    display: flex; align-items: center; justify-content: center; position: relative;
+    min-width: 0; min-height: 0;
+  }
+  .hw-btn svg { width: 20px; height: 20px; z-index: 2; }
+  .icon-stroke { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .icon-fill { fill: currentColor; stroke: none; }
+  .hw-btn.btn-large30 svg { width: 30px; height: 30px; }
+  .hw-btn.btn-play-pause svg { width: 14px; height: 14px; }
+  .recessed-pill::before {
+    content: ''; position: absolute; width: 55px; height: 24px; border-radius: 12px;
+    background: #0c0d0f; border: 1px solid #08080a;
+    top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1;
+  }
+  .hw-btn:hover, .hw-btn:focus,
+  .dpad-btn:hover, .dpad-btn:focus,
+  .dpad-ok:hover, .dpad-ok:focus {
+    background: linear-gradient(180deg, #333844 0%, #1f2229 100%);
+    color: #ffffff; border-color: #00e5ff;
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+  }
+  /* Bound to a short-press hotkey (global or on the active page). */
+  .hw-btn.hw-assigned, .dpad-btn.hw-assigned, .dpad-ok.hw-assigned {
+    border-color: #00e5ff;
+    box-shadow: 0 0 6px rgba(0, 229, 255, 0.45);
+  }
+  /* Bound to a long-press hotkey ONLY (no short-press binding). */
+  .hw-btn.hw-assigned-long-only, .dpad-btn.hw-assigned-long-only, .dpad-ok.hw-assigned-long-only {
+    border-color: #e6b422;
+    box-shadow: 0 0 6px rgba(230, 180, 34, 0.45);
+  }
+  /* Layered on top of hw-assigned when a button has BOTH a short- and a
+     long-press binding, so the amber ring reads as "plus a long-press",
+     rather than overriding the cyan short-press glow entirely. */
+  .hw-btn.hw-has-long, .dpad-btn.hw-has-long, .dpad-ok.hw-has-long {
+    outline: 2px solid #e6b422; outline-offset: 1px;
+  }
+
+  .remote-zone-container {
+    background: #0d0e11; border: 1px solid #282c36; border-radius: 8px; padding: 3px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+    position: absolute; left: 15px; width: 178px;
+  }
+  .remote-zone-1 { top: 345px; height: 48px; display: flex; justify-content: space-between; gap: 3px; }
+  .btn-retour { flex: 1; height: 100%; }
+  .btn-home { flex: 1.8; height: 100%; border-radius: 4px; }
+  .btn-power { flex: 1; height: 100%; color: #fff; }
+
+  .remote-zone-2 { top: 410px; height: 128px; position: absolute; }
+  .quad-grid {
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 3px;
+    width: 100%; height: 100%; background: transparent; border: none; padding: 0; box-shadow: none;
+  }
+  .quad-btn { border-radius: 4px; font-size: 13px; font-weight: 600; }
+  .top-left { justify-content: flex-start; padding-left: 10px; }
+  .top-right { justify-content: flex-end; padding-right: 10px; }
+  .bottom-left { justify-content: flex-start; padding-left: 10px; }
+  .bottom-right { justify-content: flex-end; padding-right: 10px; }
+
+  /* CORRECTION DU DÉCALAGE : Centrage parfait via transform identique à remote_test.html[cite: 3] */
+  .hw-dpad {
+    position: absolute; 
+    top: 50%; 
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90px; height: 90px; border-radius: 50%; background: #141518;
+    border: 1px solid #2d3340; box-shadow: 0 0 10px rgba(0, 0, 0, 0.9);
+    z-index: 2; overflow: hidden;
+  }
+  .dpad-btn {
+    position: absolute; background: linear-gradient(180deg, #22252c 0%, #141518 100%);
+    border: 1px solid #22252c; display: flex; align-items: center; justify-content: center; color: #8c929c;
+  }
+  .dpad-top { top: 2px; left: 26px; width: 38px; height: 32px; border-radius: 4px 4px 2px 2px; }
+  .dpad-bottom { bottom: 2px; left: 26px; width: 38px; height: 32px; border-radius: 2px 2px 4px 4px; }
+  .dpad-left { top: 26px; left: 2px; width: 32px; height: 38px; border-radius: 4px 2px 2px 4px; }
+  .dpad-right { top: 26px; right: 2px; width: 32px; height: 38px; border-radius: 2px 4px 4px 2px; }
+  .dpad-btn svg { width: 16px; height: 16px; }
+  .dpad-ok {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 38px; height: 38px; border-radius: 50%;
+    background: linear-gradient(180deg, #282c37 0%, #15171d 100%);
+    border: 1px solid #3d4352; color: #e2e8f0; font-weight: 600; font-size: 11px;
+    display: flex; align-items: center; justify-content: center; z-index: 3;
+  }
+
+  .remote-zone-3 {
+    top: 555px; height: 80px; display: grid;
+    grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 3px;
+  }
+  .btn-wide-micro { grid-column: span 2; border-radius: 4px; }
+
+  .remote-zone-4 { top: 650px; height: 42px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+  .btn-color-stripe { position: relative; }
+  .btn-color-stripe::after {
+    content: ''; position: absolute; width: 16px; height: 3px; border-radius: 2px;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+  }
+  .stripe-red::after { background: #e54d42; }
+  .stripe-green::after { background: #2fb04a; }
+  .stripe-blue::after { background: #287be6; }
+  .stripe-yellow::after { background: #e6b422; }
+
+  .sanytron-logo {
+    position: absolute; top: 780px; left: 50%; transform: translateX(-50%);
+    font-weight: 800; font-size: 15px; letter-spacing: 1.5px; color: #3b4049;
+  }
+
   /* Expanded modal view — the same .remote-screen node is moved in here on
-     click, so no rendering logic is duplicated. */
+     click, so no rendering logic is duplicated.[cite: 1] */
   .preview-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
   .preview-modal.open { display: flex; }
   .preview-modal-inner { position: relative; background: #181818; border: 1px solid #333; border-radius: 12px; padding: 24px; }
-  .preview-modal-close { position: absolute; top: 10px; right: 10px; background: #333; color: #eee; border: none; border-radius: 6px; padding: 5px 11px; cursor: pointer; font-size: 0.9rem; }
-  .remote-screen.expanded { position: static; width: 380px; cursor: default; }
+  .preview-modal-close { position: absolute; top: 10px; right: 10px; z-index: 10; background: #333; color: #eee; border: none; border-radius: 6px; padding: 5px 11px; cursor: pointer; font-size: 0.9rem; }
+  /* Same 349x582dp size as .remote-screen-scaler above (their maths live
+     next to that rule) — makes updateRemoteScreenScale() apply a scale of
+     ~1 here, so the modal renders crisp instead of visibly scaled. Overrides
+     the frame's 164x272 in-frame cutout size, which is meaningless once
+     .remote-screen is moved out into the modal (see openPreviewModal).[cite: 1] */
+  .remote-screen.expanded { width: 349px; height: 582px; cursor: default; }
 
   /* Icon field: text input (still editable by hand) + a live thumbnail +
      "Choose…" button that opens the icon-picker modal below. The thumbnail
      and picker both only resolve when the builder is served by the device
-     itself (see iconUrl() in cards.js) — harmless no-ops otherwise. */
+     itself (see iconUrl() in cards.js) — harmless no-ops otherwise.[cite: 1] */
   .icon-field-row { display: flex; gap: 8px; align-items: center; }
   .icon-field-row input { flex: 1; }
   .icon-field-thumb { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 7px; background: #2d2d2d; object-fit: contain; padding: 3px; box-sizing: border-box; display: none; }
@@ -84,7 +352,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
   .icon-picker-empty, .icon-picker-error { color: #888; font-size: 0.82rem; padding: 20px 4px; text-align: center; }
 
   /* Real cards never show their config type name, edit/remove icons, or
-     entity id — only the zoomed/expanded view (an editing aid) does. */
+     entity id — only the zoomed/expanded view (an editing aid) does.[cite: 1] */
   .remote-screen:not(.expanded) .card-title,
   .remote-screen:not(.expanded) .hint {
     display: none;
@@ -101,7 +369,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 
   /* scene_grid / button_grid tiles — sized to match the real on-device tile
      dp values 1:1 (see SceneGridCard.kt / ButtonGridCard.kt), same convention
-     as the other preview-* card styles below. */
+     as the other preview-* card styles below.[cite: 1] */
   .preview-scene-tile, .preview-button-tile {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     border-radius: 14px; box-sizing: border-box; padding: 6px; overflow: hidden; min-width: 0;
@@ -125,7 +393,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
   .preview-button-tile.has-icon { background: #2A4954; }
   .preview-button-tile.no-icon .bt-label { font-size: 15px; }
 
-  /* cover card — mirrors CoverCard.kt's 3 layouts (default / horizontal / vertical) */
+  /* cover card — mirrors CoverCard.kt's 3 layouts (default / horizontal / vertical)[cite: 1] */
   .preview-cover { border-radius: 18px; background: #1E3841; padding: 12px 14px; box-sizing: border-box; }
   .preview-cover.layout-horizontal { display: flex; align-items: center; gap: 12px; }
   .preview-cover.layout-default { display: flex; flex-direction: column; gap: 12px; }
@@ -142,13 +410,44 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
   .pc-btn { width: 44px; height: 44px; border-radius: 50%; background: #2C4C58; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
   .pc-btn svg { width: 24px; height: 24px; fill: #CBDCE0; }
   .pc-btn.pc-disabled { opacity: 0.35; }
+  /* Mushroom-style draggable slider (position/tilt/brightness) — mirrors CoverCard.kt's
+     and LightCard.kt's PercentSlider composable, static (non-interactive) in this preview.[cite: 1] */
+  .pc-slider { position: relative; width: 100%; height: 36px; border-radius: 18px; background: #152B33; overflow: hidden; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
+  .pc-slider-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 18px; }
+  .pc-slider-label { position: relative; color: #E6F0F1; font-size: 13px; font-weight: 600; z-index: 1; }
+  .pc-cycle-btn { width: 36px; height: 36px; border-radius: 50%; background: #2C4C58; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; cursor: help; }
+  .pc-cycle-btn svg { width: 22px; height: 22px; fill: #CBDCE0; }
   .preview-light { border-radius: 18px; background: #1E3841; padding: 12px 14px; box-sizing: border-box; }
   .preview-light.layout-horizontal { display: flex; align-items: center; gap: 12px; }
   .preview-light.layout-default { display: flex; flex-direction: column; gap: 10px; }
   .preview-light.layout-vertical { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-  .pl-bar { width: 100%; height: 6px; border-radius: 3px; background: #152B33; overflow: hidden; box-sizing: border-box; }
-  .pl-bar-fill { height: 100%; border-radius: 3px; }
   .pc-icon.pl-icon svg { fill: currentColor; }
+  /* Mushroom-style colour swatch row — mirrors LightCard.kt's ColorSwatchRow composable.[cite: 1] */
+  .pl-color-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pl-swatch { width: 28px; height: 28px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 0 1px rgba(255,255,255,0.15) inset; }
+
+  /* media_player card — mirrors MediaPlayerCard.kt's compact Mushroom-style tile[cite: 1] */
+  .preview-media { border-radius: 18px; background: #1E3841; padding: 12px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; }
+  .pm-row { display: flex; align-items: center; gap: 12px; }
+  .pm-avatar { width: 42px; height: 42px; border-radius: 50%; background: #2A4954; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; overflow: hidden; }
+  .pm-avatar svg { width: 22px; height: 22px; fill: #B6C9CE; }
+  .pm-controls { display: flex; align-items: center; gap: 8px; }
+  .pm-btn { width: 36px; height: 36px; border-radius: 10px; background: #23414B; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  .pm-btn.pm-accent { background: #4C6EF5; }
+  .pm-btn svg { width: 18px; height: 18px; fill: #E6F0F1; }
+  .pm-btn.pm-swap { margin-left: auto; }
+  .preview-media-full { border-radius: 20px; background: #1B343D; padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .pm-art { width: 100%; aspect-ratio: 1.2; border-radius: 16px; background: #3A2E5A; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; }
+  .pm-art svg { width: 48px; height: 48px; fill: rgba(255,255,255,0.6); }
+  .pm-full-title { color: #F1F4FA; font-size: 20px; font-weight: 700; text-align: center; }
+  .pm-full-subtitle { color: #B6BECC; font-size: 14px; text-align: center; }
+  .pm-progress { width: 100%; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); overflow: hidden; }
+  .pm-progress-fill { height: 100%; background: #4C6EF5; }
+  .pm-full-controls { display: flex; justify-content: space-evenly; align-items: center; width: 100%; }
+  .pm-full-btn { width: 50px; height: 50px; border-radius: 50%; background: rgba(44,76,88,0.35); display: flex; align-items: center; justify-content: center; }
+  .pm-full-btn.pm-big { width: 64px; height: 64px; }
+  .pm-full-btn.pm-accent { background: #4C6EF5; }
+  .pm-full-btn svg { width: 24px; height: 24px; fill: #fff; }
 
   .preview-clock-weather { background: #1B343D; border-radius: 18px; padding: 12px; display: flex; align-items: center; gap: 12px; }
   .preview-clock-weather .cw-emoji { font-size: 34px; }

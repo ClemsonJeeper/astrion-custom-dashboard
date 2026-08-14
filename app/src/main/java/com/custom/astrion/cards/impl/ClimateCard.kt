@@ -314,7 +314,7 @@ class ClimateCard : CardRenderer {
         }
 
     /**
-     * Fan-speed → MDI glyph. Numeric speeds ("1".."5") show their digit —
+     * Fan-speed → MDI glyph. Numeric speeds ("1"..."5") show their digit —
      * that's the actual MDI glyph for them, not a placeholder. "auto" and
      * "quiet"/"silent" have their own distinct glyphs too. Anything else
      * (e.g. "low"/"medium"/"high"/"turbo") falls back to the generic fan

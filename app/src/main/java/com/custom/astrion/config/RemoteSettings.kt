@@ -1,9 +1,10 @@
 package com.custom.astrion.config
 
 import android.content.Context
+import androidx.core.content.edit
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -12,7 +13,7 @@ import java.util.UUID
 
 /**
  * A single Harmony Hub the app can talk to directly, bypassing Home
- * Assistant. [localId] is a stable app-generated key (independent from the
+ * Assistant. [localId] is a stable app-generated key (independent of the
  * hub's own numeric [hubId]) used to reference this hub from dashboard.json
  * (`hub` field on hotkeys / scene actions) — so renaming a hub or fixing a
  * typo'd IP later doesn't break existing references.
@@ -53,6 +54,7 @@ object RemoteSettings {
     fun haToken(context: Context): String = prefs(context).getString(KEY_HA_TOKEN, "") ?: ""
 
     /** True once a Home Assistant URL and token have been entered via the web configurator. */
+    @Suppress("unused")
     fun isConfigured(context: Context): Boolean = haUrl(context).isNotBlank() && haToken(context).isNotBlank()
 
     fun saveHaConnection(
@@ -60,16 +62,16 @@ object RemoteSettings {
         haUrl: String,
         haToken: String,
     ) {
-        prefs(context).edit()
-            .putString(KEY_HA_URL, haUrl)
-            .putString(KEY_HA_TOKEN, haToken)
-            .apply()
+        prefs(context).edit {
+            putString(KEY_HA_URL, haUrl)
+            putString(KEY_HA_TOKEN, haToken)
+        }
     }
 
     /**
      * All configured Harmony hubs, in the order they were added. Transparently
      * migrates the old single-hub `harmony_hub_ip`/`harmony_hub_id` prefs into
-     * a one-item list the first time this is called, so existing installs
+     * a one-item list the first time this is called, so existing installations
      * keep working without any user action.
      */
     fun harmonyHubs(context: Context): List<HarmonyHubConfig> {
@@ -93,23 +95,24 @@ object RemoteSettings {
         context: Context,
         hubs: List<HarmonyHubConfig>,
     ) {
-        val array =
-            buildJsonArray {
-                hubs.forEach { hub ->
-                    add(
-                        buildJsonObject {
-                            put("localId", hub.localId)
-                            put("name", hub.name)
-                            put("ip", hub.ip)
-                            put("hubId", hub.hubId)
-                        },
-                    )
+        val array = buildJsonArray {
+            hubs.forEach { hub ->
+                addJsonObject {
+                    put("localId", hub.localId)
+                    put("name", hub.name)
+                    put("ip", hub.ip)
+                    put("hubId", hub.hubId)
                 }
             }
-        prefs(context).edit().putString(KEY_HARMONY_HUBS, array.toString()).apply()
+        }
+
+        prefs(context).edit {
+            putString(KEY_HARMONY_HUBS, array.toString())
+        }
     }
 
     /** Convenience lookup used to resolve a `hub` field from dashboard.json. */
+    @Suppress("unused")
     fun harmonyHub(
         context: Context,
         localId: String?,
@@ -130,7 +133,7 @@ object RemoteSettings {
                     hubId = obj["hubId"]?.jsonPrimitive?.content ?: "",
                 )
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
 }

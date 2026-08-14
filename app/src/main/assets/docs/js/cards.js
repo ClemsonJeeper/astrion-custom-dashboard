@@ -19,11 +19,17 @@ function updateCardFormInputs() {
       ${iconFieldHtml('optIcon')}
       <label>Layout</label>
       <select id="optCoverLayout">
-        <option value="default">Default (icon + name/state, buttons full-width below)</option>
-        <option value="horizontal">Horizontal (icon + name/state left, buttons right)</option>
-        <option value="vertical">Vertical (icon, name, state, buttons — all centered/stacked)</option>
+        <option value="default">Default (icon + name/state, controls full-width below)</option>
+        <option value="horizontal">Horizontal (icon + name/state left, controls right)</option>
+        <option value="vertical">Vertical (icon, name, state, controls — all centered/stacked)</option>
       </select>
-      <div class="hint">Status shows "Open"/"Closed" at 0%/100%, otherwise "N% open" — translated automatically in the app. Up/down buttons auto-disable once fully open/closed.</div>
+      <label>Controls (Mushroom-style — same options as the Home Assistant Mushroom cover card)</label>
+      <div class="hint-row">
+        <label class="inline-check"><input type="checkbox" id="optCoverCtrlButtons" checked> Buttons (open/stop/close)</label>
+        <label class="inline-check"><input type="checkbox" id="optCoverCtrlPosition"> Position slider</label>
+        <label class="inline-check"><input type="checkbox" id="optCoverCtrlTilt"> Tilt slider</label>
+      </div>
+      <div class="hint">Status shows "Open"/"Closed" at 0%/100%, otherwise "N% open" — translated automatically in the app. Up/down buttons auto-disable once fully open/closed. If several controls are checked, only one shows at a time on the card — a small button cycles through them, same as Mushroom. Position/tilt sliders only appear if the entity actually reports that attribute.</div>
     `;
   } else if (type === 'light') {
     container.innerHTML = `
@@ -31,14 +37,56 @@ function updateCardFormInputs() {
       <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., light.kitchen">
       <label>Layout</label>
       <select id="optLightLayout">
-        <option value="default">Default (icon + name/state, brightness bar below)</option>
-        <option value="horizontal">Horizontal (icon + name/state, single row)</option>
-        <option value="vertical">Vertical (icon, name, state — centered/stacked)</option>
+        <option value="default">Default (icon + name/state, controls full-width below)</option>
+        <option value="horizontal">Horizontal (icon + name/state, controls right)</option>
+        <option value="vertical">Vertical (icon, name, state, controls — centered/stacked)</option>
       </select>
       <label><input type="checkbox" id="optLightUseColor"> Tint the icon with the light's own colour (when it reports one)</label>
       <label><input type="checkbox" id="optLightShowBrightness" checked> Show brightness ("N%") instead of just "On"</label>
-      <div class="hint">Tap toggles the light; long-press opens the brightness/colour detail popup. Status shows "Éteint"/"Off" at 0%, otherwise the live "N%" brightness — translated automatically in the app.</div>
+      <label>Controls (Mushroom-style — same options as the Home Assistant Mushroom light card)</label>
+      <div class="hint-row">
+        <label class="inline-check"><input type="checkbox" id="optLightCtrlBrightness" checked> Brightness slider</label>
+        <label class="inline-check"><input type="checkbox" id="optLightCtrlColorTemp"> Colour temperature slider</label>
+        <label class="inline-check"><input type="checkbox" id="optLightCtrlColor"> Colour swatches</label>
+      </div>
+      <label><input type="checkbox" id="optLightCollapsible"> Hide the controls area entirely while the light is off</label>
+      <div class="hint">Tap toggles the light; long-press opens the brightness/colour detail popup. Status shows "Éteint"/"Off" at 0%, otherwise the live "N%" brightness — translated automatically in the app. If several controls are checked, only one shows at a time on the card — a small button cycles through them, same as Mushroom. Colour temperature/swatches only appear if the entity actually supports them.</div>
     `;
+  } else if (type === 'media_player') {
+    container.innerHTML = `
+      <label>Name (optional override — otherwise the media title/friendly name is used)</label><input type="text" id="optName" placeholder="e.g., Salon">
+      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., media_player.nest_hub_max_salon">
+      <label>Variant</label>
+      <select id="optMediaVariant">
+        <option value="compact">Compact (Mushroom-style tile, for a grid/list of players)</option>
+        <option value="full">Full (big album art + progress bar, for a dedicated media page)</option>
+      </select>
+      <label><input type="checkbox" id="optMediaUseInfo" checked> Show what's playing (title/artist/app) instead of just the friendly name/state</label>
+      <label><input type="checkbox" id="optMediaShowVolume"> Append the volume level ("⸱ N%") to the state line</label>
+      <label>Transport controls (shown in the compact tile's control row / full page's main row)</label>
+      <div class="hint-row">
+        <label class="inline-check"><input type="checkbox" id="optMediaCtrlOnOff"> Power</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaCtrlShuffle"> Shuffle</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaCtrlPrevious" checked> Previous</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaCtrlPlayPause" checked> Play/Pause</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaCtrlNext" checked> Next</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaCtrlRepeat"> Repeat</label>
+      </div>
+      <label>Volume controls</label>
+      <div class="hint-row">
+        <label class="inline-check"><input type="checkbox" id="optMediaVolMute" checked> Mute</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaVolButtons" checked> -/+ buttons</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaVolSet"> Slider</label>
+      </div>
+      <div class="hint">Every button above is still hidden automatically when the entity doesn't actually support it (checked live against its <code>supported_features</code>) — these checkboxes just control what's requested. In the compact tile, transport and volume controls share one row with a small swap button when both are present.</div>
+      <div id="mediaTopButtonsField" style="display:none">
+        <label>Top buttons (full variant only — optional, JSON array)</label>
+        <textarea id="optMediaTopButtons" rows="3" placeholder='[{"name":"Group","service":"media_player.join","entity_id":"media_player.salon","data":{"group_members":["media_player.cuisine"]}}]'>[]</textarea>
+        <div class="hint">Each entry fires an arbitrary service call as a full-width button above the album art — e.g. speaker grouping.</div>
+      </div>
+    `;
+    document.getElementById('optMediaVariant').addEventListener('change', updateMediaTopButtonsVisibility);
+    updateMediaTopButtonsVisibility();
   } else if (type === 'fan') {
     container.innerHTML = `
       <label>Name</label><input type="text" id="optName" placeholder="e.g., Standing Fan">
@@ -165,6 +213,15 @@ function updateCardFormInputs() {
       <div class="hint">This card type isn't fully modeled in the builder yet — paste the options object directly.</div>
     `;
   }
+}
+
+// media_player card: top_buttons only make sense on the "full" variant
+// (the compact tile has no room for them) — hide the field otherwise.
+function updateMediaTopButtonsVisibility() {
+  const variantEl = document.getElementById('optMediaVariant');
+  const field = document.getElementById('mediaTopButtonsField');
+  if (!variantEl || !field) return;
+  field.style.display = variantEl.value === 'full' ? '' : 'none';
 }
 
 let editingGridItem = null; // index of the button/scene being edited within _pendingGridItems, or null
@@ -412,20 +469,32 @@ function removeVacuumRoom(i) {
   updateCardFormInputs();
 }
 
-function editCard(idx) {
-  const card = dashboardData.pages[currentActivePage].cards[idx];
+// Opens the card dialog — the single entry point for both "+ Add card" and
+// the ✎ edit icon on a card in the preview, same as clicking "+ ADD CARD" or
+// a card's own edit action in the Home Assistant dashboard editor.
+function openCardDialog(idx) {
   editingCard = idx;
-  document.getElementById('pageSelect').value = currentActivePage;
+  const isNew = idx === null;
+  document.getElementById('cardEditorTitle').textContent = isNew ? 'Add card' : 'Edit card';
+  document.getElementById('addCardBtn').innerText = isNew ? 'Add card to page' : 'Save changes';
 
   const select = document.getElementById('cardTypeSelect');
-  const known = Array.from(select.options).map(o => o.value).filter(v => v !== 'custom');
-  select.value = known.includes(card.type) ? card.type : 'custom';
-  updateCardFormInputs();
-  fillCardForm(card);
+  if (isNew) {
+    select.value = select.options[0].value;
+    updateCardFormInputs();
+  } else {
+    const card = dashboardData.pages[currentActivePage].cards[idx];
+    const known = Array.from(select.options).map(o => o.value).filter(v => v !== 'custom');
+    select.value = known.includes(card.type) ? card.type : 'custom';
+    updateCardFormInputs();
+    fillCardForm(card);
+  }
 
-  document.getElementById('addCardBtn').innerText = 'Save changes';
-  document.getElementById('cancelCardEditBtn').style.display = 'inline-block';
-  document.getElementById('dynamicCardInputs').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('cardEditorModal').classList.add('open');
+}
+
+function editCard(idx) {
+  openCardDialog(idx);
 }
 
 function fillCardForm(card) {
@@ -442,12 +511,44 @@ function fillCardForm(card) {
     document.getElementById('optIcon').value = o.icon || '';
     updateIconThumb('optIcon');
     document.getElementById('optCoverLayout').value = ['horizontal', 'vertical'].includes(o.layout) ? o.layout : 'default';
+    // Mirrors CoverCard.kt: if none of the 3 flags are set at all, the app
+    // falls back to "buttons only" — reflect that same default here.
+    const hasCoverCtrlOpts = ('show_buttons_control' in o) || ('show_position_control' in o) || ('show_tilt_position_control' in o);
+    document.getElementById('optCoverCtrlButtons').checked = hasCoverCtrlOpts ? (o.show_buttons_control === true) : true;
+    document.getElementById('optCoverCtrlPosition').checked = o.show_position_control === true;
+    document.getElementById('optCoverCtrlTilt').checked = o.show_tilt_position_control === true;
   } else if (type === 'light') {
     document.getElementById('optName').value = o.name || '';
     document.getElementById('optEntityId').value = o.entity_id || '';
     document.getElementById('optLightLayout').value = ['horizontal', 'vertical'].includes(o.layout) ? o.layout : 'default';
     document.getElementById('optLightUseColor').checked = o.use_light_color === true;
     document.getElementById('optLightShowBrightness').checked = o.show_brightness !== false;
+    // Mirrors LightCard.kt: if none of the 3 flags are set at all, the app
+    // falls back to "brightness control only" — reflect that same default here.
+    const hasLightCtrlOpts = ('show_brightness_control' in o) || ('show_color_temp_control' in o) || ('show_color_control' in o);
+    document.getElementById('optLightCtrlBrightness').checked = hasLightCtrlOpts ? (o.show_brightness_control === true) : true;
+    document.getElementById('optLightCtrlColorTemp').checked = o.show_color_temp_control === true;
+    document.getElementById('optLightCtrlColor').checked = o.show_color_control === true;
+    document.getElementById('optLightCollapsible').checked = o.collapsible_controls === true;
+  } else if (type === 'media_player') {
+    document.getElementById('optName').value = o.name || '';
+    document.getElementById('optEntityId').value = o.entity_id || '';
+    document.getElementById('optMediaVariant').value = o.variant === 'full' ? 'full' : 'compact';
+    document.getElementById('optMediaUseInfo').checked = o.use_media_info !== false;
+    document.getElementById('optMediaShowVolume').checked = o.show_volume_level === true;
+    const mCtrls = (o.media_controls || 'previous,play_pause,next').split(',').map(s => s.trim());
+    document.getElementById('optMediaCtrlOnOff').checked = mCtrls.includes('on_off');
+    document.getElementById('optMediaCtrlShuffle').checked = mCtrls.includes('shuffle');
+    document.getElementById('optMediaCtrlPrevious').checked = mCtrls.includes('previous');
+    document.getElementById('optMediaCtrlPlayPause').checked = mCtrls.includes('play_pause');
+    document.getElementById('optMediaCtrlNext').checked = mCtrls.includes('next');
+    document.getElementById('optMediaCtrlRepeat').checked = mCtrls.includes('repeat');
+    const vCtrls = (o.volume_controls || 'mute,buttons').split(',').map(s => s.trim());
+    document.getElementById('optMediaVolMute').checked = vCtrls.includes('mute');
+    document.getElementById('optMediaVolButtons').checked = vCtrls.includes('buttons');
+    document.getElementById('optMediaVolSet').checked = vCtrls.includes('set');
+    document.getElementById('optMediaTopButtons').value = JSON.stringify(o.top_buttons || [], null, 2);
+    updateMediaTopButtonsVisibility();
   } else if (type === 'fan') {
     document.getElementById('optName').value = o.name || '';
     document.getElementById('optEntityId').value = o.entity_id || '';
@@ -502,12 +603,29 @@ function cancelCardEdit() {
   window._pendingGridItems = [];
   window._pendingVacuumRooms = [];
   document.getElementById('addCardBtn').innerText = 'Add card to page';
-  document.getElementById('cancelCardEditBtn').style.display = 'none';
-  updateCardFormInputs();
+  document.getElementById('cardEditorModal').classList.remove('open');
+}
+
+// Reorder helpers — used by the ↑/↓ buttons and by drag-and-drop in
+// preview.js's enhanceCardControls().
+function moveCard(idx, direction) {
+  const cards = dashboardData.pages[currentActivePage].cards;
+  const target = idx + direction;
+  if (target < 0 || target >= cards.length) return;
+  [cards[idx], cards[target]] = [cards[target], cards[idx]];
+  renderPreview(); updateJsonOutput();
+}
+
+function reorderCard(fromIdx, toIdx) {
+  const cards = dashboardData.pages[currentActivePage].cards;
+  if (fromIdx < 0 || fromIdx >= cards.length || toIdx < 0 || toIdx >= cards.length) return;
+  const [moved] = cards.splice(fromIdx, 1);
+  cards.splice(toIdx, 0, moved);
+  renderPreview(); updateJsonOutput();
 }
 
 function addCardToPage() {
-  const pageIndex = document.getElementById('pageSelect').value;
+  const pageIndex = currentActivePage;
   const type = document.getElementById('cardTypeSelect').value;
   let newCard = { type: type, options: {} };
 
@@ -524,6 +642,12 @@ function addCardToPage() {
     if (coverIcon) newCard.options.icon = coverIcon;
     const coverLayout = document.getElementById('optCoverLayout').value;
     if (coverLayout !== 'default') newCard.options.layout = coverLayout;
+    // Written explicitly (even when checked/default) so the app's "any flag
+    // present => only what's set shows" logic is unambiguous once the
+    // builder has touched this card.
+    newCard.options.show_buttons_control = document.getElementById('optCoverCtrlButtons').checked;
+    newCard.options.show_position_control = document.getElementById('optCoverCtrlPosition').checked;
+    newCard.options.show_tilt_position_control = document.getElementById('optCoverCtrlTilt').checked;
   } else if (type === 'light') {
     const lightName = document.getElementById('optName').value.trim();
     if (lightName) newCard.options.name = lightName;
@@ -532,6 +656,43 @@ function addCardToPage() {
     if (lightLayout !== 'default') newCard.options.layout = lightLayout;
     if (document.getElementById('optLightUseColor').checked) newCard.options.use_light_color = true;
     if (!document.getElementById('optLightShowBrightness').checked) newCard.options.show_brightness = false;
+    // Written explicitly (even when checked/default) so the app's "any flag
+    // present => only what's set shows" logic is unambiguous once the
+    // builder has touched this card.
+    newCard.options.show_brightness_control = document.getElementById('optLightCtrlBrightness').checked;
+    newCard.options.show_color_temp_control = document.getElementById('optLightCtrlColorTemp').checked;
+    newCard.options.show_color_control = document.getElementById('optLightCtrlColor').checked;
+    if (document.getElementById('optLightCollapsible').checked) newCard.options.collapsible_controls = true;
+  } else if (type === 'media_player') {
+    const mediaName = document.getElementById('optName').value.trim();
+    if (mediaName) newCard.options.name = mediaName;
+    newCard.options.entity_id = document.getElementById('optEntityId').value || 'media_player.entity';
+    const mediaVariant = document.getElementById('optMediaVariant').value;
+    if (mediaVariant === 'full') newCard.options.variant = 'full';
+    if (!document.getElementById('optMediaUseInfo').checked) newCard.options.use_media_info = false;
+    if (document.getElementById('optMediaShowVolume').checked) newCard.options.show_volume_level = true;
+    const mediaControls = [];
+    if (document.getElementById('optMediaCtrlOnOff').checked) mediaControls.push('on_off');
+    if (document.getElementById('optMediaCtrlShuffle').checked) mediaControls.push('shuffle');
+    if (document.getElementById('optMediaCtrlPrevious').checked) mediaControls.push('previous');
+    if (document.getElementById('optMediaCtrlPlayPause').checked) mediaControls.push('play_pause');
+    if (document.getElementById('optMediaCtrlNext').checked) mediaControls.push('next');
+    if (document.getElementById('optMediaCtrlRepeat').checked) mediaControls.push('repeat');
+    if (mediaControls.join(',') !== 'previous,play_pause,next') newCard.options.media_controls = mediaControls.join(',');
+    const volumeControls = [];
+    if (document.getElementById('optMediaVolMute').checked) volumeControls.push('mute');
+    if (document.getElementById('optMediaVolButtons').checked) volumeControls.push('buttons');
+    if (document.getElementById('optMediaVolSet').checked) volumeControls.push('set');
+    if (volumeControls.join(',') !== 'mute,buttons') newCard.options.volume_controls = volumeControls.join(',');
+    if (mediaVariant === 'full') {
+      try {
+        const topButtons = JSON.parse(document.getElementById('optMediaTopButtons').value || '[]');
+        if (Array.isArray(topButtons) && topButtons.length) newCard.options.top_buttons = topButtons;
+      } catch (e) {
+        alert('Top buttons JSON is invalid — fix it or leave as []. Card not added.');
+        return;
+      }
+    }
   } else if (type === 'fan') {
     newCard.options.name = document.getElementById('optName').value || 'Fan';
     newCard.options.entity_id = document.getElementById('optEntityId').value || 'fan.entity';
@@ -608,11 +769,10 @@ function addCardToPage() {
 
   if (editingCard !== null) {
     dashboardData.pages[pageIndex].cards[editingCard] = newCard;
-    cancelCardEdit();
   } else {
     dashboardData.pages[pageIndex].cards.push(newCard);
-    updateCardFormInputs();
   }
+  cancelCardEdit();
   renderPreview(); updateJsonOutput();
 }
 

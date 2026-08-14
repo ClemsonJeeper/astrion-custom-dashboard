@@ -1,12 +1,17 @@
 package com.custom.astrion.harmony
 
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -16,7 +21,10 @@ import okhttp3.WebSocketListener
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.toJavaDuration
 
 /** One remote-control command exposed by a [HarmonyDevice] (e.g. "VolumeUp"). */
 data class HarmonyCommand(val name: String, val label: String)
@@ -49,26 +57,26 @@ class HarmonyHubClient(
 ) {
     private companion object {
         const val TAG = "HarmonyHubClient"
-        const val RECONNECT_DELAY_MS = 2000L
-        const val PRESS_HOLD_DELAY_MS = 120L
-        const val CONFIG_TIMEOUT_MS = 8000L
+        val RECONNECT_DELAY = 2000.milliseconds
+        val PRESS_HOLD_DELAY = 120.milliseconds
+        val CONFIG_TIMEOUT = 8000.milliseconds
     }
 
     private val client =
         OkHttpClient.Builder()
-            .readTimeout(0, TimeUnit.MILLISECONDS)
-            .callTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(0.seconds.toJavaDuration())
+            .callTimeout(10.seconds.toJavaDuration())
             // Sends a WS ping every 20s — most embedded WS servers (this hub
             // included) drop idle connections around 60s otherwise.
-            .pingInterval(20, TimeUnit.SECONDS)
+            .pingInterval(20.seconds.toJavaDuration())
             .build()
 
     private var webSocket: WebSocket? = null
-    private var nextMsgId = 1
+    private val nextMsgId = AtomicInteger(1)
 
     /** Set by disconnect() so onFailure/onClosed know not to auto-reconnect. */
     private var intentionalDisconnect = false
-    private val mainHandler = Handler(Looper.getMainLooper())
+    private var clientScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     private val _connected = MutableStateFlow(false)
 
@@ -88,6 +96,11 @@ class HarmonyHubClient(
             Log.w(TAG, "connect() called with no hub IP — Harmony not configured, skipping")
             return
         }
+
+        if (!clientScope.isActive) {
+            clientScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        }
+
         intentionalDisconnect = false
         val url = "ws://$hubIp:8088/?domain=svcs.myharmony.com&hubId=$hubId"
         Log.d(TAG, "connect() -> $url")
@@ -170,25 +183,24 @@ class HarmonyHubClient(
      */
     private fun routeMessage(text: String) {
         val obj = runCatching { JSONObject(text) }.getOrNull() ?: return
-        val id = obj.optString("id", null) ?: return
+        val id = obj.opt("id") as? String ?: return
         pending.remove(id)?.complete(obj)
     }
 
     private fun scheduleReconnect() {
         if (intentionalDisconnect) return
-        Log.d(TAG, "Reconnecting in ${RECONNECT_DELAY_MS}ms...")
-        mainHandler.postDelayed({ connect() }, RECONNECT_DELAY_MS)
+        Log.d(TAG, "Reconnecting in ${RECONNECT_DELAY.inWholeMilliseconds}ms...")
+        clientScope.launch {
+            delay(RECONNECT_DELAY)
+            connect()
+        }
     }
 
     fun disconnect() {
         intentionalDisconnect = true
         _connected.value = false
-        // Cancels any already-scheduled reconnect (mainHandler.postDelayed in
-        // scheduleReconnect()) — without this, a reconnect queued just before
-        // disconnect() is called still fires: it runs on the process-wide main
-        // looper, not tied to this client instance's lifecycle, so it survives
-        // even after the hub was removed from settings and MainActivity recreated.
-        mainHandler.removeCallbacksAndMessages(null)
+        // Cancels any ongoing delayed actions or reconnect jobs when disconnected.
+        clientScope.cancel()
         pending.values.forEach { it.cancel() }
         pending.clear()
         webSocket?.close(1000, "Normal closure")
@@ -214,7 +226,7 @@ class HarmonyHubClient(
         val hbus =
             JSONObject().apply {
                 put("cmd", "harmony.activityengine?runactivity")
-                put("id", (nextMsgId++).toString())
+                put("id", nextMsgId.getAndIncrement().toString())
                 put("params", params)
             }
 
@@ -246,9 +258,10 @@ class HarmonyHubClient(
         sendHoldAction(status = "press", action = action, timestamp = timestamp)
 
         if (webSocket != null) {
-            mainHandler.postDelayed({
+            clientScope.launch {
+                delay(PRESS_HOLD_DELAY)
                 sendHoldAction(status = "release", action = action, timestamp = timestamp)
-            }, PRESS_HOLD_DELAY_MS)
+            }
         }
     }
 
@@ -268,7 +281,7 @@ class HarmonyHubClient(
         val hbus =
             JSONObject().apply {
                 put("cmd", "vnd.logitech.harmony/vnd.logitech.harmony.engine?holdAction")
-                put("id", (nextMsgId++).toString())
+                put("id", nextMsgId.getAndIncrement().toString())
                 put("params", params)
             }
 
@@ -300,7 +313,7 @@ class HarmonyHubClient(
                 Log.w(TAG, "getConfig() called while not connected")
                 return null
             }
-        val id = (nextMsgId++).toString()
+        val id = nextMsgId.getAndIncrement().toString()
         val deferred = CompletableDeferred<JSONObject>()
         pending[id] = deferred
 
@@ -325,8 +338,12 @@ class HarmonyHubClient(
         Log.d(TAG, "getConfig(): $envelope")
         socket.send(envelope.toString())
 
-        val reply = withTimeoutOrNull(CONFIG_TIMEOUT_MS) { deferred.await() }
-        pending.remove(id)
+        val reply = try {
+            withTimeoutOrNull(CONFIG_TIMEOUT) { deferred.await() }
+        } finally {
+            pending.remove(id)
+        }
+
         if (reply == null) {
             Log.w(TAG, "getConfig() timed out")
             return null
@@ -343,9 +360,8 @@ class HarmonyHubClient(
      * community Harmony clients, e.g. harmonyhubjs-client, work around).
      */
     private fun parseConfig(reply: JSONObject): HarmonyConfig {
-        val rawData = reply.opt("data")
         val data: JSONObject =
-            when (rawData) {
+            when (val rawData = reply.opt("data")) {
                 is JSONObject -> rawData
                 is String -> JSONObject(rawData)
                 else -> error("no \"data\" field in config response")

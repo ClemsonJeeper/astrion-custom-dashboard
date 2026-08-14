@@ -22,6 +22,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
 import com.custom.astrion.config.DashboardConfig
 import com.custom.astrion.config.DashboardLoader
@@ -30,7 +31,6 @@ import com.custom.astrion.config.JsonPlain
 import com.custom.astrion.config.RemoteSettings
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
-import com.custom.astrion.harmony.HarmonyHubClient
 import com.custom.astrion.harmony.HarmonyHubRegistry
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
@@ -338,7 +338,7 @@ class MainActivity : ComponentActivity() {
      * registers/unregisters the sensor listener immediately, no restart needed. */
     private fun setWakeOnMotion(enabled: Boolean) {
         wakeOnMotionEnabled = enabled
-        prefs.edit().putBoolean("wake_on_motion_enabled", enabled).apply()
+        prefs.edit { putBoolean("wake_on_motion_enabled", enabled) }
         if (enabled) {
             registerMotionListener()
         } else {
@@ -357,7 +357,7 @@ class MainActivity : ComponentActivity() {
      * upload/download until it's switched back on from here. */
     private fun updateConfigServerEnabled(enabled: Boolean) {
         configServerEnabled = enabled
-        prefs.edit().putBoolean("config_server_enabled", enabled).apply()
+        prefs.edit { putBoolean("config_server_enabled", enabled) }
         if (enabled) {
             startConfigServer()
         } else {

@@ -159,6 +159,7 @@ const COVER_MOCK = {
   state: 'open',
   is_closed: false,
   current_position: 100,
+  current_tilt_position: 50,
   device_class: 'shutter',
 };
 
@@ -186,6 +187,10 @@ MDI.windowShutterOpen = 'M3,4H21V8H19V20H17V8H7V20H5V8H3V4M8,9H16V11H8V9Z';
 MDI.coverUp = 'M21,19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3H19C20.11,3 21,3.9 21,5V19M13,18V9.5L16.5,13L17.92,11.58L12,5.66L6.08,11.58L7.5,13L11,9.5V18H13Z';
 MDI.coverDown = 'M3,5A2,2 0 0,1 5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5M11,6V14.5L7.5,11L6.08,12.42L12,18.34L17.92,12.42L16.5,11L13,14.5V6H11Z';
 MDI.stop = 'M6,6H18V18H6V6Z';
+// Standard Material "chevron-right" glyph — mirrors Icons.Filled.ChevronRight
+// used by CoverCard.kt/LightCard.kt's CycleControlButton to switch between
+// several enabled controls (buttons/position/tilt, brightness/colour-temp/colour).
+MDI.chevronRight = 'M8.59,16.59L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.59Z';
 // Same shape as MdiIcons.kt's LightbulbOn/LightbulbOff, used by LightCard.kt
 // (swaps automatically with on/off, same as that card).
 MDI.lightbulbOn = 'M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z';
@@ -200,6 +205,8 @@ const LIGHT_MOCK = {
   brightness: 191, // 0..255, ≈75%
   supported_color_modes: ['color_temp', 'xy'],
   color_temp_kelvin: 3000, // used only to derive a warm preview tint below
+  min_color_temp_kelvin: 2000,
+  max_color_temp_kelvin: 6535,
   rgb_color: null,
 };
 
@@ -221,4 +228,106 @@ function lightStateLabel(isOn, brightnessPct, showBrightness) {
   if (!showBrightness || brightnessPct == null) return 'On';
   if (brightnessPct <= 0) return 'Off';
   return `${brightnessPct}%`;
+}
+
+// Same shapes as MdiIcons.kt's Play/Pause/SkipPrevious/SkipNext/VolumeHigh/VolumeOff,
+// used by the media_player preview below — kept pixel-identical to the app.
+MDI.play = 'M8,5.14V19.14L19,12.14L8,5.14Z';
+MDI.pause = 'M14,19H18V5H14M6,19H10V5H6V19Z';
+MDI.skipPrevious = 'M6,18V6H8V18H6M9.5,12L18,6V18L9.5,12Z';
+MDI.skipNext = 'M16,18H18V6H16M6,18L14.5,12L6,6V18Z';
+MDI.volumeHigh = 'M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z';
+MDI.volumeOff = 'M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z';
+MDI.power = 'M16.56,5.44L15.11,6.89C16.84,7.94 18,9.83 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12C6,9.83 7.16,7.94 8.88,6.88L7.44,5.44C5.36,6.88 4,9.28 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12C20,9.28 18.64,6.88 16.56,5.44M13,3H11V13H13';
+// Same shapes as MdiIcons.kt's Repeat (single "off" glyph, tinted rather
+// than swapped when active) and Shuffle.
+MDI.repeat = 'M2,5.27L3.28,4L20,20.72L18.73,22L15.73,19H7V22L3,18L7,14V17H13.73L7,10.27V11H5V8.27L2,5.27M17,13H19V17.18L17,15.18V13M17,5V2L21,6L17,10V7H8.82L6.82,5H17Z';
+MDI.shuffle = 'M16,4.5V7H5V9H16V11.5L19.5,8M16,12.5V15H5V17H16V19.5L19.5,16';
+// Same shapes as MdiIcons.kt's CastOff/Cast — the compact tile's (and full
+// page's) fallback avatar when there's no entity_picture, off vs on.
+MDI.castOff = 'M1.6,1.27L0.25,2.75L1.41,3.8C1.16,4.13 1,4.55 1,5V8H3V5.23L18.2,19H14V21H20.41L22.31,22.72L23.65,21.24M6.5,3L8.7,5H21V16.14L23,17.95V5C23,3.89 22.1,3 21,3M1,10V12A9,9 0 0,1 10,21H12C12,14.92 7.08,10 1,10M1,14V16A5,5 0 0,1 6,21H8A7,7 0 0,0 1,14M1,18V21H4A3,3 0 0,0 1,18Z';
+MDI.cast = 'M21,3H3C1.89,3 1,3.89 1,5V8H3V5H21V19H14V21H21A2,2 0 0,0 23,19V5C23,3.89 22.1,3 21,3M1,10V12A9,9 0 0,1 10,21H12C12,14.92 7.07,10 1,10M19,7H5V8.63C8.96,9.91 12.09,13.04 13.37,17H19M1,14V16A5,5 0 0,1 6,21H8A7,7 0 0,0 1,14M1,18V21H4A3,3 0 0,0 1,18Z';
+
+// Fake example media_player entity — mirrors a real Nest Hub Max playing
+// YouTube (generic title/artwork, no personal entity id or local proxy URL
+// baked into a file this builder ships publicly).
+const MEDIA_MOCK = {
+  friendly_name: 'Living Room Speaker',
+  state: 'playing', // off | idle | paused | playing | buffering | on
+  supported_features: 152511, // pause+seek+volume_set+volume_mute+prev+next+turn_on+turn_off+play_media+stop+play+browse_media
+  volume_level: 0.4,
+  is_volume_muted: false,
+  media_title: 'Example Song Title',
+  media_artist: 'Example Artist',
+  app_name: 'YouTube',
+  media_position: 1,
+  media_duration: 183,
+  shuffle: false,
+  repeat: 'off',
+};
+
+// Mirrors MediaPlayerCard.kt's Feature bitmask check (EntityState.supports).
+function mediaSupports(mock, bit) {
+  return ((mock.supported_features || 0) & bit) === bit;
+}
+const MEDIA_FEATURE = {
+  PAUSE: 1, SEEK: 2, VOLUME_SET: 4, VOLUME_MUTE: 8, PREVIOUS_TRACK: 16, NEXT_TRACK: 32,
+  TURN_ON: 128, TURN_OFF: 256, VOLUME_STEP: 1024, STOP: 4096, PLAY: 16384,
+  SHUFFLE_SET: 32768, REPEAT_SET: 262144,
+};
+
+// Mirrors MediaPlayerCard.kt's mediaStateLabel() — matches strings.xml/values-fr.
+function mediaStateLabel(state) {
+  switch (state) {
+    case 'playing': return 'Lecture';
+    case 'paused': return 'Pause';
+    case 'idle': return 'Inactif';
+    case 'buffering': return 'Chargement';
+    case 'on': return 'Allumé';
+    case 'off': default: return 'Éteint';
+  }
+}
+
+// Mirrors MediaPlayerCard.kt's computeMediaButtons() — same control set,
+// same supported_features gating, in the same order.
+function mediaComputeButtons(mock, controls) {
+  const out = [];
+  if (mock.state === 'off') {
+    if (controls.includes('on_off') && mediaSupports(mock, MEDIA_FEATURE.TURN_ON)) out.push({ icon: MDI.power, action: 'turn_on' });
+    return out;
+  }
+  if (controls.includes('on_off') && mediaSupports(mock, MEDIA_FEATURE.TURN_OFF)) out.push({ icon: MDI.power, action: 'turn_off' });
+  const activeish = ['playing', 'paused', 'idle', 'on'].includes(mock.state);
+  if (activeish && controls.includes('shuffle') && mediaSupports(mock, MEDIA_FEATURE.SHUFFLE_SET)) {
+    out.push({ icon: MDI.shuffle, action: 'shuffle_set', active: mock.shuffle === true });
+  }
+  if (activeish && controls.includes('previous') && mediaSupports(mock, MEDIA_FEATURE.PREVIOUS_TRACK)) {
+    out.push({ icon: MDI.skipPrevious, action: 'media_previous_track' });
+  }
+  if (controls.includes('play_pause')) {
+    if (mock.state === 'playing' && mediaSupports(mock, MEDIA_FEATURE.PAUSE)) out.push({ icon: MDI.pause, action: 'media_pause' });
+    else if (mock.state === 'playing' && mediaSupports(mock, MEDIA_FEATURE.STOP)) out.push({ icon: MDI.pause, action: 'media_stop' });
+    else if (['paused', 'idle', 'on'].includes(mock.state) && mediaSupports(mock, MEDIA_FEATURE.PLAY)) out.push({ icon: MDI.play, action: 'media_play' });
+  }
+  if (activeish && controls.includes('next') && mediaSupports(mock, MEDIA_FEATURE.NEXT_TRACK)) {
+    out.push({ icon: MDI.skipNext, action: 'media_next_track' });
+  }
+  if (activeish && controls.includes('repeat') && mediaSupports(mock, MEDIA_FEATURE.REPEAT_SET)) {
+    out.push({ icon: MDI.repeat, action: 'repeat_set', active: (mock.repeat || 'off') !== 'off' });
+  }
+  return out;
+}
+
+// Mirrors MediaPlayerCard.kt's computeVolumeButtons().
+function mediaComputeVolumeButtons(mock, controls) {
+  if (!mock || mock.state === 'off') return [];
+  const out = [];
+  if (controls.includes('mute') && mediaSupports(mock, MEDIA_FEATURE.VOLUME_MUTE)) {
+    out.push({ icon: mock.is_volume_muted ? MDI.volumeOff : MDI.volumeHigh, action: 'volume_mute' });
+  }
+  if (controls.includes('buttons') && mediaSupports(mock, MEDIA_FEATURE.VOLUME_STEP)) {
+    out.push({ icon: MDI.volumeOff, action: 'volume_down' });
+    out.push({ icon: MDI.volumeHigh, action: 'volume_up' });
+  }
+  return out;
 }

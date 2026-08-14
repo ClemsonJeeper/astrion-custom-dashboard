@@ -2,10 +2,10 @@ package com.custom.astrion.web
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Environment
 import android.provider.Settings
 import android.util.Log
+import androidx.core.net.toUri
 import com.custom.astrion.BuildConfig
 import com.custom.astrion.R
 import com.custom.astrion.config.DashboardLoader
@@ -70,28 +70,39 @@ class ConfigServer(
 
     override fun serve(session: IHTTPSession): Response {
         return try {
-            when {
-                session.method == Method.GET && session.uri == "/" -> serveForm()
-                session.method == Method.GET && session.uri == "/dashboard.json" -> serveDashboardJson()
-                session.method == Method.GET && session.uri == "/builder" -> redirect("/builder/")
-                session.method == Method.GET && session.uri.startsWith("/builder/") -> serveBuilderAsset(session.uri)
-                session.method == Method.GET && session.uri == "/harmony-config" -> serveHarmonyConfig(session)
-                session.method == Method.GET && session.uri == "/harmony-hubs" -> serveHarmonyHubs()
-                session.method == Method.GET && session.uri == "/harmony-discover" -> serveHarmonyDiscover(session)
-                session.method == Method.POST && session.uri == "/save-connection" -> handleSaveConnection(session)
-                session.method == Method.POST && session.uri == "/dashboard.json" -> handleDashboardUpload(session)
-                session.method == Method.POST && session.uri == "/icons" -> handleIconUpload(session)
-                session.method == Method.GET && session.uri == "/icons-list" -> serveIconsList()
-                session.method == Method.GET && session.uri.startsWith("/icons/") -> serveIcon(session.uri)
-                session.method == Method.GET && session.uri == "/check-update" -> handleCheckUpdate()
-                session.method == Method.POST && session.uri == "/install-update" -> handleInstallUpdate()
-                else -> newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found")
+            val method = session.method
+            when (val uri = session.uri) {
+                "/" -> if (method == Method.GET) serveForm() else methodNotAllowed()
+                "/dashboard.json" ->
+                    when (method) {
+                        Method.GET -> serveDashboardJson()
+                        Method.POST -> handleDashboardUpload(session)
+                        else -> methodNotAllowed()
+                    }
+                "/builder" -> if (method == Method.GET) redirectBuilder() else methodNotAllowed()
+                "/harmony-config" -> if (method == Method.GET) serveHarmonyConfig(session) else methodNotAllowed()
+                "/harmony-hubs" -> if (method == Method.GET) serveHarmonyHubs() else methodNotAllowed()
+                "/harmony-discover" -> if (method == Method.GET) serveHarmonyDiscover(session) else methodNotAllowed()
+                "/icons-list" -> if (method == Method.GET) serveIconsList() else methodNotAllowed()
+                "/check-update" -> if (method == Method.GET) handleCheckUpdate() else methodNotAllowed()
+                "/save-connection" -> if (method == Method.POST) handleSaveConnection(session) else methodNotAllowed()
+                "/icons" -> if (method == Method.POST) handleIconUpload(session) else methodNotAllowed()
+                "/install-update" -> if (method == Method.POST) handleInstallUpdate() else methodNotAllowed()
+                else ->
+                    when {
+                        uri.startsWith("/builder/") -> if (method == Method.GET) serveBuilderAsset(uri) else methodNotAllowed()
+                        uri.startsWith("/icons/") -> if (method == Method.GET) serveIcon(uri) else methodNotAllowed()
+                        else -> newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found")
+                    }
             }
         } catch (e: Exception) {
             Log.e("ConfigServer", "request failed", e)
             newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Error: ${e.message}")
         }
     }
+
+    private fun methodNotAllowed(): Response =
+        newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, "text/plain", "Method not allowed")
 
     // ---- pages --------------------------------------------------------------
 
@@ -345,8 +356,6 @@ class ConfigServer(
 
     private fun svgImage() = """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.4" fill="currentColor" stroke="none"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg>"""
 
-    private fun svgRefresh() = """<svg class="icon" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>"""
-
     /** One repeatable hub row — also used (with blank values) as the JS `+` template. */
     private fun hubRowHtml(hub: HarmonyHubConfig): String {
         val fetchLink =
@@ -400,7 +409,7 @@ class ConfigServer(
         val bytes =
             try {
                 context.assets.open(assetPath).use { it.readBytes() }
-            } catch (e: java.io.FileNotFoundException) {
+            } catch (_: java.io.FileNotFoundException) {
                 return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found: $assetPath")
             }
         val mime =
@@ -421,9 +430,9 @@ class ConfigServer(
     /** 302 redirect — used to send /builder to /builder/ so index.html's
      * relative asset paths (js/x.js, styles.css, remote.png) resolve
      * against the right base instead of the server root. */
-    private fun redirect(location: String): Response {
+    private fun redirectBuilder(): Response {
         val response = newFixedLengthResponse(Response.Status.REDIRECT, "text/plain", "")
-        response.addHeader("Location", location)
+        response.addHeader("Location", "/builder/")
         return response
     }
 
@@ -454,7 +463,7 @@ class ConfigServer(
      * fetched straight from the hub. `?hub=<localId>` picks which configured
      * hub to query; omitted or unknown falls back to the first one. Meant to
      * be called from this page's "Fetch config" link, and later from an
-     * in-app dashboard builder to auto-fill device/command pickers instead
+     * in-app dashboard builder to autofill device/command pickers instead
      * of typing IDs by hand.
      */
     private fun serveHarmonyConfig(session: IHTTPSession): Response {
@@ -573,7 +582,7 @@ class ConfigServer(
 
     private fun handleSaveConnection(session: IHTTPSession): Response {
         val files = HashMap<String, String>()
-        session.parseBody(files) // reads the request body ONCE; also populates session.parameters for a urlencoded POST
+        session.parseBody(files) // reads the request body ONCE; also populates session.parameters for an urlencoded POST
         val params = session.parameters
 
         RemoteSettings.saveHaConnection(
@@ -697,13 +706,13 @@ class ConfigServer(
                     },
                 )
 
-        // Ask first instead of letting the install intent fail: on Android 8+
+        // Ask first instead of letting the installation intent fail: on Android 8+
         // this permission is granted per-app in Settings, not at install time.
         if (!context.packageManager.canRequestPackageInstalls()) {
             val settingsIntent =
                 Intent(
                     Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                    Uri.parse("package:${context.packageName}"),
+                    "package:${context.packageName}".toUri(),
                 ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             runCatching { context.startActivity(settingsIntent) }
             return redirectHome(context.getString(R.string.web_config_update_needs_permission))

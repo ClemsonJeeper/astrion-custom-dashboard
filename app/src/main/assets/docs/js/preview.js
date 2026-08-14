@@ -5,14 +5,23 @@ function renderTabs() {
   tabsContainer.innerHTML = '';
   dashboardData.pages.forEach((page, index) => {
     const tab = document.createElement('div');
-    tab.className = `tab ${index === currentActivePage ? 'active' : ''}`;
-    tab.innerText = page.name;
-    tab.onclick = () => {
-      currentActivePage = index;
-      document.getElementById('pageSelect').value = index;
-      cancelCardEdit();
-      renderTabs(); renderPreview(); renderHotkeysList();
-    };
+    const isActive = index === currentActivePage;
+    tab.className = `tab ${isActive ? 'active' : ''}`;
+
+    const label = document.createElement('span');
+    label.textContent = page.name + (index === dashboardData.startPage ? ' 🏠' : '');
+    tab.appendChild(label);
+    tab.onclick = () => onPageChange(index);
+
+    if (isActive) {
+      const gear = document.createElement('span');
+      gear.className = 'tab-settings';
+      gear.title = 'Page settings';
+      gear.textContent = '⚙';
+      gear.onclick = (e) => { e.stopPropagation(); openPageDialog(index); };
+      tab.appendChild(gear);
+    }
+
     tabsContainer.appendChild(tab);
   });
 }
@@ -37,17 +46,84 @@ function openPreviewModal() {
   screen.onclick = null;
   slot.appendChild(screen);
   document.getElementById('previewModal').classList.add('open');
+  updateRemoteScreenScale();
 }
 
 function closePreviewModal() {
   const screen = document.querySelector('.remote-screen');
-  const frame = document.querySelector('.remote-frame');
-  if (!screen || !frame) return;
+  // .remote-screen now lives inside .remote-screen-container (the frame's
+  // screen cutout), not directly inside .remote-frame — since the SANYTRON
+  // HTML/CSS frame replaced remote.png.
+  const container = document.querySelector('.remote-screen-container');
+  if (!screen || !container) return;
   screen.classList.remove('expanded');
   screen.onclick = () => openPreviewModal();
-  frame.appendChild(screen);
+  container.appendChild(screen);
   document.getElementById('previewModal').classList.remove('open');
+  updateRemoteScreenScale();
 }
+
+// .remote-screen-scaler is always built at the device's true dp size (349px
+// wide — see the CSS comment above .remote-screen-scaler in styles.css for
+// the math). This scales it via a CSS transform to exactly fill whatever
+// pixel width .remote-screen currently renders at, so every element's raw-px
+// sizing (copied 1:1 from the app's dp/sp values) stays proportionally
+// correct whether it's the small in-frame thumbnail, the expanded modal, or
+// anything in between if the window gets resized.
+function updateRemoteScreenScale() {
+  const screen = document.querySelector('.remote-screen');
+  const scaler = document.querySelector('.remote-screen-scaler');
+  if (!screen || !scaler || screen.clientWidth === 0) return;
+  scaler.style.transform = `scale(${screen.clientWidth / 349})`;
+}
+
+(function watchRemoteScreenSize() {
+  const screen = document.querySelector('.remote-screen');
+  if (!screen) return;
+  if (typeof ResizeObserver !== 'undefined') {
+    // Recomputes on every layout change: initial paint, window resize, and
+    // the expand/collapse toggle above (belt-and-braces — that already
+    // calls updateRemoteScreenScale() directly too).
+    new ResizeObserver(updateRemoteScreenScale).observe(screen);
+  } else {
+    // Older WebView fallback with no ResizeObserver support.
+    window.addEventListener('resize', updateRemoteScreenScale);
+    updateRemoteScreenScale();
+  }
+})();
+
+// .remote-frame is a fixed 208x880px design (the SANYTRON HTML/CSS
+// recreation replacing remote.png). This scales the whole frame down via a
+// CSS transform to fit .remote-frame-scale-wrap's actual available width —
+// same idea as updateRemoteScreenScale() above, one level out. Deliberately
+// sets the wrapper's height in px from JS rather than CSS `aspect-ratio`:
+// that property turned out unreliable across browsers/webviews for the old
+// remote.png crop and cost a debugging round-trip, so this preview avoids
+// it entirely. Never scales up past 1:1 — the frame just centers with
+// spare room on wide screens instead of blurring.
+function updateRemoteFrameScale() {
+  const wrap = document.querySelector('.remote-frame-scale-wrap');
+  const frame = document.querySelector('.remote-frame');
+  if (!wrap || !frame || wrap.clientWidth === 0) return;
+  const scale = Math.min(wrap.clientWidth / 208, 1);
+  frame.style.transform = `scale(${scale})`;
+  wrap.style.height = `${Math.round(880 * scale)}px`;
+}
+
+(function watchRemoteFrameSize() {
+  // Observes .preview-pane (the outer column), NOT .remote-frame-scale-wrap
+  // itself — updateRemoteFrameScale() writes .remote-frame-scale-wrap's own
+  // height, so observing it directly would have the callback re-trigger
+  // itself on every call.
+  const pane = document.querySelector('.preview-pane');
+  if (!pane) return;
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(updateRemoteFrameScale).observe(pane);
+  } else {
+    window.addEventListener('resize', updateRemoteFrameScale);
+  }
+  updateRemoteFrameScale();
+})();
 
 function renderPreview() {
   const contentContainer = document.getElementById('content');
@@ -241,6 +317,7 @@ function renderPreview() {
       const o = card.options || {};
       const name = o.name || o.entity_id || COVER_MOCK.friendly_name;
       const position = COVER_MOCK.current_position; // 0..100
+      const tilt = COVER_MOCK.current_tilt_position; // 0..100
       const isOpen = position != null ? position >= 100 : COVER_MOCK.state === 'open';
       const isClosed = position != null ? position <= 0 : COVER_MOCK.state === 'closed';
       const stateLabel = coverPositionLabel(position, COVER_MOCK.state);
@@ -254,6 +331,19 @@ function renderPreview() {
       // the icon mid-move; the up/down/stop buttons are the real-time cue).
       const iconPath = showOpenIcon ? MDI.windowShutterOpen : MDI.windowShutterClosed;
 
+      // Mirrors CoverCard.kt: if none of the 3 flags are set at all, fall
+      // back to "buttons only" so untouched configs preview exactly as
+      // they always have.
+      const hasCoverCtrlOpts = ('show_buttons_control' in o) || ('show_position_control' in o) || ('show_tilt_position_control' in o);
+      const ctrlButtons = hasCoverCtrlOpts ? (o.show_buttons_control === true) : true;
+      const ctrlPosition = o.show_position_control === true;
+      const ctrlTilt = o.show_tilt_position_control === true;
+      const enabledControls = [];
+      if (ctrlButtons) enabledControls.push('buttons');
+      if (ctrlPosition) enabledControls.push('position');
+      if (ctrlTilt) enabledControls.push('tilt');
+      const activeControl = enabledControls[0]; // preview shows the first — on-device a button cycles through the rest
+
       const iconHtml = (big) => `<div class="pc-icon${big ? ' pc-icon-lg' : ''}">${mdiSvg(iconPath)}</div>`;
       const nameStateHtml = (center) => `
         <div class="pc-namestate${center ? ' pc-center' : ''}">
@@ -262,32 +352,46 @@ function renderPreview() {
         </div>`;
       const btnHtml = (path, disabled) => `<div class="pc-btn${disabled ? ' pc-disabled' : ''}">${mdiSvg(path)}</div>`;
       // Up disabled once fully open, down disabled once fully closed — mirrors CoverCard.kt.
-      const controlsHtml = (full) => `
+      const buttonsHtml = (full) => `
         <div class="pc-controls${full ? ' pc-full' : ''}">
           ${btnHtml(MDI.coverUp, isOpen)}
           ${btnHtml(MDI.stop, false)}
           ${btnHtml(MDI.coverDown, isClosed)}
         </div>`;
+      const sliderHtml = (value, color) => `
+        <div class="pc-slider" style="background:${color}22">
+          <div class="pc-slider-fill" style="width:${value}%; background:${color}"></div>
+          <div class="pc-slider-label">${value}%</div>
+        </div>`;
+      const cycleBtnHtml = enabledControls.length > 1 ? `<div class="pc-cycle-btn" title="Cycles through: ${enabledControls.join(', ')}">${mdiSvg(MDI.chevronRight)}</div>` : '';
+      const controlsHtml = (full) => {
+        let inner;
+        if (activeControl === 'position') inner = sliderHtml(position, '#6FA8DC');
+        else if (activeControl === 'tilt') inner = sliderHtml(tilt, '#8FBF7F');
+        else if (activeControl === 'buttons') inner = buttonsHtml(full);
+        else return '';
+        return `<div style="display:flex; align-items:center; gap:8px; width:100%;"><div style="flex:1; min-width:0;">${inner}</div>${cycleBtnHtml}</div>`;
+      };
 
       let bodyHtml;
       if (layout === 'horizontal') {
-        // icon + name/state on the left, buttons on the right — single row.
+        // icon + name/state on the left, controls on the right — single row.
         bodyHtml = `
           <div class="preview-cover layout-horizontal">
             ${iconHtml(false)}
             <div style="flex:1; min-width:0;">${nameStateHtml(false)}</div>
-            ${controlsHtml(false)}
+            <div style="width:140px;">${controlsHtml(false)}</div>
           </div>`;
       } else if (layout === 'vertical') {
-        // icon, name, state, buttons — all centered and stacked.
+        // icon, name, state, controls — all centered and stacked.
         bodyHtml = `
           <div class="preview-cover layout-vertical">
             ${iconHtml(true)}
             ${nameStateHtml(true)}
-            ${controlsHtml(false)}
+            ${controlsHtml(true)}
           </div>`;
       } else {
-        // "default": icon + name/state row, buttons full-width below.
+        // "default": icon + name/state row, controls full-width below.
         bodyHtml = `
           <div class="preview-cover layout-default">
             <div style="display:flex; align-items:center; gap:12px;">
@@ -302,7 +406,7 @@ function renderPreview() {
         <div class="card">
           <div class="card-title"><span>cover</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
           ${bodyHtml}
-          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'cover.entity'} · Layout: ${layout} · example data (${COVER_MOCK.friendly_name}, ${position}% open)</div>
+          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'cover.entity'} · Layout: ${layout} · Controls: ${enabledControls.join(', ') || 'none'} · example data (${COVER_MOCK.friendly_name}, ${position}% open${ctrlTilt ? `, tilt ${tilt}%` : ''})</div>
         </div>`;
     } else if (card.type === 'light') {
       const o = card.options || {};
@@ -324,7 +428,24 @@ function renderPreview() {
       const iconBg = !isOn ? '#2A4954' : (lightColorCss ? `rgba(${r},${g},${b},0.22)` : '#FFC24B');
       const iconTint = !isOn ? '#B6C9CE' : (lightColorCss || '#241A00');
       const barColor = lightColorCss || '#FFC24B';
-      const showBar = isOn && showBrightness && brightnessPct != null;
+
+      // Mirrors LightCard.kt: if none of the 3 flags are set at all, fall
+      // back to "brightness control only" so untouched configs preview
+      // exactly as they always have.
+      const supportedModes = LIGHT_MOCK.supported_color_modes || [];
+      const supportsColor = supportedModes.some(m => ['hs', 'rgb', 'rgbw', 'rgbww', 'xy'].includes(m));
+      const supportsColorTemp = supportedModes.includes('color_temp');
+      const hasLightCtrlOpts = ('show_brightness_control' in o) || ('show_color_temp_control' in o) || ('show_color_control' in o);
+      const ctrlBrightness = hasLightCtrlOpts ? (o.show_brightness_control === true) : true;
+      const ctrlColorTemp = o.show_color_temp_control === true && supportsColorTemp;
+      const ctrlColor = o.show_color_control === true && supportsColor;
+      const collapsible = o.collapsible_controls === true;
+      const enabledControls = [];
+      if (ctrlBrightness) enabledControls.push('brightness');
+      if (ctrlColorTemp) enabledControls.push('color_temp');
+      if (ctrlColor) enabledControls.push('color');
+      const controlsVisible = enabledControls.length > 0 && (!collapsible || isOn);
+      const activeControl = enabledControls[0]; // preview shows the first — on-device a button cycles through the rest
 
       const iconHtml = (big) => `<div class="pc-icon pl-icon${big ? ' pc-icon-lg' : ''}" style="background:${iconBg}; color:${iconTint}">${mdiSvg(iconPath)}</div>`;
       const nameStateHtml = (center) => `
@@ -332,32 +453,57 @@ function renderPreview() {
           <div class="pc-name">${name}</div>
           <div class="pc-state">${stateLabel}</div>
         </div>`;
-      const barHtml = `<div class="pl-bar"><div class="pl-bar-fill" style="width:${brightnessPct}%; background:${barColor}"></div></div>`;
+      const brightnessSliderHtml = `
+        <div class="pc-slider" style="background:${barColor}22">
+          <div class="pc-slider-fill" style="width:${brightnessPct ?? 0}%; background:${barColor}"></div>
+          <div class="pc-slider-label">${brightnessPct ?? 0}%</div>
+        </div>`;
+      const colorTempSliderHtml = `
+        <div class="pc-slider" style="background:linear-gradient(90deg,#FFB366,#FFF3E0,#9EC8FF)">
+          <div class="pc-slider-label" style="color:#241A00">${LIGHT_MOCK.color_temp_kelvin}K</div>
+        </div>`;
+      const colorSwatchesHtml = `
+        <div class="pl-color-row">
+          ${['#F44336', '#FF9800', '#FFEB3B', '#4CAF50', '#00BCD4', '#2196F3', '#9C27B0', '#FFFFFF']
+            .map(c => `<div class="pl-swatch" style="background:${c}"></div>`).join('')}
+        </div>`;
+      const cycleBtnHtml = enabledControls.length > 1 ? `<div class="pc-cycle-btn" title="Cycles through: ${enabledControls.join(', ')}">${mdiSvg(MDI.chevronRight)}</div>` : '';
+      const controlsHtml = () => {
+        if (!controlsVisible) return '';
+        let inner;
+        if (activeControl === 'brightness') inner = brightnessSliderHtml;
+        else if (activeControl === 'color_temp') inner = colorTempSliderHtml;
+        else if (activeControl === 'color') inner = colorSwatchesHtml;
+        else return '';
+        return `<div style="display:flex; align-items:center; gap:8px; width:100%;"><div style="flex:1; min-width:0;">${inner}</div>${cycleBtnHtml}</div>`;
+      };
 
       let bodyHtml;
       if (layout === 'horizontal') {
-        // icon + name/state, single row, no bar.
+        // icon + name/state on the left, controls on the right — single row.
         bodyHtml = `
           <div class="preview-light layout-horizontal">
             ${iconHtml(false)}
             <div style="flex:1; min-width:0;">${nameStateHtml(false)}</div>
+            <div style="width:140px;">${controlsHtml()}</div>
           </div>`;
       } else if (layout === 'vertical') {
-        // icon, name, state — all centered and stacked.
+        // icon, name, state, controls — all centered and stacked.
         bodyHtml = `
           <div class="preview-light layout-vertical">
             ${iconHtml(true)}
             ${nameStateHtml(true)}
+            ${controlsHtml()}
           </div>`;
       } else {
-        // "default": icon + name/state row, brightness bar full-width below.
+        // "default": icon + name/state row, controls full-width below.
         bodyHtml = `
           <div class="preview-light layout-default">
             <div style="display:flex; align-items:center; gap:12px;">
               ${iconHtml(false)}
               ${nameStateHtml(false)}
             </div>
-            ${showBar ? barHtml : ''}
+            ${controlsHtml()}
           </div>`;
       }
 
@@ -365,7 +511,84 @@ function renderPreview() {
         <div class="card">
           <div class="card-title"><span>light</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
           ${bodyHtml}
-          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'light.entity'} · Layout: ${layout}${useLightColor ? ' · icon tinted with light colour' : ''} · example data (${LIGHT_MOCK.friendly_name}, ${brightnessPct}%)</div>
+          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'light.entity'} · Layout: ${layout}${useLightColor ? ' · icon tinted with light colour' : ''} · Controls: ${enabledControls.join(', ') || 'none'}${collapsible ? ' (hidden while off)' : ''} · example data (${LIGHT_MOCK.friendly_name}, ${brightnessPct}%)</div>
+        </div>`;
+    } else if (card.type === 'media_player') {
+      const o = card.options || {};
+      const mock = MEDIA_MOCK;
+      const full = o.variant === 'full';
+      const useMediaInfo = o.use_media_info !== false;
+      const showVolumeLevel = o.show_volume_level === true;
+      const mediaControls = (o.media_controls || 'previous,play_pause,next').split(',').map(s => s.trim()).filter(Boolean);
+      const volumeControls = (o.volume_controls || 'mute,buttons').split(',').map(s => s.trim()).filter(Boolean);
+
+      const title = useMediaInfo ? (mock.media_title || o.name || mock.friendly_name) : (o.name || mock.friendly_name);
+      const subtitle = useMediaInfo ? (mock.media_artist || mock.app_name) : null;
+      let stateLine = subtitle || mediaStateLabel(mock.state);
+      if (showVolumeLevel) stateLine += ` ⸱ ${Math.round((mock.volume_level || 0) * 100)}%`;
+
+      const mediaButtons = mediaComputeButtons(mock, mediaControls);
+      const volumeButtons = mediaComputeVolumeButtons(mock, volumeControls);
+      const hasVolumeSlider = volumeControls.includes('set') && mediaSupports(mock, MEDIA_FEATURE.VOLUME_SET);
+
+      const btnHtml = (b, full, tint) => {
+        const isPlayPause = b.action === 'media_play' || b.action === 'media_pause';
+        const classes = [full ? 'pm-full-btn' : 'pm-btn'];
+        if (full && isPlayPause) classes.push('pm-big');
+        if (tint && (b.active || isPlayPause)) classes.push('pm-accent');
+        return `<div class="${classes.join(' ')}">${mdiSvg(b.icon)}</div>`;
+      };
+
+      let bodyHtml;
+      if (full) {
+        const fraction = mock.media_duration > 0 ? Math.min(1, (mock.media_position || 0) / mock.media_duration) : 0;
+        const fmtTime = (s) => { const m = Math.floor(s / 60); const sec = Math.floor(s % 60); return `${m}:${String(sec).padStart(2, '0')}`; };
+        bodyHtml = `
+          <div class="preview-media-full">
+            <div class="pm-art">${mdiSvg(mock.state === 'off' ? MDI.castOff : MDI.cast)}</div>
+            <div>
+              <div class="pm-full-title">${title}</div>
+              <div class="pm-full-subtitle">${subtitle || mediaStateLabel(mock.state)}</div>
+            </div>
+            <div style="width:100%">
+              <div class="pm-progress"><div class="pm-progress-fill" style="width:${fraction * 100}%"></div></div>
+              <div style="display:flex; justify-content:space-between; margin-top:4px;"><small style="color:#93AFB6">${fmtTime(mock.media_position)}</small><small style="color:#93AFB6">${fmtTime(mock.media_duration)}</small></div>
+            </div>
+            ${mediaButtons.length ? `<div class="pm-full-controls">${mediaButtons.map(b => btnHtml(b, true, true)).join('')}</div>` : ''}
+            ${(volumeButtons.length || hasVolumeSlider) ? `<div class="pm-full-controls">${hasVolumeSlider ? '<div style="flex:1; height:8px; border-radius:4px; background:#152B33; margin:0 8px;"><div style="width:' + Math.round((mock.volume_level || 0) * 100) + '%; height:100%; border-radius:4px; background:#4C6EF5;"></div></div>' : ''}${volumeButtons.map(b => btnHtml(b, true, false)).join('')}</div>` : ''}
+          </div>`;
+      } else {
+        const hasMediaGroup = mediaButtons.length > 0;
+        const hasVolumeGroup = volumeButtons.length > 0 || hasVolumeSlider;
+        // Preview always shows the media (transport) group first when both
+        // exist — the app itself starts on whichever group is available,
+        // and lets the user tap the swap button to flip to the other.
+        const showingVolume = !hasMediaGroup && hasVolumeGroup;
+        const activeButtons = showingVolume ? volumeButtons : mediaButtons;
+        const avatarIcon = mock.state === 'off' ? MDI.castOff : MDI.cast;
+        bodyHtml = `
+          <div class="preview-media">
+            <div class="pm-row">
+              <div class="pm-avatar">${mdiSvg(avatarIcon)}</div>
+              <div class="pc-namestate" style="flex:1; min-width:0;">
+                <div class="pc-name">${title}</div>
+                <div class="pc-state">${stateLine}</div>
+              </div>
+            </div>
+            ${(hasMediaGroup || hasVolumeGroup) ? `
+            <div class="pm-controls">
+              ${showingVolume && hasVolumeSlider ? '<div style="flex:1; height:36px; border-radius:10px; background:#152B33;"><div style="width:' + Math.round((mock.volume_level || 0) * 100) + '%; height:100%; border-radius:10px; background:#4C6EF5;"></div></div>' : ''}
+              ${activeButtons.map(b => btnHtml(b, false, true)).join('')}
+              ${(hasMediaGroup && hasVolumeGroup) ? `<div class="pm-btn pm-swap">${mdiSvg(showingVolume ? MDI.play : MDI.volumeHigh)}</div>` : ''}
+            </div>` : ''}
+          </div>`;
+      }
+
+      cardEl.innerHTML = `
+        <div class="card">
+          <div class="card-title"><span>media_player (${full ? 'full' : 'compact'})</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
+          ${bodyHtml}
+          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'media_player.entity'} · example data (${mock.friendly_name}, ${mock.state}) · long-press the compact tile in-app opens the detail dialog</div>
         </div>`;
     } else if (card.type === 'button_grid' || card.type === 'scene_grid') {
       const isScene = card.type === 'scene_grid';
@@ -428,5 +651,61 @@ function renderPreview() {
         <small style="color:#888">${card.options?.entity_id || card.options?.remote_entity || ''}</small></div>`;
     }
     contentContainer.appendChild(cardEl);
+  });
+
+  enhanceCardControls(contentContainer);
+}
+
+// ---- HA-style card controls: reorder (drag or arrows) ----------------------
+// Applied uniformly to every card wrapper appended above instead of touching
+// each card type's own template string. Adds ↑/↓ buttons next to the
+// existing ✎/✕ icons in .card-title, and makes the whole card draggable so
+// it can be dropped onto another card's position, same idea as dragging a
+// card in the Home Assistant dashboard editor.
+function enhanceCardControls(contentContainer) {
+  const cardEls = Array.from(contentContainer.children);
+  cardEls.forEach((cardEl, idx) => {
+    const titleBar = cardEl.querySelector('.card-title');
+    if (titleBar) {
+      const iconsSpan = titleBar.querySelector('span:last-child');
+      if (iconsSpan && !iconsSpan.querySelector('.card-move-up')) {
+        const upSpan = document.createElement('span');
+        upSpan.className = 'remove card-move-up';
+        upSpan.title = 'Move up';
+        upSpan.textContent = '↑';
+        upSpan.style.opacity = idx === 0 ? '0.3' : '1';
+        upSpan.style.cursor = idx === 0 ? 'default' : 'pointer';
+        if (idx > 0) upSpan.onclick = () => moveCard(idx, -1);
+
+        const downSpan = document.createElement('span');
+        downSpan.className = 'remove card-move-down';
+        downSpan.title = 'Move down';
+        downSpan.textContent = '↓';
+        downSpan.style.opacity = idx === cardEls.length - 1 ? '0.3' : '1';
+        downSpan.style.cursor = idx === cardEls.length - 1 ? 'default' : 'pointer';
+        if (idx < cardEls.length - 1) downSpan.onclick = () => moveCard(idx, 1);
+
+        iconsSpan.prepend(downSpan, upSpan);
+      }
+    }
+
+    cardEl.classList.add('ha-draggable-card');
+    cardEl.setAttribute('draggable', 'true');
+    cardEl.dataset.cardIdx = String(idx);
+    cardEl.addEventListener('dragstart', (e) => {
+      cardEl.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(idx));
+    });
+    cardEl.addEventListener('dragend', () => cardEl.classList.remove('dragging'));
+    cardEl.addEventListener('dragover', (e) => { e.preventDefault(); cardEl.classList.add('drag-over'); });
+    cardEl.addEventListener('dragleave', () => cardEl.classList.remove('drag-over'));
+    cardEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      cardEl.classList.remove('drag-over');
+      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      const toIdx = parseInt(cardEl.dataset.cardIdx, 10);
+      if (!isNaN(fromIdx) && !isNaN(toIdx) && fromIdx !== toIdx) reorderCard(fromIdx, toIdx);
+    });
   });
 }

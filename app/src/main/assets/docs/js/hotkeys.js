@@ -64,6 +64,39 @@ function renderHotkeysList() {
   addRows(page.longHotkeys, 'page', 'longHotkeys', 'Page, long');
 
   if (!container.innerHTML.trim()) container.innerHTML = '<div class="hint">No hotkeys yet.</div>';
+
+  updateHardwareKeyHighlights();
+}
+
+// Highlights the physical buttons on the remote-frame preview that already
+// have a hotkey bound — either globally (works on every page) or for the
+// currently active page/tab. Cyan glow = bound to a short press, amber glow
+// = bound to a long press only; a button bound to both gets the cyan glow
+// plus a small amber outline ring layered on top. Mirrors the real device's
+// on-press glow (see .hw-btn:hover in styles.css) so it's obvious at a
+// glance which buttons already do something, and updates automatically
+// every time this runs (add/edit/remove hotkey, switch page, add/rename/
+// remove a page — see the other renderHotkeysList() call sites).
+function updateHardwareKeyHighlights() {
+  const buttons = document.querySelectorAll('[data-hwkey]');
+  if (!buttons.length) return;
+  const page = dashboardData.pages[currentActivePage];
+  const shortKeys = new Set(
+    [...(dashboardData.hotkeys || []), ...((page && page.hotkeys) || [])].map((h) => h.key),
+  );
+  const longKeys = new Set(
+    [...(dashboardData.longHotkeys || []), ...((page && page.longHotkeys) || [])].map((h) => h.key),
+  );
+
+  buttons.forEach((el) => {
+    const key = el.dataset.hwkey;
+    el.classList.remove('hw-assigned', 'hw-assigned-long-only', 'hw-has-long');
+    const hasShort = shortKeys.has(key);
+    const hasLong = longKeys.has(key);
+    if (hasShort && hasLong) el.classList.add('hw-assigned', 'hw-has-long');
+    else if (hasShort) el.classList.add('hw-assigned');
+    else if (hasLong) el.classList.add('hw-assigned-long-only');
+  });
 }
 
 async function editHotkey(scope, listType, i) {

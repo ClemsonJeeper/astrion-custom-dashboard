@@ -1,0 +1,281 @@
+package com.custom.astrion.cards.impl
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.custom.astrion.ha.EntityState
+import com.custom.astrion.ha.HaClient
+import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.icons.MdiIcons
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * Long-press detail popup for [MediaPlayerCard]'s compact tile (mirrors
+ * [LightDetailDialog] / [CoverDetailDialog]'s long-press-for-detail pattern):
+ * large album art, a live progress bar, the full transport row, a volume
+ * slider with mute, and — only when the entity reports the feature — a
+ * power toggle.
+ *
+ * Everything fires standard `media_player.*` services; buttons are the same
+ * feature-gated set [MediaPlayerCard] uses for its own rows, just always
+ * requesting every key so nothing is hidden here by a compact-card config.
+ */
+@Composable
+fun MediaPlayerDetailDialog(
+    entityId: String,
+    name: String,
+    e: EntityState?,
+    client: HaClient,
+    onClose: () -> Unit,
+) {
+    val mediaButtons = remember(e) { computeMediaButtons(e, MediaPlayerCard.MEDIA_CONTROL_KEYS) }
+    val volumeButtons = remember(e) { computeVolumeButtons(e, listOf("mute")) }
+    val hasVolumeSet = e?.supports(Feature.VOLUME_SET) == true
+    val hasVolumeStep = e?.supports(Feature.VOLUME_STEP) == true
+
+    val title = e?.attrString("media_title") ?: name
+    val subtitle =
+        e?.attrString("media_artist")
+            ?: e?.attrString("media_series_title")
+            ?: e?.attrString("app_name")
+
+    val artPath = e?.attrString("entity_picture")
+    var art by remember(artPath) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(artPath) { art = artPath?.let { client.fetchBitmap(it) } }
+
+    fun mp(
+        service: String,
+        data: Array<out Pair<String, Any?>> = emptyArray(),
+    ) {
+        client.callService(ServiceCall.of("media_player", service, entityId, *data))
+    }
+
+    Dialog(onDismissRequest = onClose) {
+        Column(
+            modifier =
+                Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color(0xFF1B343D))
+                    .padding(20.dp)
+                    .width(300.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            val artMod = Modifier.fillMaxWidth().aspectRatio(1.3f).clip(RoundedCornerShape(18.dp))
+            if (art != null) {
+                Image(art!!, null, modifier = artMod, contentScale = ContentScale.Crop)
+            } else {
+                val isOff = e == null || e.state == "off" || e.isUnavailable
+                Box(artMod.background(Color(0xFF3A2E5A)), contentAlignment = Alignment.Center) {
+                    Icon(
+                        if (isOff) MdiIcons.CastOff else MdiIcons.Cast,
+                        contentDescription = null,
+                        tint = Color(0x99FFFFFF),
+                        modifier = Modifier.size(48.dp),
+                    )
+                }
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    title,
+                    color = Color(0xFFE6F0F1),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    subtitle ?: mediaStateLabel(e?.state),
+                    color = Color(0xFF93AFB6),
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
+            if (e != null && e.attrDouble("media_duration") != null) {
+                DialogProgressBar(e)
+            }
+
+            if (mediaButtons.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    mediaButtons.forEach { b ->
+                        val big = b.action == "media_play" || b.action == "media_pause"
+                        Circle(b.icon, if (big) 60.dp else 46.dp, accent = big || b.active) {
+                            mp(b.action, b.data.toTypedArray())
+                        }
+                    }
+                }
+            }
+
+            if (hasVolumeSet || hasVolumeStep || volumeButtons.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    volumeButtons.forEach { b -> Circle(b.icon, 40.dp) { mp(b.action, b.data.toTypedArray()) } }
+                    if (hasVolumeSet) {
+                        DialogVolumeSlider(entityId, e, Modifier.weight(1f)) { level ->
+                            mp("volume_set", arrayOf("volume_level" to level))
+                        }
+                    } else if (hasVolumeStep) {
+                        Circle(MdiIcons.VolumeOff, 40.dp) { mp("volume_down") }
+                        Circle(MdiIcons.VolumeHigh, 40.dp) { mp("volume_up") }
+                    }
+                }
+            }
+
+            if (e?.supports(Feature.TURN_ON) == true || e?.supports(Feature.TURN_OFF) == true) {
+                // media_player has no generic "toggle" service (unlike light/switch) —
+                // fire turn_on/turn_off explicitly based on the live state instead.
+                val on = e.state != "off"
+                Box(
+                    modifier =
+                        Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(if (on) Color(0xFF4C6EF5) else Color(0xFF2C4C58))
+                            .clickable { mp(if (on) "turn_off" else "turn_on") },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(MdiIcons.Power, contentDescription = "Toggle", tint = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DialogProgressBar(e: EntityState) {
+    val duration = e.attrDouble("media_duration") ?: 0.0
+    var elapsed by remember(e.entityId, e.attrString("media_content_id")) {
+        mutableDoubleStateOf(currentMediaPosition(e))
+    }
+    LaunchedEffect(e.entityId, e.state, e.attrString("media_content_id")) {
+        while (e.state == "playing") {
+            elapsed = currentMediaPosition(e)
+            kotlinx.coroutines.delay(1.seconds)
+        }
+        elapsed = currentMediaPosition(e)
+    }
+    val fraction = if (duration > 0) (elapsed / duration).toFloat().coerceIn(0f, 1f) else 0f
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0xFF152B33)),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(fraction.coerceAtLeast(0.01f))
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0xFF4C6EF5)),
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(formatMediaTime(elapsed), color = Color(0xFF93AFB6), fontSize = 11.sp)
+            Text(formatMediaTime(duration), color = Color(0xFF93AFB6), fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun DialogVolumeSlider(
+    entityId: String,
+    e: EntityState?,
+    modifier: Modifier,
+    onCommit: (Float) -> Unit,
+) {
+    val level = (e?.attrDouble("volume_level") ?: 0.0).toFloat().coerceIn(0f, 1f)
+    var dragLevel by remember(entityId) { mutableStateOf<Float?>(null) }
+    val shown = dragLevel ?: level
+    Box(
+        modifier =
+            modifier
+                .height(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFF152B33))
+                .pointerInput(entityId) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = { dragLevel?.let(onCommit); dragLevel = null },
+                        onDragCancel = { dragLevel = null },
+                    ) { change, _ -> dragLevel = (change.position.x / size.width).coerceIn(0f, 1f) }
+                }
+                .pointerInput(entityId) {
+                    detectTapGestures { offset ->
+                        val f = (offset.x / size.width).coerceIn(0f, 1f)
+                        dragLevel = f
+                        onCommit(f)
+                        dragLevel = null
+                    }
+                },
+    ) {
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(shown.coerceIn(0.02f, 1f))
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFF4C6EF5)),
+        )
+    }
+}
+
+@Composable
+private fun Circle(
+    icon: ImageVector,
+    size: androidx.compose.ui.unit.Dp,
+    accent: Boolean = false,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(if (accent) Color(0xFF4C6EF5) else Color(0xFF23414B))
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = Color.White)
+    }
+}
