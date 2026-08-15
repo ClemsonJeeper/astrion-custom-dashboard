@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -134,6 +137,8 @@ class SceneGridCard : CardRenderer {
         // text-only (58dp) tiles side by side looked uneven.
         val hasIcon = remember(scenes) { scenes.any { !iconOf(it).isNullOrBlank() } }
         val showLabels = remember(config) { config.options["show_labels"] as? Boolean ?: true }
+        val iconFill = remember(config) { config.options["icon_fill"] as? Boolean ?: false }
+        val tileHeight = remember(config) { config.int("tile_height", if (iconFill) 120 else 74) }
 
         if (row) {
             Row(
@@ -149,6 +154,8 @@ class SceneGridCard : CardRenderer {
                         iconPath = iconOf(scene),
                         hasIcon = hasIcon,
                         showLabel = showLabels,
+                        iconFill = iconFill,
+                        tileHeight = tileHeight,
                         modifier = Modifier.width(104.dp),
                     ) { onTap(scene) }
                 }
@@ -164,6 +171,8 @@ class SceneGridCard : CardRenderer {
                                 iconPath = iconOf(scene),
                                 hasIcon = hasIcon,
                                 showLabel = showLabels,
+                                iconFill = iconFill,
+                                tileHeight = tileHeight,
                                 modifier = Modifier.weight(1f),
                             ) { onTap(scene) }
                         }
@@ -190,6 +199,8 @@ class SceneGridCard : CardRenderer {
         iconPath: String?,
         hasIcon: Boolean,
         showLabel: Boolean,
+        iconFill: Boolean,
+        tileHeight: Int,
         modifier: Modifier,
         onClick: () -> Unit,
     ) {
@@ -204,35 +215,50 @@ class SceneGridCard : CardRenderer {
         }
 
         if (hasIcon) {
-            // Every tile in the grid uses this branch once any one of them has
-            // an icon, even tiles with no icon of their own — a blank 28dp
-            // spacer keeps their label lined up with the others instead of
-            // sitting lower.
-            Column(
-                modifier = modifier
-                    .height(74.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(color)
-                    .clickable(onClick = onClick)
-                    .padding(6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                if (bitmap != null) {
-                    Image(bitmap = bitmap, contentDescription = name, modifier = Modifier.size(28.dp))
-                } else {
-                    Spacer(Modifier.size(28.dp))
-                }
-                if (showLabel) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = name,
-                        color = textColor,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
+            if (iconFill && bitmap != null && !showLabel) {
+                Box(
+                    modifier = modifier
+                        .height(tileHeight.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(color)
+                        .clickable(onClick = onClick)
+                        .padding(6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        bitmap = bitmap,
+                        contentDescription = name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit,
                     )
+                }
+            } else {
+                Column(
+                    modifier = modifier
+                        .height(tileHeight.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(color)
+                        .clickable(onClick = onClick)
+                        .padding(6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    if (bitmap != null) {
+                        Image(bitmap = bitmap, contentDescription = name, modifier = Modifier.size(28.dp))
+                    } else {
+                        Spacer(Modifier.size(28.dp))
+                    }
+                    if (showLabel) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = name,
+                            color = textColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         } else {

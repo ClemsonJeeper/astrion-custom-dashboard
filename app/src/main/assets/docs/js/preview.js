@@ -688,6 +688,8 @@ function renderPreview() {
       const cols = card.options?.columns || 2;
       const isRow = isScene && card.options?.layout === 'row';
       const showLabels = card.options?.show_labels !== false;
+      const iconFill = isScene && card.options?.icon_fill === true;
+      const tileHeight = isScene ? (card.options?.tile_height || (iconFill ? 120 : 0)) : 0;
       // Mirrors SceneGridCard.kt: once ANY scene in the grid has an icon,
       // every tile in that grid uses the taller icon layout (74dp) so they
       // stay a uniform height — even tiles with no icon of their own get a
@@ -700,12 +702,17 @@ function renderPreview() {
         if (isScene) {
           const bg = parseHexColorCss(item.color) || (typeof themeValues === 'function' ? themeValues().controlBackground : '#2C4C58');
           const textColor = textColorForBg(bg);
-          const iconCell = hasIconGrid
-            ? (src
-                ? `<img class="st-icon" src="${src}" alt="" onerror="onSceneIconError(this)">`
-                : `<div class="st-icon-spacer"></div>`)
-            : '';
-          return `<div class="preview-scene-tile ${hasIconGrid ? 'has-icon' : 'no-icon'}" style="background:${bg}; color:${textColor}">
+          const isFillTile = iconFill && src && !showLabels;
+          const tileClass = isFillTile ? 'fill' : (hasIconGrid ? 'has-icon' : 'no-icon');
+          const heightStyle = tileHeight ? `height:${tileHeight}px;` : '';
+          const iconCell = isFillTile
+            ? `<img class="st-icon" src="${src}" alt="" onerror="onSceneIconError(this)">`
+            : (hasIconGrid
+                ? (src
+                    ? `<img class="st-icon" src="${src}" alt="" onerror="onSceneIconError(this)">`
+                    : `<div class="st-icon-spacer"></div>`)
+                : '');
+          return `<div class="preview-scene-tile ${tileClass}" style="background:${bg}; color:${textColor};${heightStyle}">
             ${iconCell}
             ${showLabels ? `<div class="st-label">${label}</div>` : ''}
           </div>`;

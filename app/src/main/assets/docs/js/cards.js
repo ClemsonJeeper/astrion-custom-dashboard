@@ -196,7 +196,7 @@ function updateCardFormInputs() {
     const label = type === 'button_grid' ? 'Button' : 'Scene';
     container.innerHTML = `
       <label>Columns</label><input type="number" id="optColumns" value="2" min="1">
-      ${type === 'scene_grid' ? `<label><input type="checkbox" id="optShowLabels" checked> Show name under icon (when any scene has one — applies to the whole grid)</label>` : ''}
+      ${type === 'scene_grid' ? `<label><input type="checkbox" id="optShowLabels" checked> Show name under icon (when any scene has one — applies to the whole grid)</label><label><input type="checkbox" id="optIconFill"> Fill tile with icon (hide name recommended; icon scales to fill tile height)</label><label>Tile height (dp, optional)</label><input type="number" id="optTileHeight" min="40" max="300" placeholder="120 when fill on, 74 otherwise">` : ''}
       <div id="gridItemsList"></div>
       <div class="section-box" style="margin-top:8px">
         <label>${label} name</label><input type="text" id="giName" placeholder="e.g., ${type === 'button_grid' ? 'Netflix' : 'Movie Night'}">
@@ -715,7 +715,11 @@ function fillCardForm(card) {
     document.getElementById('optShowCaptions').checked = o.show_captions !== false;
   } else if (type === 'button_grid' || type === 'scene_grid') {
     document.getElementById('optColumns').value = o.columns || 2;
-    if (type === 'scene_grid') document.getElementById('optShowLabels').checked = o.show_labels !== false;
+    if (type === 'scene_grid') {
+      document.getElementById('optShowLabels').checked = o.show_labels !== false;
+      document.getElementById('optIconFill').checked = o.icon_fill === true;
+      document.getElementById('optTileHeight').value = o.tile_height || '';
+    }
     window._pendingGridItems = JSON.parse(JSON.stringify(o.buttons || o.scenes || []));
     renderGridItemsList(type);
   } else if (type === 'apple_tv_remote') {
@@ -908,6 +912,9 @@ function addCardToPage() {
     newCard.options.columns = parseInt(document.getElementById('optColumns').value, 10) || 2;
     newCard.options.scenes = window._pendingGridItems || [];
     if (!document.getElementById('optShowLabels').checked) newCard.options.show_labels = false;
+    if (document.getElementById('optIconFill').checked) newCard.options.icon_fill = true;
+    var _th = parseInt(document.getElementById('optTileHeight').value, 10);
+    if (_th) newCard.options.tile_height = _th;
     window._pendingGridItems = [];
   } else if (type === 'apple_tv_remote') {
     if (harmonyAvailable) {
