@@ -2,6 +2,8 @@ package com.custom.astrion.web
 
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.os.Environment
 import android.provider.Settings
 import android.util.Log
@@ -591,7 +593,7 @@ class ConfigServer(
             haToken = params["ha_token"]?.firstOrNull().orEmpty().trim(),
         )
         RemoteSettings.saveHarmonyHubs(context, parseHubRows(params))
-        onConnectionSaved()
+        Handler(Looper.getMainLooper()).postDelayed({ onConnectionSaved() }, 500L)
         return redirectHome(context.getString(R.string.web_config_saved_reconnecting))
     }
 

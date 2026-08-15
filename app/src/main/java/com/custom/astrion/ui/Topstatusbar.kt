@@ -11,6 +11,7 @@ import android.net.NetworkRequest
 import android.os.BatteryManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -64,7 +65,7 @@ fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
 
     val wifiConnected = rememberWifiConnected(context)
     val (batteryPct, charging) = rememberBatteryState(context)
-    val time = rememberTickingTime()
+    val time = rememberTickingTime(context)
 
     Row(
         modifier =
@@ -88,20 +89,31 @@ fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
                 },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = if (wifiConnected) Icons.Filled.Wifi else Icons.Filled.WifiOff,
-            contentDescription = null,
-            tint = Color(0xFF93AFB6),
-            modifier = Modifier.size(16.dp),
-        )
+        // Box overlay: clock centered to the full bar width, Wi-Fi and
+        // battery absolutely positioned to the edges so their widths don't
+        // shift the clock off true center.
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(time, color = Color(0xFFCFCFCF), fontSize = 13.sp, fontWeight = FontWeight.Medium)
 
-        Spacer(Modifier.weight(1f))
-        Text(time, color = Color(0xFFCFCFCF), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        Spacer(Modifier.weight(1f))
+            Icon(
+                imageVector = if (wifiConnected) Icons.Filled.Wifi else Icons.Filled.WifiOff,
+                contentDescription = null,
+                tint = Color(0xFF93AFB6),
+                modifier = Modifier.size(16.dp).align(Alignment.CenterStart),
+            )
 
-        BatteryGlyph(percent = batteryPct, charging = charging)
-        Spacer(Modifier.padding(end = 2.dp))
-        Text("$batteryPct%", color = Color(0xFF93AFB6), fontSize = 12.sp)
+            Row(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BatteryGlyph(percent = batteryPct, charging = charging)
+                Spacer(Modifier.padding(end = 2.dp))
+                Text("$batteryPct%", color = Color(0xFF93AFB6), fontSize = 12.sp)
+            }
+        }
     }
 }
 
@@ -145,17 +157,23 @@ private fun BatteryGlyph(
 }
 
 @Composable
-private fun rememberTickingTime(): String {
+private fun rememberTickingTime(context: Context): String {
     var time by remember {
-        mutableStateOf(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()))
+        mutableStateOf(formatNow(context))
     }
     LaunchedEffect(Unit) {
         while (true) {
-            time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            time = formatNow(context)
             kotlinx.coroutines.delay(15.seconds)
         }
     }
     return time
+}
+
+private fun formatNow(context: Context): String {
+    val is24 = android.text.format.DateFormat.is24HourFormat(context)
+    val pattern = if (is24) "HH:mm" else "h:mm a"
+    return SimpleDateFormat(pattern, Locale.getDefault()).format(Date())
 }
 
 /** Uses ConnectivityManager.NetworkCallback (not the deprecated
