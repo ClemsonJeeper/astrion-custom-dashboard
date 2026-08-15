@@ -1,12 +1,12 @@
-// ---- IR Activities ----------------------------------------------------------
+// ---- IR Devices ---------------------------------------------------------
 //
-// Builds entries for dashboardData.irActivities: named sequences of raw IR
-// sends, executed locally by the app through its own IR blaster (no Harmony
-// hub, no Home Assistant). Community-contributed device codes live in
-// docs/ir-database/*.json as Pronto Hex (see prontoToPattern below); this
-// file resolves a picked command into {freq, pattern} *once*, at build time
-// — dashboard.json ends up with fully-resolved steps, so the app itself
-// never needs to know about ir-database/ or decode any protocol.
+// Builds entries for dashboardData.irDevices: a registry of named commands
+// per physical device ("power", "hdmi1", "volume_up"...), resolved to
+// {freq, pattern} *once* here at build time from either a community
+// ir-database/*.json entry (Pronto Hex, see prontoToPattern) or a
+// hand-pasted Pronto code — dashboard.json ends up fully resolved, so the
+// app itself never decodes a protocol or touches ir-database/. This is the
+// offline/no-cloud baseline: works even if Harmony's own servers disappear.
 //
 // Note: fetching ir-database/*.json requires the page to be served over
 // http(s) (GitHub Pages, or `npx http-server` locally) — it will fail if
@@ -15,8 +15,8 @@
 
 let irCategoriesIndex = null;      // [{id, label, file}], loaded once from ir-database/index.json
 const irCategoryDataCache = {};    // categoryId -> parsed category JSON (brands/models/commands)
-let pendingIrSteps = [];           // steps being assembled for the activity currently being built/edited
-let editingIrActivity = null;      // id of the activity being edited, or null when creating a new one
+let pendingIrCommands = {};        // commandId -> {freq, pattern, label} for the device currently being built/edited
+let editingIrDevice = null;        // id of the device being edited, or null when creating a new one
 
 /**
  * Decodes a "learned" Pronto Hex code (type 0000 — raw timing, not a
@@ -121,125 +121,220 @@ function onIrModelChange() {
   cmdSel.disabled = false;
 }
 
-// ---- building the step list -------------------------------------------------
+// ---- adding one named command to the device being built --------------------
+//
+// Three ways to populate `pendingIrCommands`:
+//  1. The cascade above (community ir-database entry), one command at a time.
+//  2. "Import all" — every command from the picked model at once, keyed by
+//     the database's own command id; rename afterward if you want friendlier
+//     ids (see startRenameIrCommand below). Existing ids are left alone (not
+//     overwritten) so re-importing after a manual rename doesn't clobber it.
+//  3. A hand-pasted Pronto Hex code, for a device/button not in the database
+//     or a code you learned yourself with another tool.
+// Either way, the commandId (freeform, e.g. "power", "hdmi1", "volume_up")
+// is what this command is addressed by from ActivityDeviceConfig /
+// scene_grid's irCommand field.
 
-function addIrStep() {
+let renamingCommandId = null; // commandId currently shown with an inline rename field, or null
+
+function addIrCommand() {
+  const commandId = document.getElementById('irCommandId').value.trim();
+  if (!commandId) { alert('Give this command an id, e.g. "power", "hdmi1", "volume_up".'); return; }
+
+  const manualPronto = document.getElementById('irManualPronto').value.trim();
+  let resolved, label;
+
+  if (manualPronto) {
+    try {
+      resolved = prontoToPattern(manualPronto);
+    } catch (e) {
+      alert('Couldn\'t decode this Pronto code: ' + e.message);
+      return;
+    }
+    label = document.getElementById('irManualLabel').value.trim() || commandId;
+  } else {
+    const categoryId = document.getElementById('irCategory').value;
+    const brandIdx = document.getElementById('irBrand').value;
+    const modelIdx = document.getElementById('irModel').value;
+    const pickedCommandId = document.getElementById('irCommand').value;
+    if (!categoryId || brandIdx === '' || modelIdx === '' || !pickedCommandId) {
+      alert('Pick a category/brand/model/command from the database, or paste a Pronto code manually below it.');
+      return;
+    }
+    const data = irCategoryDataCache[categoryId];
+    const brand = data.brands[brandIdx];
+    const model = brand.models[modelIdx];
+    const command = model.commands[pickedCommandId];
+    try {
+      resolved = prontoToPattern(command.pronto);
+    } catch (e) {
+      alert('Couldn\'t decode this command\'s Pronto code: ' + e.message);
+      return;
+    }
+    label = `${brand.brand_name} ${model.model_name} — ${command.label || pickedCommandId}`;
+  }
+
+  pendingIrCommands[commandId] = { freq: resolved.freq, pattern: resolved.pattern, label };
+  document.getElementById('irCommandId').value = '';
+  document.getElementById('irManualPronto').value = '';
+  document.getElementById('irManualLabel').value = '';
+  renderIrCommandsList();
+}
+
+/** Imports every command from the currently-picked category/brand/model in
+ * one go, keyed by the database's own command id (e.g. "PowerOn"). Ids
+ * already present in `pendingIrCommands` are left untouched — re-running
+ * this after you've renamed a command won't undo the rename. Commands whose
+ * Pronto code fails to decode are skipped and reported, not silently
+ * dropped. */
+function importAllIrCommands() {
   const categoryId = document.getElementById('irCategory').value;
   const brandIdx = document.getElementById('irBrand').value;
   const modelIdx = document.getElementById('irModel').value;
-  const commandId = document.getElementById('irCommand').value;
-  const delayAfterMs = parseInt(document.getElementById('irStepDelay').value, 10) || 0;
-  if (!categoryId || brandIdx === '' || modelIdx === '' || !commandId) {
-    alert('Pick a category, brand, model, and command first.');
+  if (!categoryId || brandIdx === '' || modelIdx === '') {
+    alert('Pick a category, brand, and model first.');
     return;
   }
   const data = irCategoryDataCache[categoryId];
   const brand = data.brands[brandIdx];
   const model = brand.models[modelIdx];
-  const command = model.commands[commandId];
-  let resolved;
-  try {
-    resolved = prontoToPattern(command.pronto);
-  } catch (e) {
-    alert('Couldn\'t decode this command\'s Pronto code: ' + e.message);
-    return;
-  }
-  pendingIrSteps.push({
-    freq: resolved.freq,
-    pattern: resolved.pattern,
-    delayAfterMs,
-    label: `${brand.brand_name} ${model.model_name} — ${command.label || commandId}`,
+  const commands = model.commands || {};
+  let imported = 0;
+  let skippedExisting = 0;
+  const failed = [];
+  Object.entries(commands).forEach(([commandId, command]) => {
+    if (pendingIrCommands[commandId]) { skippedExisting++; return; }
+    try {
+      const resolved = prontoToPattern(command.pronto);
+      pendingIrCommands[commandId] = { freq: resolved.freq, pattern: resolved.pattern, label: command.label || commandId };
+      imported++;
+    } catch (e) {
+      failed.push(command.label || commandId);
+    }
   });
-  renderIrStepsList();
+  renderIrCommandsList();
+  let msg = `Imported ${imported} command${imported === 1 ? '' : 's'} from ${brand.brand_name} ${model.model_name}.`;
+  if (skippedExisting) msg += ` ${skippedExisting} already present, left as-is.`;
+  if (failed.length) msg += ` ${failed.length} failed to decode: ${failed.join(', ')}.`;
+  alert(msg);
 }
 
-function removeIrStep(i) {
-  pendingIrSteps.splice(i, 1);
-  renderIrStepsList();
+function removeIrCommand(commandId) {
+  delete pendingIrCommands[commandId];
+  if (renamingCommandId === commandId) renamingCommandId = null;
+  renderIrCommandsList();
 }
 
-function renderIrStepsList() {
-  const list = document.getElementById('irStepsList');
+function startRenameIrCommand(commandId) {
+  renamingCommandId = commandId;
+  renderIrCommandsList();
+}
+
+function confirmRenameIrCommand(oldId) {
+  const newId = document.getElementById('irRenameInput').value.trim();
+  if (!newId) { alert('Command id can\'t be empty.'); return; }
+  if (newId !== oldId && pendingIrCommands[newId]) { alert('That id is already used by another command on this device.'); return; }
+  if (newId !== oldId) {
+    pendingIrCommands[newId] = pendingIrCommands[oldId];
+    delete pendingIrCommands[oldId];
+  }
+  renamingCommandId = null;
+  renderIrCommandsList();
+}
+
+function renderIrCommandsList() {
+  const list = document.getElementById('irCommandsList');
   if (!list) return;
-  if (!pendingIrSteps.length) {
-    list.innerHTML = '<div class="hint">No steps yet — add one above.</div>';
+  const ids = Object.keys(pendingIrCommands);
+  if (!ids.length) {
+    list.innerHTML = '<div class="hint">No commands yet — add one above, or import all of them from a picked model.</div>';
     return;
   }
   list.innerHTML = '';
-  pendingIrSteps.forEach((step, i) => {
+  ids.forEach(commandId => {
+    const cmd = pendingIrCommands[commandId];
     const el = document.createElement('div');
     el.className = 'list-item';
-    const delayNote = (i < pendingIrSteps.length - 1 && step.delayAfterMs > 0)
-      ? ` <span style="color:#888">(+${step.delayAfterMs}ms then)</span>` : '';
-    el.innerHTML = `<span>${i + 1}. ${step.label || 'IR step'}${delayNote}</span><span class="remove" onclick="removeIrStep(${i})">✕</span>`;
+    if (renamingCommandId === commandId) {
+      el.innerHTML = `<input type="text" id="irRenameInput" value="${commandId}" style="flex:1;margin-right:8px">
+        <span class="remove" style="color:#00E5FF" onclick="confirmRenameIrCommand('${commandId}')">✓</span>
+        <span class="remove" onclick="renamingCommandId=null;renderIrCommandsList()">✕</span>`;
+    } else {
+      el.innerHTML = `<span><code>${commandId}</code> — ${cmd.label}</span><span><span class="remove" style="color:#00E5FF" onclick="startRenameIrCommand('${commandId}')">✎</span> <span class="remove" onclick="removeIrCommand('${commandId}')">✕</span></span>`;
+    }
+    list.appendChild(el);
+  });
+  if (renamingCommandId) document.getElementById('irRenameInput')?.focus();
+}
+
+// ---- saving / editing / removing devices ------------------------------------
+
+function renderIrDevicesList() {
+  const list = document.getElementById('irDevicesList');
+  if (!list) return;
+  list.innerHTML = '';
+  (dashboardData.irDevices || []).forEach(dev => {
+    const count = Object.keys(dev.commands || {}).length;
+    const el = document.createElement('div');
+    el.className = 'list-item';
+    el.innerHTML = `<span>${dev.name} <span style="color:#888">(${count} command${count === 1 ? '' : 's'})</span></span><span><span class="remove" style="color:#00E5FF" onclick="editIrDevice('${dev.id}')">✎</span> <span class="remove" onclick="removeIrDevice('${dev.id}')">✕</span></span>`;
     list.appendChild(el);
   });
 }
 
-// ---- saving / editing / removing activities ---------------------------------
-
-function renderIrActivitiesList() {
-  const list = document.getElementById('irActivitiesList');
-  if (!list) return;
-  list.innerHTML = '';
-  (dashboardData.irActivities || []).forEach(act => {
-    const el = document.createElement('div');
-    el.className = 'list-item';
-    el.innerHTML = `<span>${act.name} <span style="color:#888">(${act.steps.length} step${act.steps.length === 1 ? '' : 's'})</span></span><span><span class="remove" style="color:#00E5FF" onclick="editIrActivity('${act.id}')">✎</span> <span class="remove" onclick="removeIrActivity('${act.id}')">✕</span></span>`;
-    list.appendChild(el);
-  });
-}
-
-function saveIrActivity() {
-  const name = document.getElementById('irActName').value.trim();
-  if (!name) { alert('Give this activity a name.'); return; }
-  if (!pendingIrSteps.length) { alert('Add at least one step.'); return; }
-  dashboardData.irActivities = dashboardData.irActivities || [];
-  if (editingIrActivity !== null) {
-    const idx = dashboardData.irActivities.findIndex(a => a.id === editingIrActivity);
+function saveIrDevice() {
+  const name = document.getElementById('irDevName').value.trim();
+  if (!name) { alert('Give this device a name.'); return; }
+  if (!Object.keys(pendingIrCommands).length) { alert('Add at least one command.'); return; }
+  dashboardData.irDevices = dashboardData.irDevices || [];
+  if (editingIrDevice !== null) {
+    const idx = dashboardData.irDevices.findIndex(d => d.id === editingIrDevice);
     if (idx >= 0) {
-      dashboardData.irActivities[idx] = { ...dashboardData.irActivities[idx], name, steps: pendingIrSteps };
+      dashboardData.irDevices[idx] = { ...dashboardData.irDevices[idx], name, commands: pendingIrCommands };
     }
   } else {
-    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || ('activity_' + Date.now());
+    const id = slugify(name, 'device');
     let uniqueId = id;
     let n = 2;
-    while (dashboardData.irActivities.some(a => a.id === uniqueId)) uniqueId = `${id}_${n++}`;
-    dashboardData.irActivities.push({ id: uniqueId, name, steps: pendingIrSteps });
+    while (dashboardData.irDevices.some(d => d.id === uniqueId)) uniqueId = `${id}_${n++}`;
+    dashboardData.irDevices.push({ id: uniqueId, name, commands: pendingIrCommands });
   }
-  cancelIrActivityEdit();
-  renderIrActivitiesList();
-  updateCardFormInputs(); // refreshes the IR-activity picker inside the scene_grid form, if open
+  cancelIrDeviceEdit();
+  renderIrDevicesList();
+  updateCardFormInputs(); // refreshes the IR-device picker inside the scene_grid form, if open
+  if (typeof renderActDevSubForm === 'function') renderActDevSubForm(); // same, for the Activities section's device picker
   updateJsonOutput();
 }
 
-function editIrActivity(id) {
-  const act = (dashboardData.irActivities || []).find(a => a.id === id);
-  if (!act) return;
-  editingIrActivity = id;
-  document.getElementById('irActName').value = act.name;
-  pendingIrSteps = JSON.parse(JSON.stringify(act.steps));
-  renderIrStepsList();
-  document.getElementById('saveIrActivityBtn').textContent = 'Save activity';
-  document.getElementById('cancelIrActivityEditBtn').style.display = '';
+function editIrDevice(id) {
+  const dev = (dashboardData.irDevices || []).find(d => d.id === id);
+  if (!dev) return;
+  editingIrDevice = id;
+  document.getElementById('irDevName').value = dev.name;
+  pendingIrCommands = JSON.parse(JSON.stringify(dev.commands || {}));
+  renderIrCommandsList();
+  document.getElementById('saveIrDeviceBtn').textContent = 'Save device';
+  document.getElementById('cancelIrDeviceEditBtn').style.display = '';
 }
 
-function cancelIrActivityEdit() {
-  editingIrActivity = null;
-  pendingIrSteps = [];
-  document.getElementById('irActName').value = '';
-  document.getElementById('saveIrActivityBtn').textContent = 'Save activity';
-  document.getElementById('cancelIrActivityEditBtn').style.display = 'none';
-  renderIrStepsList();
+function cancelIrDeviceEdit() {
+  editingIrDevice = null;
+  pendingIrCommands = {};
+  document.getElementById('irDevName').value = '';
+  document.getElementById('saveIrDeviceBtn').textContent = 'Save device';
+  document.getElementById('cancelIrDeviceEditBtn').style.display = 'none';
+  renderIrCommandsList();
 }
 
-function removeIrActivity(id) {
-  dashboardData.irActivities = (dashboardData.irActivities || []).filter(a => a.id !== id);
-  if (editingIrActivity === id) cancelIrActivityEdit();
-  renderIrActivitiesList();
+function removeIrDevice(id) {
+  dashboardData.irDevices = (dashboardData.irDevices || []).filter(d => d.id !== id);
+  if (editingIrDevice === id) cancelIrDeviceEdit();
+  renderIrDevicesList();
   updateCardFormInputs();
+  if (typeof renderActDevSubForm === 'function') renderActDevSubForm();
   updateJsonOutput();
 }
 
 loadIrCategories();
-renderIrStepsList();
+renderIrCommandsList();
+renderIrDevicesList();

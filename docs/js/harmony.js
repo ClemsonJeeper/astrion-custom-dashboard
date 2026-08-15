@@ -119,4 +119,8 @@ function onHarmonyDeviceChange(idPrefix) {
   cmdSel.disabled = false;
 }
 
-loadHarmonyHubs();
+// Exposed as a promise (not just fire-and-forget) so other modules loaded
+// after this one — activities.js in particular, which renders a Harmony
+// device picker immediately at script-load time, before any user
+// interaction — can await it instead of racing it.
+const harmonyHubsReady = loadHarmonyHubs();

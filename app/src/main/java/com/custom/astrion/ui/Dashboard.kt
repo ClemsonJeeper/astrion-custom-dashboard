@@ -1,5 +1,7 @@
 package com.custom.astrion.ui
 
+import android.content.Context
+import android.hardware.ConsumerIrManager
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,21 +40,30 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.config.AppConfig
+import com.custom.astrion.config.ActivityConfig
+import com.custom.astrion.config.ActivityDeviceConfig
+import com.custom.astrion.config.ActivityRuntime
 import com.custom.astrion.config.PageConfig
 import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.HaLabels
+import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.harmony.HarmonyHubRegistry
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import com.custom.astrion.R
 
@@ -106,6 +118,20 @@ fun Dashboard(
         pageCount = { pageCount },
     )
 
+    // Scans pages/hotkeys once per config load for every `"track": true`
+    // item; re-scanned automatically whenever `config` itself changes
+    // (dashboard.json reload). Bound to each hub's live state below.
+    val activityRuntime = remember(config) { ActivityRuntime(config) }
+    LaunchedEffect(activityRuntime) {
+        harmonyRegistry.clientsByLocalId.forEach { (localId, hubClient) ->
+            launch {
+                hubClient.connected.first { it }
+                hubClient.getCurrentActivity()
+                activityRuntime.bind(hubClient, localId)
+            }
+        }
+    }
+
     // Card-driven navigation: any card can call this with a page name (as it
     // appears in dashboard.json's "pages[].name", case-insensitive) to jump
     // there — same mechanism physical hotkeys use, just triggered by a tap.
@@ -120,6 +146,102 @@ fun Dashboard(
         if (idx >= 0) {
             scope.launch { pagerState.scrollToPage(idx) }
         }
+    }
+
+    // Local IR — the resilience baseline: works fully offline, no hub, no
+    // HA, no cloud. Shared by scene_grid's own irDevice/irCommand fields
+    // AND by composed Activities' "ir"-sourced devices below, so there's
+    // exactly one place that touches ConsumerIrManager.
+    val androidContext = LocalContext.current
+    val irManager = remember(androidContext) {
+        androidContext.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
+    }
+    val irDevicesById = remember(config.irDevices) { config.irDevices.associateBy { it.id } }
+    val activitiesById = activityRuntime.activityConfigs
+
+    fun sendIrCommand(
+        deviceId: String,
+        command: String,
+    ) {
+        val device = irDevicesById[deviceId]
+        val step = device?.commands?.get(command)
+        val manager = irManager
+        when {
+            device == null -> Log.w("Dashboard", "sendIrCommand: unknown irDevice \"$deviceId\"")
+            step == null -> Log.w("Dashboard", "sendIrCommand: device \"$deviceId\" has no command \"$command\"")
+            manager == null -> Log.w("Dashboard", "sendIrCommand: no IR blaster on this device")
+            else ->
+                runCatching { manager.transmit(step.freq, step.pattern.toIntArray()) }
+                    .onFailure { Log.e("Dashboard", "IR send failed: $deviceId/$command", it) }
+        }
+    }
+
+    // Sends one device's power/input command through whichever source it's
+    // configured for — the one place that knows how to talk to all three
+    // (ir/harmony/ha), shared by both the start and stop side of
+    // switchActivity below.
+    fun dispatchActivityCommand(
+        d: ActivityDeviceConfig,
+        command: String?,
+    ) {
+        if (command == null) return
+        when (d.source) {
+            "ir" -> sendIrCommand(d.deviceId, command)
+            "harmony" ->
+                harmonyRegistry.client(d.hub)?.sendCommand(d.deviceId, command)
+                    ?: Log.w("Dashboard", "activity device ${d.deviceId}: hub ${d.hub} not configured")
+            "ha" -> {
+                val domain = d.deviceId.substringBefore('.')
+                client.callService(ServiceCall.of(domain, "select_source", d.deviceId, "source" to command))
+            }
+        }
+    }
+
+    fun dispatchActivityPower(
+        d: ActivityDeviceConfig,
+        on: Boolean,
+    ) {
+        if (d.source == "ha") {
+            val domain = d.deviceId.substringBefore('.')
+            client.callService(ServiceCall(domain = domain, service = if (on) "turn_on" else "turn_off", entityId = d.deviceId))
+        } else {
+            dispatchActivityCommand(d, if (on) d.powerOnCommand else d.powerOffCommand)
+        }
+    }
+
+    // The composed-Activity switch: diffs the outgoing Activity (whatever
+    // was active in `activity.room` before, if anything) against `activity`
+    // itself. A device present in both is left alone — no power cycle, and
+    // its input is only re-sent if this Activity gives it one — a device
+    // only in the outgoing one gets powered off (unless powerOffOnExit is
+    // false), a device only in the incoming one gets powered on + its input
+    // (unless powerOnFirst is false). Devices execute in declared order,
+    // each waited on for its own delayAfterMs before the next starts.
+    suspend fun switchActivity(activity: ActivityConfig) {
+        val outgoing = activityRuntime.activeActivity(activity.room)?.let { activitiesById[it.id] }
+        val incomingIds = activity.devices.map { it.deviceId }.toSet()
+
+        outgoing?.devices?.forEach { d ->
+            if (d.deviceId !in incomingIds && d.powerOffOnExit) dispatchActivityPower(d, on = false)
+        }
+
+        val outgoingIds = outgoing?.devices?.map { it.deviceId }?.toSet().orEmpty()
+        activity.devices.forEachIndexed { index, d ->
+            val alreadyOn = d.deviceId in outgoingIds
+            if (!alreadyOn && d.powerOnFirst) dispatchActivityPower(d, on = true)
+            dispatchActivityCommand(d, d.inputCommand)
+            if (index < activity.devices.lastIndex && d.delayAfterMs > 0) {
+                delay(d.delayAfterMs.milliseconds)
+            }
+        }
+
+        activityRuntime.markActiveById(activity.id)
+    }
+
+    val startActivity: (String) -> Unit = { activityId ->
+        activitiesById[activityId]?.let { activity ->
+            scope.launch { switchActivity(activity) }
+        } ?: Log.w("Dashboard", "startActivity: unknown activity \"$activityId\"")
     }
 
     val ctx = CardContext(
@@ -139,7 +261,11 @@ fun Dashboard(
         configServerEnabled = configServerEnabled,
         setConfigServerEnabled = setConfigServerEnabled,
         harmonyConnected = harmonyConnected,
-        irActivities = remember(config.irActivities) { config.irActivities.associateBy { it.id } },
+        irDevices = irDevicesById,
+        sendIrCommand = ::sendIrCommand,
+        activities = activitiesById,
+        startActivity = startActivity,
+        activityRuntime = activityRuntime,
     )
 
     // Hardware-button navigation: jump straight to the requested page, then
@@ -160,7 +286,9 @@ fun Dashboard(
     }
 
     var showSettings by remember { mutableStateOf(false) }
+    var showActivities by remember { mutableStateOf(false) }
     BackHandler(enabled = showSettings) { showSettings = false }
+    BackHandler(enabled = showActivities) { showActivities = false }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -188,11 +316,15 @@ fun Dashboard(
                 // a dot tap is a direct jump too, not a swipe gesture, so it
                 // shouldn't visibly scroll through pages in between.
                 onDotClick = { index -> scope.launch { pagerState.scrollToPage(index) } },
+                onSwipeUpToActivities = { showActivities = true },
             )
         }
 
         if (showSettings) {
             SettingsOverlay(ctx = ctx, onClose = { showSettings = false })
+        }
+        if (showActivities) {
+            ActivitiesOverlay(activityRuntime = activityRuntime, ctx = ctx, onClose = { showActivities = false })
         }
     }
 }
@@ -201,36 +333,169 @@ fun Dashboard(
  * Full-screen settings overlay, reached only by swiping down from the top
  * edge (see [TopStatusBar]) — deliberately NOT part of `config.pages`, so it
  * never shows up in the horizontal pager or the page-indicator dots.
- * Dismissed by an upward swipe, the system back button, or the close row.
+ * Dismissed by an upward swipe from the bottom gesture strip, the system
+ * back button, or the close row.
+ *
+ * The swipe-up-to-close gesture lives on a dedicated bottom strip that sits
+ * above the scrollable content in z-order. This avoids the gesture conflict
+ * between `detectVerticalDragGestures` and `verticalScroll` when both are on
+ * the same node — the scroll consumer eats all vertical drags before the drag
+ * detector ever fires.
  */
 @Composable
 private fun SettingsOverlay(ctx: CardContext, onClose: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0E2229))
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { change, dragAmount ->
-                    change.consume()
-                    if (dragAmount < -25f) onClose()
-                }
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0E2229))) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text(
+                    "✕ " + stringResource(R.string.close),
+                    color = Color(0xFF93AFB6),
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onClose() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
             }
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Text(
-                "✕ " + stringResource(R.string.close),
-                color = Color(0xFF93AFB6),
-                fontSize = 13.sp,
+            SettingsMenu(ctx)
+        }
+        // Bottom gesture strip: swipe up to close. Sits above the scrollable
+        // content so the drag detector doesn't fight verticalScroll for events.
+        // A visual handle bar cues the user where to swipe.
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(50.dp)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures { change, dragAmount ->
+                        if (dragAmount < -15f) onClose()
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable { onClose() }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0xFF3A5560)),
             )
         }
-        SettingsMenu(ctx)
+    }
+}
+
+/**
+ * Full-screen overlay listing every currently-active AV Activity, grouped by
+ * room — reached only by swiping UP from the bottom edge (see
+ * [PageIndicator]'s onSwipeUpToActivities), the mirror-image gesture of
+ * [SettingsOverlay]'s swipe-down-from-top. Dismissed by a downward swipe
+ * from the top gesture strip (mirroring SettingsOverlay's bottom strip — see
+ * its doc comment for why the gesture lives on its own node rather than on
+ * the scrollable Column), the system back button, or the close row. Tapping
+ * an Activity jumps to its page — the "CURRENT_ACTIVITY" one-tap-back
+ * behaviour from the original design discussion.
+ */
+@Composable
+private fun ActivitiesOverlay(
+    activityRuntime: ActivityRuntime,
+    ctx: CardContext,
+    onClose: () -> Unit,
+) {
+    val activeByRoom by activityRuntime.activeByRoom.collectAsState()
+    val active = remember(activeByRoom) { activityRuntime.activeActivities() }
+
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0E2229))) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // Leaves room at the top for the gesture strip below so the
+            // first list item doesn't render underneath it.
+            Spacer(Modifier.height(42.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text(
+                    "✕ " + stringResource(R.string.close),
+                    color = Color(0xFF93AFB6),
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onClose() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
+            Text(
+                stringResource(R.string.active_activities),
+                color = Color(0xFFCFCFCF),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 10.dp),
+            )
+            if (active.isEmpty()) {
+                Text(
+                    stringResource(R.string.no_active_activities),
+                    color = Color(0xFF6E8991),
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(10.dp),
+                )
+            }
+            active.groupBy { it.room }.forEach { (room, activities) ->
+                Text(
+                    room,
+                    color = Color(0xFF6EA8FE),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+                activities.forEach { activity ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF13262D))
+                            .clickable(enabled = activity.page != null) {
+                                activity.page?.let { ctx.navigateToPage(it); onClose() }
+                            }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(activity.name, color = Color(0xFFCFCFCF), fontSize = 15.sp)
+                    }
+                }
+            }
+        }
+        // Top gesture strip: swipe down to close — mirror of SettingsOverlay's
+        // bottom strip, same reasoning (keeps the drag detector off the
+        // scrollable node so it doesn't lose the gesture to verticalScroll).
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(50.dp)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures { change, dragAmount ->
+                        if (dragAmount > 15f) onClose()
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0xFF3A5560)),
+            )
+        }
     }
 }
 
@@ -274,16 +539,41 @@ private fun RenderCard(cardConfig: CardConfig, ctx: CardContext) {
     }
 }
 
+/**
+ * Row of page dots + current page name at the bottom of the screen —
+ * doubles as the swipe-UP trigger for the "Active Activities" overlay, the
+ * bottom-edge mirror of [TopStatusBar]'s swipe-down-to-settings gesture.
+ * Same accumulated-drag-past-a-threshold approach, just the opposite sign.
+ */
 @Composable
 private fun PageIndicator(
     pages: List<PageConfig>,
     current: Int,
     onDotClick: (Int) -> Unit,
+    onSwipeUpToActivities: () -> Unit,
 ) {
+    val density = LocalDensity.current
+    val triggerPx = with(density) { 40.dp.toPx() }
+    var dragAccumulated by remember { mutableFloatStateOf(0f) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 5.dp),
+            .padding(vertical = 5.dp)
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragStart = { dragAccumulated = 0f },
+                    onDragEnd = { dragAccumulated = 0f },
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        dragAccumulated += dragAmount
+                        if (dragAccumulated < -triggerPx) {
+                            onSwipeUpToActivities()
+                            dragAccumulated = 0f
+                        }
+                    },
+                )
+            },
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {

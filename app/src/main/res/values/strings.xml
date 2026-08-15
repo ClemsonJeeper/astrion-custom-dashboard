@@ -3,6 +3,8 @@
     <!-- General / App Info -->
     <string name="app_name">Astrion Custom</string>
     <string name="close">Close</string>
+    <string name="active_activities">Active Activities</string>
+    <string name="no_active_activities">Nothing active right now</string>
     <string name="connected">Connected</string>
     <string name="disconnected">Disconnected</string>
 

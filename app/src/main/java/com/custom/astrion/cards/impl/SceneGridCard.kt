@@ -1,9 +1,6 @@
 package com.custom.astrion.cards.impl
 
-import android.content.Context
 import android.graphics.BitmapFactory
-import android.hardware.ConsumerIrManager
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,17 +19,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -42,11 +34,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.io.File
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Scene, activity, or navigation grid tile.
@@ -57,10 +45,16 @@ import kotlin.time.Duration.Companion.milliseconds
  *   routed through an optional "hub" field (HarmonyHubConfig.localId);
  *   falls back to the first configured hub when absent.
  * - "activityId": triggers a Harmony activity directly on the hub.
- * - "irActivity": runs a named sequence of raw IR sends locally through the
- *   device's own IR blaster (see AppConfig.irActivities) — works fully
- *   offline, no Harmony hub or Home Assistant needed.
+ * - "irDevice"+"irCommand": sends one named IR command locally through the
+ *   device's own IR blaster (see AppConfig.irDevices) — works fully
+ *   offline, no Harmony hub, Home Assistant, or cloud needed.
+ * - "activity": starts a *composed* Activity (see AppConfig.ActivityConfig)
+ *   — Astrion itself orchestrates every device involved, diffed against
+ *   whatever was active in the same room before.
  * - "page": navigates to a specific dashboard page (ctx.navigateToPage).
+ * - "track"+"room": marks a tile with any of the single-action fields above
+ *   as a trackable Activity — see ActivityRuntime. Not needed alongside
+ *   "activity": a composed Activity is always implicitly tracked.
  *
  * Config shape:
  * ```json
@@ -72,7 +66,8 @@ import kotlin.time.Duration.Companion.milliseconds
  *     "scenes": [
  *       { "page": "Apple TV", "name": "Apple TV", "color": "#66009688",
  *         "icon": "/sdcard/astrion/icons/apple-tv_dark_icon.png" },
- *       { "entity_id": "scene.night", "name": "Night" }
+ *       { "entity_id": "scene.night", "name": "Night" },
+ *       { "activity": "salon_appletv", "page": "Apple TV" }
  *     ]
  *   }
  * }
@@ -95,41 +90,9 @@ class SceneGridCard : CardRenderer {
         val scenes = remember(config) { (config.options["scenes"] as? List<Map<String, Any?>>) ?: emptyList() }
         val row = remember(config) { config.string("layout") == "row" }
 
-        val androidContext = LocalContext.current
-        val scope = rememberCoroutineScope()
-        val irManager = remember(androidContext) {
-            androidContext.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
-        }
-
-        // Reference to cancel the current IR transmission if a new one is triggered
-        var activeIrJob by remember { mutableStateOf<Job?>(null) }
-
         fun activate(entityId: String) {
             val domain = entityId.substringBefore('.')
             ctx.client.callService(ServiceCall(domain = domain, service = "turn_on", entityId = entityId))
-        }
-
-        // Fires each step in order, waiting delayAfterMs between them. Runs on
-        // the composable's own coroutine scope so it survives the click
-        // handler returning, but gets canceled automatically if the card
-        // leaves composition mid-sequence.
-        fun runIrActivity(activityId: String) {
-            val activity = ctx.irActivities[activityId] ?: return
-            val manager = irManager ?: return
-            activeIrJob = scope.launch {
-                val lastIndex = activity.steps.lastIndex
-                activity.steps.forEachIndexed { index, step ->
-                    runCatching {
-                        manager.transmit(step.freq, step.pattern.toIntArray())
-                    }.onFailure { error ->
-                        Log.e("SceneGridCard", "IR send failed at step $index", error)
-                    }
-
-                    if (index < lastIndex && step.delayAfterMs > 0) {
-                        delay(step.delayAfterMs.milliseconds)
-                    }
-                }
-            }
         }
 
         fun onTap(scene: Map<String, Any?>) {
@@ -141,8 +104,18 @@ class SceneGridCard : CardRenderer {
             if (harmonyDevice != null && harmonyCommand != null) {
                 ctx.sendHarmonyCommand(harmonyDevice, harmonyCommand, hub)
             }
-            (scene["irActivity"] as? String)?.let(::runIrActivity)
+            val irDevice = scene["irDevice"] as? String
+            val irCommand = scene["irCommand"] as? String
+            if (irDevice != null && irCommand != null) {
+                ctx.sendIrCommand(irDevice, irCommand)
+            }
+            (scene["activity"] as? String)?.let(ctx.startActivity)
             (scene["page"] as? String)?.let(ctx.navigateToPage)
+            // If this tile is `"track": true`, records it as the active
+            // Activity for its `"room"` — see ActivityRuntime. No-op for
+            // ordinary (untracked) tiles, and for "activity" tiles (already
+            // marked active by ctx.startActivity itself).
+            ctx.activityRuntime?.trackTap(scene)
         }
 
         fun nameOf(scene: Map<String, Any?>): String {

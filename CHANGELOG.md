@@ -3,6 +3,26 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.0] - 2026-08-16
+
+### Added
+
+- AV Activities: any `scene_grid` tile or hotkey can now be marked `"track": true` with a `"room"`, turning it into a tracked Activity ("Watch Apple TV", "Listen to Music"...) — no separate config section, the tile's existing `entity_id`/`activityId`+`hub`/`harmonyDevice`+`harmonyCommand` is still what actually runs; `track`/`room` just add bookkeeping. At most one Activity is active per room at a time; different rooms are fully independent.
+- `ActivityRuntime`: scans every page/hotkey for `track: true` items once per `dashboard.json` load, tracks which Activity is active per room (`activeByRoom`), and updates it two ways — `trackTap()` right after `SceneGridCard` fires a tile's own action, and `bind()` which mirrors a Harmony hub's *live* Activity state into the matching room, so an Activity started from elsewhere (another remote, an HA automation, the physical Harmony remote) shows up too, not just the ones started from this device.
+- `HarmonyHubClient`: `currentActivityId`/`activityState` (`StateFlow`), populated from the hub's unsolicited `connect.stateDigest?notify` push frames (`activityId` + `activityStatus`, distinguishing "starting" from "running" — confirmed against real hub captures) and from a new one-shot `getCurrentActivity()` request/response call made right after connecting, since the push only fires on the *next* change.
+- `HarmonyHubRegistry.clientsByLocalId` — exposes every configured hub's client, not just the default one (`client()`), for callers like `ActivityRuntime.bind()` that need to wire up all of them.
+- New "Active Activities" overlay: swipe **up** from the bottom edge (page-indicator dots) — the mirror gesture of the existing swipe-down-for-Settings — lists every currently active Activity grouped by room; tapping one jumps straight to its page. Reached only by this gesture, like Settings, so it never appears in the page pager or its dots.
+- Builder (`docs/js/cards.js`): `scene_grid` tiles gained a "Track as Activity" checkbox + a "Room" field, blocked from saving without a room once checked.
+
+### Changed
+
+- Builder: editing an existing Harmony-backed tile (`scene_grid` or `apple_tv_remote`) that has no explicit `hub` no longer silently defaults the Hub dropdown to the first configured hub — with more than one hub, that default could be the wrong one and would get silently re-saved as correct. The dropdown now shows empty and the existing "pick a hub" validation blocks saving until one is chosen explicitly.
+
+### Fixed
+
+- Builder (`docs/js/cards.js`): `fillGiHarmonySection()` was defined twice (dead duplicate); removed.
+- `Dashboard.kt`: `SettingsOverlay` called `SettingsMenu(ctx, onClose = onClose)`, but `SettingsMenu` only ever declared `ctx` — a pre-existing compile error.
+
 ## [0.7.0] - 2026-08-14
 
 ### Added

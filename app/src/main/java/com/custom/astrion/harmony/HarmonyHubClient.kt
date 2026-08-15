@@ -39,6 +39,18 @@ data class HarmonyActivity(val id: String, val label: String)
 data class HarmonyConfig(val devices: List<HarmonyDevice>, val activities: List<HarmonyActivity>)
 
 /**
+ * The hub's own live state for its currently-running Activity, mirroring the
+ * "starting" vs "started" distinction Home Assistant's official integration
+ * exposes (see data.py: new_activity_starting / new_activity). "-1" always
+ * means PowerOff/idle.
+ */
+sealed class HarmonyActivityState {
+    abstract val activityId: String
+    data class Starting(override val activityId: String) : HarmonyActivityState()
+    data class Active(override val activityId: String) : HarmonyActivityState()
+}
+
+/**
  * Direct WebSocket client for a Logitech Harmony Hub, bypassing Home Assistant.
  * Replicates the behavior of the original Harmony Elite remote control.
  *
@@ -82,6 +94,25 @@ class HarmonyHubClient(
 
     /** Live connection state, for a status indicator on the settings page. */
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
+
+    private val _currentActivityId = MutableStateFlow<String?>(null)
+
+    /**
+     * The hub's own idea of which Activity is currently running — "-1" means
+     * PowerOff (everything off), null means unknown (not yet received a
+     * notification or answered [getCurrentActivity] since connecting).
+     * Populated from unsolicited "connect.stateDigest?notify" push frames in
+     * [handleUnsolicited]. Confirmed against a real hub capture (2026-08-14):
+     * `activityId` updates immediately when a transition starts (activityStatus
+     * 1), well before `runningActivityList` catches up a couple frames later —
+     * use `activityId`, not `runningActivityList`, for anything time-sensitive.
+     */
+    val currentActivityId: StateFlow<String?> = _currentActivityId.asStateFlow()
+
+    private val _activityState = MutableStateFlow<HarmonyActivityState?>(null)
+
+    /** Same info as [currentActivityId], plus the starting/active distinction. */
+    val activityState: StateFlow<HarmonyActivityState?> = _activityState.asStateFlow()
 
     /** Outstanding request/response commands (currently just getConfig), keyed by the hbus msg id. */
     private val pending = ConcurrentHashMap<String, CompletableDeferred<JSONObject>>()
@@ -177,14 +208,96 @@ class HarmonyHubClient(
     }
 
     /**
-     * Routes an incoming frame to a waiting [getConfig] caller if its "id"
-     * matches an outstanding request; unsolicited frames (activity change
-     * notifications, etc.) are just logged for now.
+     * Routes an incoming frame to a waiting request/response caller
+     * ([getConfig], [getCurrentActivity]) if its "id" matches an outstanding
+     * request, or — for frames with no "id" — treats it as an unsolicited
+     * push notification and looks for an Activity-change digest.
      */
     private fun routeMessage(text: String) {
         val obj = runCatching { JSONObject(text) }.getOrNull() ?: return
-        val id = obj.opt("id") as? String ?: return
-        pending.remove(id)?.complete(obj)
+        val id = obj.opt("id") as? String
+        if (id != null) {
+            pending.remove(id)?.complete(obj)
+            return
+        }
+        handleUnsolicited(obj)
+    }
+
+    /**
+     * Handles the hub's "stateDigest" push, sent whenever the running
+     * Activity changes (and periodically as a heartbeat). Confirmed shape,
+     * cross-checked across several independent captures:
+     *
+     *   {"type": "connect.stateDigest?notify",
+     *    "data": {"activityId": "11553793", "activityStatus": 2,
+     *              "runningActivityList": "11553793", ...many other fields}}
+     *
+     * `activityStatus`: 0 = none/off, 1 = starting (transition in progress),
+     * 2 = running steady. Anything else is treated like "running" so a
+     * status code this app doesn't recognize yet still updates
+     * [currentActivityId] rather than silently doing nothing.
+     */
+    private fun handleUnsolicited(obj: JSONObject) {
+        if (obj.optString("type") != "connect.stateDigest?notify") return
+        val data = obj.optJSONObject("data") ?: return
+        val activityId = data.optString("activityId").takeIf { it.isNotBlank() } ?: return
+        Log.d(TAG, "stateDigest: activityId=$activityId activityStatus=${data.opt("activityStatus")}")
+        _currentActivityId.value = activityId
+        _activityState.value =
+            when (data.optInt("activityStatus", 2)) {
+                1 -> HarmonyActivityState.Starting(activityId)
+                else -> HarmonyActivityState.Active(activityId)
+            }
+    }
+
+    /**
+     * One-shot query for the Activity running right now — needed right after
+     * [connect] since the push notification in [handleUnsolicited] only
+     * fires on the *next change*, not retroactively for whatever was already
+     * running. Same request/response plumbing as [getConfig].
+     *
+     * Returns null on timeout, if not connected, or on a malformed response.
+     */
+    suspend fun getCurrentActivity(): String? {
+        val socket =
+            webSocket ?: run {
+                Log.w(TAG, "getCurrentActivity() called while not connected")
+                return null
+            }
+        val id = nextMsgId.getAndIncrement().toString()
+        val deferred = CompletableDeferred<JSONObject>()
+        pending[id] = deferred
+
+        val hbus =
+            JSONObject().apply {
+                put("cmd", "vnd.logitech.harmony/vnd.logitech.harmony.engine?getCurrentActivity")
+                put("id", id)
+                put("params", JSONObject().apply { put("verb", "get") })
+            }
+        val envelope =
+            JSONObject().apply {
+                put("hubId", hubId)
+                put("timeout", 30)
+                put("hbus", hbus)
+            }
+
+        Log.d(TAG, "getCurrentActivity(): $envelope")
+        socket.send(envelope.toString())
+
+        val reply =
+            try {
+                withTimeoutOrNull(CONFIG_TIMEOUT) { deferred.await() }
+            } finally {
+                pending.remove(id)
+            }
+        val activityId = reply?.optJSONObject("data")?.optString("result")?.takeIf { it.isNotBlank() }
+        if (activityId == null) {
+            Log.w(TAG, "getCurrentActivity() timed out or malformed reply")
+        } else {
+            _currentActivityId.value = activityId
+            _activityState.value = HarmonyActivityState.Active(activityId)
+        }
+        return activityId
     }
 
     private fun scheduleReconnect() {

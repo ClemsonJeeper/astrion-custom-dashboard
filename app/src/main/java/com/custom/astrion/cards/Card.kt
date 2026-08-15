@@ -1,7 +1,9 @@
 package com.custom.astrion.cards
 
 import androidx.compose.runtime.Composable
-import com.custom.astrion.config.IrActivityConfig
+import com.custom.astrion.config.ActivityConfig
+import com.custom.astrion.config.ActivityRuntime
+import com.custom.astrion.config.IrDeviceConfig
 import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.HaClient
 
@@ -59,10 +61,27 @@ class CardContext(
     /** Live connection state of the direct Harmony hub link — for a status
      * indicator on the settings page (HA's own state is on ctx.client.connection). */
     val harmonyConnected: Boolean = false,
-    /** Local IR activities (id -> config), resolved once from AppConfig.irActivities.
-     * Used by scene_grid items with an `irActivity` field to send a sequence
-     * of raw IR commands directly through the device's own blaster. */
-    val irActivities: Map<String, IrActivityConfig> = emptyMap(),
+    /** Local IR devices (id -> config), resolved once from AppConfig.irDevices.
+     * Used by scene_grid items with `irDevice`+`irCommand` fields, and by
+     * composed Activities' `"ir"`-sourced devices, to send a raw IR command
+     * directly through the device's own blaster — no hub, no HA, no cloud. */
+    val irDevices: Map<String, IrDeviceConfig> = emptyMap(),
+    /** Sends one command directly through the local IR blaster. */
+    val sendIrCommand: (deviceId: String, command: String) -> Unit = { _, _ -> },
+    /** Every composed Activity (id -> config), resolved once from
+     * AppConfig.activities — see ActivityConfig doc for what "composed" means
+     * (more than one device, Astrion itself orchestrates the switch). */
+    val activities: Map<String, ActivityConfig> = emptyMap(),
+    /** Starts a composed Activity by id: runs its device sequence (diffed
+     * against whatever Activity is currently active in the same room, so a
+     * device used by both is left alone — see ActivityRuntime.switchActivity),
+     * then marks it active. No-op if `activityId` isn't found. */
+    val startActivity: (activityId: String) -> Unit = {},
+    /** Tracks which AV Activity is active in each room — see the NOTE atop
+     * AppConfig.kt. Cards that render a trackable item (scene_grid with
+     * `track: true`, or `activity`) call into this after firing their own
+     * action; an "active activities" overlay reads from it directly. */
+    val activityRuntime: ActivityRuntime? = null,
 )
 
 /**

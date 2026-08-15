@@ -45,6 +45,11 @@ class HarmonyHubRegistry(
     /** Same order as the configured hubs — first() is the implicit default hub. */
     val configs: List<HarmonyHubConfig> = hubs
 
+    /** localId -> live client — exposed so callers can wire per-hub live
+     * state (e.g. ActivityRuntime.bind()) without needing a `hub` field to
+     * resolve just one, unlike [client]. */
+    val clientsByLocalId: Map<String, HarmonyHubClient> get() = clients
+
     @Suppress("Unused")
     val isEmpty: Boolean get() = clients.isEmpty()
 
