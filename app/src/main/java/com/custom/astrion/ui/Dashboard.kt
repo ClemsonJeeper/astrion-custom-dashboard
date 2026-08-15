@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -201,36 +202,62 @@ fun Dashboard(
  * Full-screen settings overlay, reached only by swiping down from the top
  * edge (see [TopStatusBar]) — deliberately NOT part of `config.pages`, so it
  * never shows up in the horizontal pager or the page-indicator dots.
- * Dismissed by an upward swipe, the system back button, or the close row.
+ * Dismissed by an upward swipe from the bottom gesture strip, the system
+ * back button, or the close row.
+ *
+ * The swipe-up-to-close gesture lives on a dedicated bottom strip that sits
+ * above the scrollable content in z-order. This avoids the gesture conflict
+ * between `detectVerticalDragGestures` and `verticalScroll` when both are on
+ * the same node — the scroll consumer eats all vertical drags before the drag
+ * detector ever fires.
  */
 @Composable
 private fun SettingsOverlay(ctx: CardContext, onClose: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0E2229))
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { change, dragAmount ->
-                    change.consume()
-                    if (dragAmount < -25f) onClose()
-                }
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0E2229))) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text(
+                    "✕ " + stringResource(R.string.close),
+                    color = Color(0xFF93AFB6),
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onClose() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
             }
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Text(
-                "✕ " + stringResource(R.string.close),
-                color = Color(0xFF93AFB6),
-                fontSize = 13.sp,
+            SettingsMenu(ctx)
+        }
+
+        // Bottom gesture strip: swipe up to close. Sits above the scrollable
+        // content so the drag detector doesn't fight verticalScroll for events.
+        // A visual handle bar cues the user where to swipe.
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(50.dp)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures { change, dragAmount ->
+                        if (dragAmount < -15f) onClose()
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable { onClose() }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0xFF3A5560)),
             )
         }
-        SettingsMenu(ctx)
     }
 }
 
