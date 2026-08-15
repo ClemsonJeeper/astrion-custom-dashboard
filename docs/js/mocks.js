@@ -41,6 +41,42 @@ const MDI = {
 };
 function mdiSvg(path) { return `<svg viewBox="0 0 24 24" fill="currentColor"><path d="${path}"/></svg>`; }
 
+// Mimics Home Assistant's default friendly_name generation: strip the domain
+// prefix, replace underscores with spaces, and title-case each word. Used by
+// the preview as a stand-in for the live friendly_name the app fetches from HA
+// (which the static editor page can't reach).
+function prettyEntityName(entityId) {
+  if (!entityId || typeof entityId !== 'string') return null;
+  const tail = entityId.includes('.') ? entityId.slice(entityId.indexOf('.') + 1) : entityId;
+  return tail.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Builds a per-card "mock" object for the preview that's live where possible:
+// starts from the static `baseMock` (so every field a renderer expects still
+// exists), then overlays the matching HA entity's real `state`, `friendly_name`
+// and `attributes` (which use the same HA attribute keys — brightness,
+// current_position, hvac_mode, supported_features, … — the renderers already
+// read off the mock). Returns `baseMock` unchanged when there's no live entity
+// for `entityId` (no HA connection, unknown entity, or not device mode), so
+// every renderer falls back to the example data it always showed.
+function liveMock(entityId, baseMock) {
+  const e = (typeof haEntity === 'function') ? haEntity(entityId) : null;
+  if (!e) return baseMock;
+  // Merge attributes over the mock, but skip null values — HA sends null for
+  // attributes a climate/cover/etc. doesn't currently have (e.g. temperature
+  // on a heat_cool thermostat with no setpoint), and those shouldn't clobber
+  // the mock's sane defaults (otherwise the preview renders "null°").
+  const merged = Object.assign({}, baseMock);
+  if (e.attributes) {
+    for (const k in e.attributes) {
+      if (e.attributes[k] != null) merged[k] = e.attributes[k];
+    }
+  }
+  merged.state = e.state;
+  merged.friendly_name = e.friendly_name || baseMock.friendly_name;
+  return merged;
+}
+
 function climateHvacIcon(m) {
   if (m === 'heat') return MDI.fire;
   if (m === 'cool') return MDI.snowflake;

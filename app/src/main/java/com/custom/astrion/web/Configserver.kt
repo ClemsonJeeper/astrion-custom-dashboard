@@ -14,11 +14,17 @@ import com.custom.astrion.config.ActivityRuntime
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HarmonyHubConfig
 import com.custom.astrion.config.RemoteSettings
+import com.custom.astrion.ha.ConnectionState
+import com.custom.astrion.ha.HaClient
 import com.custom.astrion.harmony.HarmonyHubDiscovery
 import com.custom.astrion.harmony.HarmonyHubRegistry
 import com.custom.astrion.update.UpdateChecker
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -51,6 +57,10 @@ import java.util.UUID
  *                        (?entity=<id>) through this device's HA token, as
  *                        image/jpeg — lets the editor preview show a real
  *                        camera frame (the browser has no HA token of its own)
+ *  GET  /ha-states       snapshot of every HA entity this device currently knows
+ *                        ({entity_id: {state, friendly_name, attributes}}) plus
+ *                        a `connected` flag — lets the dashboard editor preview
+ *                        render with live HA data instead of the static mocks
  *  GET  /dashboard.json  download the current dashboard.json (backup)
  *  POST /dashboard.json  replace dashboard.json, then live-reload the dashboard
  *  POST /icons           upload a PNG into /sdcard/astrion/icons/
@@ -107,6 +117,7 @@ import java.util.UUID
 class ConfigServer(
     private val context: Context,
     private val harmonyRegistry: HarmonyHubRegistry,
+    private val haClient: HaClient,
     private val onConnectionSaved: () -> Unit,
     private val onDashboardUpdated: () -> Unit,
     /** Current dashboard's page names, in pager order — read fresh on every
@@ -152,6 +163,7 @@ class ConfigServer(
                 "/harmony-hubs" -> if (method == Method.GET) serveHarmonyHubs() else methodNotAllowed()
                 "/harmony-discover" -> if (method == Method.GET) serveHarmonyDiscover(session) else methodNotAllowed()
                 "/camera-snapshot" -> if (method == Method.GET) serveCameraSnapshot(session) else methodNotAllowed()
+                "/ha-states" -> if (method == Method.GET) serveHaStates() else methodNotAllowed()
                 "/icons-list" -> if (method == Method.GET) serveIconsList() else methodNotAllowed()
                 "/check-update" -> if (method == Method.GET) handleCheckUpdate() else methodNotAllowed()
                 "/save-connection" -> if (method == Method.POST) handleSaveConnection(session) else methodNotAllowed()
@@ -863,6 +875,45 @@ class ConfigServer(
             newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong())
         resp.addHeader("Cache-Control", "no-store")
         return resp
+    }
+
+    /**
+     * Snapshot of every HA entity the running app currently holds, as JSON the
+     * dashboard editor (docs/js/preview.js) can render against instead of the
+     * static `*_MOCK` examples. Shape:
+     *   { "connected": true, "states": { "cover.x": { "state": "open",
+     *       "friendly_name": "X", "attributes": { ... } }, ... } }
+     *
+     * `connected` reflects the WebSocket state at call time; the editor falls
+     * back to the mocks when it's false (or when this endpoint isn't reachable,
+     * e.g. the GitHub Pages copy of the editor). Attributes are passed through
+     * verbatim (the same kotlinx JsonObject the cards read), so each card's
+     * preview can pull whatever domain-specific fields it needs.
+     */
+    private fun serveHaStates(): Response {
+        val connected = haClient.connection.value == ConnectionState.CONNECTED
+        val entities = haClient.entities.value
+        val json =
+            buildJsonObject {
+                put("connected", connected)
+                put(
+                    "states",
+                    buildJsonObject {
+                        entities.forEach { (id, e) ->
+                            put(
+                                id,
+                                buildJsonObject {
+                                    put("state", e.state)
+                                    put("friendly_name", e.friendlyName)
+                                    put("attributes", e.attributes)
+                                },
+                            )
+                        }
+                    },
+                )
+            }
+        val body = Json.encodeToString(JsonObject.serializer(), json)
+        return newFixedLengthResponse(Response.Status.OK, "application/json", body)
     }
 
     // ---- actions --------------------------------------------------------------

@@ -289,6 +289,26 @@ function updateCardFormInputs() {
       <div class="hint">This card type isn't fully modeled in the builder yet — paste the options object directly.</div>
     `;
   }
+
+  // Attach live entity autocomplete to whichever entity_id fields this card
+  // type created. Only attaches when /ha-states data is available (device mode
+  // + HA connected); otherwise the inputs stay plain text fields.
+  const mainDomain = type === 'clock_weather' ? 'weather'
+    : type === 'source_select' ? null
+    : type;
+  ['optEntityId', 'optRemoteEntity', 'optMediaEntity', 'optMuteEntity',
+    'optCalendarEntity', 'optMapImage', 'giEntityId'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const dom = id === 'optEntityId' ? mainDomain
+      : id === 'optRemoteEntity' ? 'remote'
+      : id === 'optMediaEntity' ? 'media_player'
+      : id === 'optMuteEntity' ? 'media_player'
+      : id === 'optCalendarEntity' ? 'calendar'
+      : id === 'optMapImage' ? 'image'
+      : null; // giEntityId — any domain (scene.*, script.*, media_player.*, …)
+    attachEntityAutocomplete(el, dom);
+  });
 }
 
 // media_player card: top_buttons only make sense on the "full" variant
