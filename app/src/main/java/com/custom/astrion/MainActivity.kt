@@ -116,6 +116,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.i("MainActivity", "onCreate — activity instance ${this.hashCode()}")
 
         // Enable full-screen immersive sticky mode for dedicated wall/remote tablet mode
         @Suppress("DEPRECATION")
@@ -137,6 +138,23 @@ class MainActivity : ComponentActivity() {
         wakeOnMotionEnabled = prefs.getBoolean("wake_on_motion_enabled", true)
         setupMotionWake()
 
+        initClientsAndServer()
+        configServerEnabled = prefs.getBoolean("config_server_enabled", true)
+        if (configServerEnabled) startConfigServer()
+        lifecycleScope.launch { harmonyRegistry.connectAll() }
+
+        currentPageIndex = dashboard.config.startPage
+        rebindHotkeysForCurrentPage()
+        client.connect()
+
+        composeContent()
+    }
+
+    /** Creates (or re-creates) the HA client, Harmony registry, and ConfigServer
+     *  from current RemoteSettings. Called once from onCreate and again whenever
+     *  connection settings are saved — avoids Activity.recreate(), which is
+     *  unreliable on Android 8.1 HOME launcher activities. */
+    private fun initClientsAndServer() {
         client = HaClient(baseUrl = RemoteSettings.haUrl(this), token = RemoteSettings.haToken(this))
         harmonyRegistry = HarmonyHubRegistry(
             hubs = RemoteSettings.harmonyHubs(this),
@@ -146,17 +164,30 @@ class MainActivity : ComponentActivity() {
         configServer = ConfigServer(
             context = this,
             harmonyRegistry = harmonyRegistry,
-            onConnectionSaved = { runOnUiThread { recreate() } },
+            onConnectionSaved = { runOnUiThread { reconnectWithNewSettings() } },
             onDashboardUpdated = { runOnUiThread { reloadDashboard() } },
         )
-        configServerEnabled = prefs.getBoolean("config_server_enabled", true)
+    }
+
+    /** Called when the user saves new HA/Harmony connection settings via the
+     *  web configurator. Disconnects the old clients, re-creates them with the
+     *  updated settings, restarts the ConfigServer, and re-composes the UI —
+     *  all within the same Activity instance, no recreate() needed. */
+    private fun reconnectWithNewSettings() {
+        Log.i("MainActivity", "reconnectWithNewSettings")
+        client.disconnect()
+        harmonyRegistry.disconnectAll()
+        runCatching { configServer.stop() }
+
+        initClientsAndServer()
         if (configServerEnabled) startConfigServer()
+        client.connect()
         lifecycleScope.launch { harmonyRegistry.connectAll() }
 
-        currentPageIndex = dashboard.config.startPage
-        rebindHotkeysForCurrentPage()
-        client.connect()
+        composeContent()
+    }
 
+    private fun composeContent() {
         setContent {
             val entities = client.entities.collectAsState()
             val connection = client.connection.collectAsState()
@@ -179,6 +210,10 @@ class MainActivity : ComponentActivity() {
                 setConfigServerEnabled = { enabled -> updateConfigServerEnabled(enabled) },
             )
         }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
     }
 
     override fun onResume() {
@@ -348,7 +383,17 @@ class MainActivity : ComponentActivity() {
 
     private fun startConfigServer() {
         runCatching { configServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false) }
-            .onFailure { Log.e("ConfigServer", "failed to start on :8080", it) }
+            .onSuccess { Log.i("ConfigServer", "started on :8080") }
+            .onFailure {
+                Log.e("ConfigServer", "failed to start on :8080", it)
+                keyHandler.postDelayed({
+                    if (!isDestroyed) {
+                        runCatching { configServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false) }
+                            .onSuccess { Log.i("ConfigServer", "retry: started on :8080") }
+                            .onFailure { e -> Log.e("ConfigServer", "retry failed on :8080", e) }
+                    }
+                }, 500L)
+            }
     }
 
     /** Called from the settings page switch — persists the choice and
@@ -384,6 +429,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        Log.i("MainActivity", "onDestroy — activity instance ${this.hashCode()}")
         sensorManager?.unregisterListener(motionListener)
         client.disconnect()
         harmonyRegistry.disconnectAll()
