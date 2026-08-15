@@ -7,12 +7,33 @@ function renderTabs() {
     const tab = document.createElement('div');
     const isActive = index === currentActivePage;
     tab.className = `tab ${isActive ? 'active' : ''}`;
+    tab.dataset.pageIdx = String(index);
 
     const label = document.createElement('span');
     label.textContent = (page.parent ? '↳ ' : '') + page.name + (index === dashboardData.startPage ? ' 🏠' : '');
     if (page.parent) label.title = `Child of "${page.parent}"`;
     tab.appendChild(label);
     tab.onclick = () => onPageChange(index);
+
+    // Drag-to-reorder, mirroring enhanceCardControls() below. Dropping a tab
+    // onto another tab repositions its page in dashboardData.pages; the active
+    // tab and start page follow their pages via reorderPage()'s index fixup.
+    tab.setAttribute('draggable', 'true');
+    tab.addEventListener('dragstart', (e) => {
+      tab.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(index));
+    });
+    tab.addEventListener('dragend', () => tab.classList.remove('dragging'));
+    tab.addEventListener('dragover', (e) => { e.preventDefault(); tab.classList.add('drag-over'); });
+    tab.addEventListener('dragleave', () => tab.classList.remove('drag-over'));
+    tab.addEventListener('drop', (e) => {
+      e.preventDefault();
+      tab.classList.remove('drag-over');
+      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      const toIdx = parseInt(tab.dataset.pageIdx, 10);
+      if (!isNaN(fromIdx) && !isNaN(toIdx) && fromIdx !== toIdx) reorderPage(fromIdx, toIdx);
+    });
 
     if (isActive) {
       const gear = document.createElement('span');
