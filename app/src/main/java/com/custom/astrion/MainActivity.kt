@@ -126,6 +126,12 @@ class MainActivity : ComponentActivity() {
      * hotkeys should currently be layered on top of the global ones. */
     private var currentPageIndex = 0
 
+    /** Index of the page shown in the swipe-up overlay, or null when the
+     * overlay is closed. While non-null, hardware hotkeys rebind to this
+     * page's bindings (so e.g. D-pad drives the Scenes overlay); restored to
+     * the underlying page's bindings when the overlay closes. */
+    private var overlayPageIndex: Int? = null
+
     private val prefs by lazy { getSharedPreferences("astrion_settings", MODE_PRIVATE) }
 
     /** Backing state for the settings page's "Wake on movement" switch —
@@ -248,6 +254,10 @@ class MainActivity : ComponentActivity() {
                     currentPageIndex = pageIndex
                     rebindHotkeysForCurrentPage()
                 },
+                onOverlayPageChanged = { overlayIdx ->
+                    overlayPageIndex = overlayIdx
+                    rebindHotkeysForCurrentPage()
+                },
                 wakeOnMotionEnabled = wakeOnMotionEnabled,
                 setWakeOnMotionEnabled = { enabled -> setWakeOnMotion(enabled) },
                 configServerEnabled = configServerEnabled,
@@ -318,9 +328,12 @@ class MainActivity : ComponentActivity() {
      * fallback on [PageConfig.parentKey] — but only if that key isn't
      * already claimed by one of the hotkeys just bound above, so an AV page
      * that binds its own hotkey on the same key (e.g. a custom HOME action)
-     * is never overridden by the fallback. */
+     * is never overridden by the fallback.
+     * When the swipe-up overlay is open, the overlay page's bindings are used
+     * instead of the underlying pager page's. */
     private fun rebindHotkeysForCurrentPage() {
-        val page = dashboard.config.pages.getOrNull(currentPageIndex)
+        val effectiveIndex = overlayPageIndex ?: currentPageIndex
+        val page = dashboard.config.pages.getOrNull(effectiveIndex)
         val mergedShort = mergeHotkeys(dashboard.config.hotkeys, page?.hotkeys.orEmpty())
         val mergedLong = mergeHotkeys(dashboard.config.longHotkeys, page?.longHotkeys.orEmpty())
         bindHotkeys(mergedShort, mergedLong)

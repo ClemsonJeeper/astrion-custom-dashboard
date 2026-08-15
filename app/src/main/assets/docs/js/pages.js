@@ -1,4 +1,4 @@
-let dashboardData = { startPage: 0, pages: [ { name: "Home", cards: [], hotkeys: [], longHotkeys: [] } ], hotkeys: [], longHotkeys: [], irDevices: [], activities: [], theme: {} };
+let dashboardData = { startPage: 0, pages: [ { name: "Home", cards: [], hotkeys: [], longHotkeys: [], swipeUp: "", hidden: false } ], hotkeys: [], longHotkeys: [], irDevices: [], activities: [], theme: {} };
 let currentActivePage = 0;
 let editingCard = null;    // index of the card being edited within the current page, or null
 let editingHotkey = null;  // { scope, listType, i } of the hotkey being edited, or null
@@ -25,7 +25,7 @@ function slugify(name, fallbackPrefix) {
 }
 
 function resetAll() {
-  dashboardData = { startPage: 0, pages: [ { name: "Home", cards: [], hotkeys: [], longHotkeys: [] } ], hotkeys: [], longHotkeys: [], irDevices: [], activities: [], theme: {} };
+  dashboardData = { startPage: 0, pages: [ { name: "Home", cards: [], hotkeys: [], longHotkeys: [], swipeUp: "", hidden: false } ], hotkeys: [], longHotkeys: [], irDevices: [], activities: [], theme: {} };
   currentActivePage = 0;
   document.getElementById('importBox').value = '';
   initEditor();
@@ -45,6 +45,8 @@ function importJson() {
         longHotkeys: p.longHotkeys || [],
         ...(p.parent ? { parent: p.parent } : {}),
         ...(p.parent && p.parentKey && p.parentKey.toUpperCase() !== 'BACK' ? { parentKey: p.parentKey.toUpperCase() } : {}),
+        swipeUp: p.swipeUp || "",
+        hidden: p.hidden === true,
       })),
       hotkeys: parsed.hotkeys || [],
       longHotkeys: parsed.longHotkeys || [],
@@ -52,7 +54,7 @@ function importJson() {
       activities: parsed.activities || [],
       theme: parsed.theme || {},
     };
-    if (dashboardData.pages.length === 0) dashboardData.pages.push({ name: "Home", cards: [], hotkeys: [], longHotkeys: [] });
+    if (dashboardData.pages.length === 0) dashboardData.pages.push({ name: "Home", cards: [], hotkeys: [], longHotkeys: [], swipeUp: "", hidden: false });
     currentActivePage = 0;
     initEditor();
     alert('dashboard.json loaded — you can now edit it below.');
@@ -74,6 +76,13 @@ function initEditor() {
   if (typeof applyThemeToPreview === 'function') applyThemeToPreview();
   updateJsonOutput();
   updateHotkeyActionInputs();
+  // Attach page-name autocomplete to the swipe-up overlay field once — the
+  // input is static HTML (not rebuilt on reset), so a flag keeps us from
+  // stacking listeners on repeated initEditor() calls.
+  if (!window._swipeUpAcAttached) {
+    window._swipeUpAcAttached = true;
+    attachPageAutocomplete(document.getElementById('pageDialogSwipeUp'));
+  }
 }
 
 // ---- Pages: add / rename / delete, all via the page dialog -----------------
@@ -99,6 +108,8 @@ function openPageDialog(index) {
   document.getElementById('pageDialogParentKey').value = isNew ? 'BACK' : (dashboardData.pages[index].parentKey || 'BACK');
   onPageDialogParentChange();
   document.getElementById('pageDialogStart').checked = isNew ? false : (dashboardData.startPage === index);
+  document.getElementById('pageDialogSwipeUp').value = isNew ? '' : (dashboardData.pages[index].swipeUp || '');
+  document.getElementById('pageDialogHidden').checked = isNew ? false : (dashboardData.pages[index].hidden === true);
   document.getElementById('pageDialogDeleteBtn').style.display = isNew ? 'none' : '';
   document.getElementById('pageDialogModal').classList.add('open');
   document.getElementById('pageDialogName').focus();
@@ -153,9 +164,11 @@ function savePageDialog() {
   const parent = document.getElementById('pageDialogParent').value || undefined;
   const parentKey = document.getElementById('pageDialogParentKey').value || 'BACK';
   const makeStart = document.getElementById('pageDialogStart').checked;
+  const swipeUp = document.getElementById('pageDialogSwipeUp').value.trim();
+  const hidden = document.getElementById('pageDialogHidden').checked;
 
   if (editingPage === null) {
-    const page = { name, cards: [], hotkeys: [], longHotkeys: [] };
+    const page = { name, cards: [], hotkeys: [], longHotkeys: [], swipeUp, hidden };
     if (parent) {
       page.parent = parent;
       if (parentKey !== 'BACK') page.parentKey = parentKey;
@@ -167,6 +180,8 @@ function savePageDialog() {
     const page = dashboardData.pages[editingPage];
     const oldName = page.name;
     page.name = name;
+    page.swipeUp = swipeUp;
+    page.hidden = hidden;
     if (parent) {
       page.parent = parent;
       if (parentKey !== 'BACK') page.parentKey = parentKey; else delete page.parentKey;

@@ -68,6 +68,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 
 /**
  * Swipeable, paginated dashboard. Each config page is a horizontally-swipeable
@@ -103,6 +107,11 @@ fun Dashboard(
      * a card's navigateToPage) — MainActivity uses this to rebind hardware
      * hotkeys to the newly-visible page's own bindings. */
     onPageChanged: (Int) -> Unit = {},
+    /** Called with the swipe-up overlay page index when it opens, and null
+     * when it closes — MainActivity uses this to rebind hardware hotkeys to
+     * the overlay page while it's on top, and restore the underlying page's
+     * bindings on close. */
+    onOverlayPageChanged: (Int?) -> Unit = {},
     wakeOnMotionEnabled: Boolean = true,
     setWakeOnMotionEnabled: (Boolean) -> Unit = {},
     configServerEnabled: Boolean = true,
@@ -133,17 +142,44 @@ fun Dashboard(
         val harmonyConnected by (harmonyRegistry.client()?.connected ?: remember { MutableStateFlow(false) }).collectAsState()
         val scope = rememberCoroutineScope()
 
-        val pageCount = config.pages.size.coerceAtLeast(1)
-        val pagerState =
-            rememberPagerState(
-                initialPage = config.startPage.coerceIn(0, pageCount - 1),
-                pageCount = { pageCount }
-            )
+    // Swipe-up overlay state — declared early so navigateToPage (below) can
+    // capture it. A page may declare a `swipeUp` target (another page's name)
+    // that opens as a full-screen overlay on top of the pager when the user
+    // swipes up past the bottom of that page's content (overscroll). Stored as
+    // a config-pages index so MainActivity can rebind hotkeys to it; null when
+    // no overlay is open.
+    var swipeUpPageIndex by remember { mutableStateOf<Int?>(null) }
+    BackHandler(enabled = swipeUpPageIndex != null) { swipeUpPageIndex = null }
+    val openSwipeUp: (String) -> Unit = { targetName ->
+        val idx = config.pages.indexOfFirst { it.name.equals(targetName, ignoreCase = true) }
+        if (idx >= 0) swipeUpPageIndex = idx
+    }
+    LaunchedEffect(swipeUpPageIndex) { onOverlayPageChanged(swipeUpPageIndex) }
 
-        // Scans pages/hotkeys once per config load for every `"track": true`
-        // item; re-scanned automatically whenever `config` itself changes
-        // (dashboard.json reload). Bound to each hub's live state below.
-        val activityRuntime = remember(config) { ActivityRuntime(config) }
+    // Hidden pages are excluded from the horizontal pager and the dot row —
+    // they're only reachable via a swipe-up overlay or a hotkey that opens
+    // them as the overlay. The pager operates on visible-pages indices, so we
+    // keep a list of config indices that maps visible-position → config-position.
+    // All navigation (hotkeys, navigateToPage, dots) resolves names against the
+    // full config.pages list, then translates to a visible index (or opens the
+    // overlay if the target is hidden).
+    val visibleIndices = remember(config) {
+        config.pages.indices.filter { !config.pages[it].hidden }
+    }
+    val pageCount = visibleIndices.size.coerceAtLeast(1)
+    val initialVisible = remember(config) {
+        val start = config.startPage.coerceIn(0, config.pages.lastIndex.coerceAtLeast(0))
+        visibleIndices.indexOf(start).let { if (it < 0) 0 else it }
+    }
+    val pagerState = rememberPagerState(
+        initialPage = initialVisible,
+        pageCount = { pageCount },
+    )
+
+    // Scans pages/hotkeys once per config load for every `"track": true`
+    // item; re-scanned automatically whenever `config` itself changes
+    // (dashboard.json reload). Bound to each hub's live state below.
+    val activityRuntime = remember(config) { ActivityRuntime(config) }
         LaunchedEffect(activityRuntime) {
             harmonyRegistry.clientsByLocalId.forEach { (localId, hubClient) ->
                 launch {
@@ -163,11 +199,13 @@ fun Dashboard(
         // intermediate page between the current one and the target, which reads
         // as "the wrong page flashes up" right before the real one lands —
         // especially noticeable on the HA100's weak CPU. A direct jump should
-        // land directly.
+        // land directly. A hidden target opens as the swipe-up overlay instead.
         val navigateToPage: (String) -> Unit = { pageName ->
-            val idx = config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
-            if (idx >= 0) {
-                scope.launch { pagerState.scrollToPage(idx) }
+            val cfgIdx = config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
+            if (cfgIdx >= 0) {
+                val visIdx = visibleIndices.indexOf(cfgIdx)
+                if (visIdx >= 0) scope.launch { pagerState.scrollToPage(visIdx) }
+                else swipeUpPageIndex = cfgIdx
             }
         }
 
@@ -348,7 +386,9 @@ fun Dashboard(
         // not visibly scroll through every page in between.
         LaunchedEffect(navTarget) {
             val target = navTarget ?: return@LaunchedEffect
-            if (target in 0 until pageCount) pagerState.scrollToPage(target)
+            val visIdx = visibleIndices.indexOf(target)
+            if (visIdx >= 0) pagerState.scrollToPage(visIdx)
+            else if (target in 0 until config.pages.size) swipeUpPageIndex = target
             onNavHandled()
         }
 
@@ -356,7 +396,7 @@ fun Dashboard(
         // hotkeys to that page's own bindings (swipe, dot tap, hardware nav, or a
         // card's navigateToPage all funnel through pagerState.currentPage).
         LaunchedEffect(pagerState.currentPage) {
-            onPageChanged(pagerState.currentPage)
+            onPageChanged(visibleIndices.getOrNull(pagerState.currentPage) ?: return@LaunchedEffect)
         }
 
         var showSettings by remember { mutableStateOf(false) }
@@ -394,21 +434,47 @@ fun Dashboard(
                         .weight(1f)
                         .fillMaxWidth()
                 ) { pageIndex ->
-                    PageContent(config.pages[pageIndex], ctx)
+                    val page = config.pages[visibleIndices[pageIndex]]
+                    PageContent(
+                        page = page,
+                        ctx = ctx,
+                        swipeUp = page.swipeUp,
+                        onOpen = { page.swipeUp?.let(openSwipeUp) },
+                    )
+                }
+
+                // Bottom-edge swipe-up strip: catches bottom-originating upward
+                // swipes that miss the pager's nestedScroll. Only activates when
+                // the current page declares a swipeUp target.
+                val currentSwipeUp = visibleIndices.getOrNull(pagerState.currentPage)
+                    ?.let { config.pages[it].swipeUp }
+                if (!currentSwipeUp.isNullOrBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(18.dp)
+                            .pointerInput(currentSwipeUp) {
+                                detectVerticalDragGestures { _, dragAmount ->
+                                    if (dragAmount < -15f) currentSwipeUp?.let(openSwipeUp)
+                                }
+                            },
+                    )
                 }
 
                 PageIndicator(
-                    pages = config.pages,
+                    pages = visibleIndices.map { config.pages[it] },
                     current = pagerState.currentPage,
                     // Same instant scrollToPage as navigateToPage/hardware nav —
                     // a dot tap is a direct jump too, not a swipe gesture, so it
                     // shouldn't visibly scroll through pages in between.
                     onDotClick = { index -> scope.launch { pagerState.scrollToPage(index) } },
                     onNavigateToParent = {
-                        val parentName = config.pages.getOrNull(pagerState.currentPage)?.parent
+                        val cfgIdx = visibleIndices.getOrNull(pagerState.currentPage)
+                        val parentName = cfgIdx?.let { config.pages.getOrNull(it)?.parent }
                         val idx =
                             parentName?.let { name ->
                                 config.pages.indexOfFirst { it.name.equals(name, ignoreCase = true) }
+                                    .let { if (it >= 0) visibleIndices.indexOf(it) else -1 }
                             }
                         if (idx != null && idx >= 0) scope.launch { pagerState.scrollToPage(idx) }
                     },
@@ -426,6 +492,15 @@ fun Dashboard(
                     onStop = ::stopActivity,
                     onClose = { showActivities = false }
                 )
+            }
+        }
+
+        // Drawn below the settings overlay so settings still wins if both are
+        // somehow open (settings is reached via the top bar, which stays
+        // tappable through nothing — but ordering is belt-and-braces).
+        swipeUpPageIndex?.let { idx ->
+            config.pages.getOrNull(idx)?.let { page ->
+                SwipeUpOverlay(page = page, ctx = ctx, onClose = { swipeUpPageIndex = null })
             }
         }
     }
@@ -635,9 +710,30 @@ private fun ActivitiesOverlay(
 }
 
 @Composable
-private fun PageContent(page: PageConfig, ctx: CardContext) {
+private fun PageContent(
+    page: PageConfig,
+    ctx: CardContext,
+    swipeUp: String? = null,
+    onOpen: () -> Unit = {},
+) {
     val pinned = page.cards.filter { it.options["pin"] == "bottom" }
     val scrolling = page.cards.filter { it.options["pin"] != "bottom" }
+
+    // Swipe-up-to-open: only attach a nestedScroll overscroll consumer when
+    // this page actually declares a `swipeUp` target. The connection fires
+    // on upward overscroll (user swipes up past the bottom of the scrollable
+    // content — or immediately on a short page that doesn't fill the screen,
+    // since there's nothing to scroll so the whole drag is leftover). Using
+    // nestedScroll (not detectVerticalDragGestures) avoids the documented
+    // conflict with verticalScroll on the same node, and never blocks taps,
+    // so pinned-bottom cards keep working normally.
+    val openConnection = if (!swipeUp.isNullOrBlank()) {
+        val density = LocalDensity.current
+        val triggerPx = with(density) { 30.dp.toPx() }
+        rememberSwipeUpOpenConnection(onOpen = onOpen, triggerPx = triggerPx)
+    } else {
+        null
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -645,6 +741,7 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .then(if (openConnection != null) Modifier.nestedScroll(openConnection) else Modifier)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -661,6 +758,120 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 pinned.forEach { RenderCard(it, ctx) }
+            }
+        }
+    }
+}
+
+/**
+ * [NestedScrollConnection] that opens the swipe-up overlay once an upward
+ * overscroll accumulates past [triggerPx]. Upward overscroll arrives in
+ * [onPostScroll] as a negative `available.y` (the scrolling child couldn't
+ * consume the upward drag), so we accumulate its magnitude and fire [onOpen]
+ * when it crosses the threshold. Opposite-direction (downward) scrolls reset
+ * the accumulator so a partial upward flick that reverses doesn't carry over.
+ * Only reacts to user drag, not momentum fling, to avoid stray opens.
+ */
+@Composable
+private fun rememberSwipeUpOpenConnection(
+    onOpen: () -> Unit,
+    triggerPx: Float,
+): NestedScrollConnection {
+    val openRef = rememberUpdatedState(onOpen)
+    val accumulated = remember { FloatArray(1) }
+    return remember(triggerPx) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (source == NestedScrollSource.UserInput && available.y < 0f) {
+                    accumulated[0] += -available.y
+                    if (accumulated[0] >= triggerPx) {
+                        accumulated[0] = 0f
+                        openRef.value.invoke()
+                    }
+                    return available // consume the overscroll so the platform glow doesn't fire
+                }
+                accumulated[0] = 0f
+                return Offset.Zero
+            }
+        }
+    }
+}
+
+/**
+ * Full-screen overlay showing another page's cards, opened by swiping up from
+ * a page that declares a `swipeUp` target. Dismissed by swiping down from the
+ * top handle strip, tapping ✕, or pressing the system Back button (handled by
+ * the [BackHandler] in [Dashboard]). Renders the target page's cards with the
+ * same pinned/scrolling split as [PageContent] so pinned-bottom cards (e.g. a
+ * persistent media-player bar) keep their layout. Deliberately not part of the
+ * horizontal pager, so it doesn't show up in the page-indicator dots.
+ */
+@Composable
+private fun SwipeUpOverlay(page: PageConfig, ctx: CardContext, onClose: () -> Unit) {
+    val pinned = page.cards.filter { it.options["pin"] == "bottom" }
+    val scrolling = page.cards.filter { it.options["pin"] != "bottom" }
+
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0E2229))) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Top bar: swipe-down-to-close handle (centered) + close button (end).
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures { change, dragAmount ->
+                            if (dragAmount > 40f) onClose()
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(40.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFF3A5560)),
+                )
+                Text(
+                    "✕ " + stringResource(R.string.close),
+                    color = Color(0xFF93AFB6),
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 10.dp, top = 6.dp, bottom = 6.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onClose() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
+
+            // Page cards: same pinned/scrolling split as PageContent.
+            Column(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    scrolling.forEach { RenderCard(it, ctx) }
+                }
+                if (pinned.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF13262D))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        pinned.forEach { RenderCard(it, ctx) }
+                    }
+                }
             }
         }
     }
