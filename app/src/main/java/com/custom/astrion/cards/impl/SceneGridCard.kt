@@ -1,5 +1,6 @@
 package com.custom.astrion.cards.impl
 
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -25,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -57,6 +59,8 @@ import com.custom.astrion.ui.tapClickable
  * - "track"+"room": marks a tile with any of the single-action fields above
  *   as a trackable Activity — see ActivityRuntime. Not needed alongside
  *   "activity": a composed Activity is always implicitly tracked.
+ * - "tapped_message": optional text shown as a brief on-device toast before
+ *   the action fires (e.g. "Starting Plex"). Omit for silent activation.
  *
  * Config shape:
  * ```json
@@ -88,6 +92,7 @@ class SceneGridCard : CardRenderer {
         val columns = remember(config) { config.int("columns", 2).coerceAtLeast(1) }
         val scenes = remember(config) { (config.options["scenes"] as? List<Map<String, Any?>>) ?: emptyList() }
         val row = remember(config) { config.string("layout") == "row" }
+        val context = LocalContext.current
 
         fun activate(entityId: String) {
             val domain = entityId.substringBefore('.')
@@ -95,6 +100,9 @@ class SceneGridCard : CardRenderer {
         }
 
         fun onTap(scene: Map<String, Any?>) {
+            (scene["tapped_message"] as? String)?.takeIf { it.isNotBlank() }?.let { msg ->
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            }
             (scene["entity_id"] as? String)?.let(::activate)
             val hub = scene["hub"] as? String
             (scene["activityId"] as? String)?.let { ctx.startHarmonyActivity(it, hub) }

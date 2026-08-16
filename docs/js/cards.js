@@ -228,6 +228,7 @@ function updateCardFormInputs() {
           </select>
           ${(dashboardData.activities || []).length === 0 ? '<div class="hint">No Activities yet — create one in the "Activities" section below for multi-device setups (e.g. IR-only, no Harmony/HA).</div>' : ''}
           <label>Color (optional, ARGB hex — defaults to the standard tile color)</label>${colorFieldHtml('giColor', '', '#66009688')}
+          <label>Tapped message (optional toast shown on the device before the action runs, e.g. "Starting Plex")</label><input type="text" id="giTappedMessage" placeholder="e.g., Starting Plex">
           <div class="divider" style="margin:12px 0"></div>
           <label><input type="checkbox" id="giTrack" onchange="onGiTrackChange()"> Track as Activity</label>
           <div class="hint">Makes this tile show up as the active AV Activity for its room — see ActivityRuntime. At most one tracked Activity is active per room at a time. Not needed if you picked a Composed Activity above — that's always tracked automatically, using its own room.</div>
@@ -457,6 +458,8 @@ function fillGridItemForm(type, item) {
     document.getElementById('giRoom').value = item.room || '';
     document.getElementById('giDevices').value = (item.devices || []).join(', ');
     onGiTrackChange();
+    const tappedMsg = document.getElementById('giTappedMessage');
+    if (tappedMsg) tappedMsg.value = item.tapped_message || '';
   }
 }
 
@@ -509,7 +512,7 @@ function cancelGridItemEdit() {
   document.getElementById('giName').value = '';
   document.getElementById('giIcon').value = '';
   updateIconThumb('giIcon');
-  ['giService', 'giEntityId', 'giData', 'giPage', 'giIrDevice', 'giIrCommand', 'giActivityRef'].forEach(id => {
+  ['giService', 'giEntityId', 'giData', 'giPage', 'giIrDevice', 'giIrCommand', 'giActivityRef', 'giTappedMessage'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -549,6 +552,8 @@ function addGridItem(type) {
     else if (irDevice && !irCommand) { alert('Pick an IR command, or clear the IR device field.'); return; }
     if (activityRef) item.activity = activityRef;
     if (color) item.color = color;
+    const tappedMessage = document.getElementById('giTappedMessage')?.value.trim() || '';
+    if (tappedMessage) item.tapped_message = tappedMessage;
 
     const harmonyMode = document.getElementById('giHarmonyMode')?.value || '';
     if (harmonyMode === 'activity') {
