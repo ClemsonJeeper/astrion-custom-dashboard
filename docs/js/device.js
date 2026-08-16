@@ -39,6 +39,7 @@ function applyParsedDashboard(parsed) {
     longHotkeys: parsed.longHotkeys || [],
     irDevices: parsed.irDevices || [],
     activities: parsed.activities || [],
+    theme: parsed.theme || {},
   };
   if (dashboardData.pages.length === 0) {
     dashboardData.pages.push({ name: "Home", cards: [], hotkeys: [], longHotkeys: [] });

@@ -130,7 +130,8 @@ object DashboardLoader {
                 val longHotkeys = root["longHotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
                 val irDevices = root["irDevices"]?.jsonArray?.map { parseIrDevice(it.jsonObject) } ?: emptyList()
                 val activities = root["activities"]?.jsonArray?.map { parseActivity(it.jsonObject) } ?: emptyList()
-                AppConfig(pages, start.coerceIn(0, pages.size - 1), hotkeys, longHotkeys, irDevices, activities)
+                val theme = root["theme"]?.jsonObject?.let { parseTheme(it) } ?: ThemeConfig()
+                AppConfig(pages, start.coerceIn(0, pages.size - 1), hotkeys, longHotkeys, irDevices, activities, theme)
             }
             else -> error("top level must be an object or array")
         }
@@ -223,6 +224,24 @@ object DashboardLoader {
         )
     }
 
+    private fun parseTheme(obj: JsonObject): ThemeConfig {
+        fun s(key: String, default: String) =
+            obj[key]?.jsonPrimitive?.takeIf { it.isString }?.content?.ifBlank { default } ?: default
+        return ThemeConfig(
+            background = s("background", ThemeConfig().background),
+            cardSurface = s("cardSurface", ThemeConfig().cardSurface),
+            insetSurface = s("insetSurface", ThemeConfig().insetSurface),
+            controlBackground = s("controlBackground", ThemeConfig().controlBackground),
+            primaryText = s("primaryText", ThemeConfig().primaryText),
+            mutedText = s("mutedText", ThemeConfig().mutedText),
+            iconTint = s("iconTint", ThemeConfig().iconTint),
+            accent = s("accent", ThemeConfig().accent),
+            accentSecondary = s("accentSecondary", ThemeConfig().accentSecondary),
+            amber = s("amber", ThemeConfig().amber),
+            danger = s("danger", ThemeConfig().danger),
+            success = s("success", ThemeConfig().success),
+        )
+    }
 
     // ---- serialize defaults -------------------------------------------------
 

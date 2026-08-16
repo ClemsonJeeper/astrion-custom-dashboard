@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.custom.astrion.ha.HaClient
+import com.custom.astrion.ui.ThemeColors
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -53,6 +54,7 @@ private data class MediaItem(
 fun MediaBrowser(
     entityId: String,
     client: HaClient,
+    theme: ThemeColors = ThemeColors.Default,
     onClose: () -> Unit,
 ) {
     // Navigation stack of (contentId, contentType); root is (null, null).
@@ -83,45 +85,45 @@ fun MediaBrowser(
                     .fillMaxWidth()
                     .fillMaxHeight(0.85f)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF1B343D))
+                    .background(theme.cardSurface)
                     .padding(12.dp),
         ) {
             // Header: back (when nested), title, close.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (stack.size > 1) {
-                    IconBtn(Icons.Filled.ArrowBack) { if (stack.size > 1) stack.removeAt(stack.size - 1) }
+                    IconBtn(Icons.Filled.ArrowBack, theme) { if (stack.size > 1) stack.removeAt(stack.size - 1) }
                     Spacer(Modifier.width(6.dp))
                 }
                 Text(
                     title,
-                    color = Color(0xFFE6F0F1),
+                    color = theme.primaryText,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                IconBtn(Icons.Filled.Close, onClick = onClose)
+                IconBtn(Icons.Filled.Close, theme, onClick = onClose)
             }
             Spacer(Modifier.height(8.dp))
 
             when {
                 items == null ->
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color(0xFF6EA8FE))
+                        CircularProgressIndicator(color = theme.accent)
                     }
                 error != null ->
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(error!!, color = Color(0xFFE0A0A0), fontSize = 14.sp)
+                        Text(error!!, color = theme.danger, fontSize = 14.sp)
                     }
                 items!!.isEmpty() ->
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Nothing here", color = Color(0xFF93AFB6), fontSize = 14.sp)
+                        Text("Nothing here", color = theme.mutedText, fontSize = 14.sp)
                     }
                 else ->
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         items(items!!) { item ->
-                            MediaRow(item) {
+                            MediaRow(item, theme) {
                                 when {
                                     item.canExpand -> stack.add(item.contentId to item.contentType)
                                     item.canPlay -> {
@@ -140,6 +142,7 @@ fun MediaBrowser(
 @Composable
 private fun MediaRow(
     item: MediaItem,
+    theme: ThemeColors,
     onClick: () -> Unit,
 ) {
     Row(
@@ -153,16 +156,16 @@ private fun MediaRow(
     ) {
         Text(
             item.title,
-            color = Color(0xFFE6F0F1),
+            color = theme.primaryText,
             fontSize = 15.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
         if (item.canExpand) {
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color(0xFF93AFB6))
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = theme.mutedText)
         } else if (item.canPlay) {
-            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color(0xFF6EA8FE))
+            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = theme.accent)
         }
     }
 }
@@ -170,6 +173,7 @@ private fun MediaRow(
 @Composable
 private fun IconBtn(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    theme: ThemeColors,
     onClick: () -> Unit,
 ) {
     Box(
@@ -179,7 +183,7 @@ private fun IconBtn(
                 .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = Color(0xFFCBDCE0))
+        Icon(icon, contentDescription = null, tint = theme.iconTint)
     }
 }
 

@@ -1,6 +1,6 @@
 // ---- Cards ---------------------------------------------------------------
 
-const NAME_ENTITY_TYPES = ['switch', 'source_select'];
+const NAME_ENTITY_TYPES = ['source_select'];
 
 function updateCardFormInputs() {
   const type = document.getElementById('cardTypeSelect').value;
@@ -27,6 +27,13 @@ function updateCardFormInputs() {
       <label class="inline-check"><input type="checkbox" id="optTitleDivider"> Divider line (fills the rest of the row after the title)</label>
       <label>Color (optional, ARGB/RGB hex — defaults to the standard title color, also tints the divider line)</label><input type="text" id="optTitleColor" placeholder="#7FB3C4">
       <div class="hint">A section header for grouping the cards below it — no entity of its own. Setting an icon or the divider always left-aligns the title row regardless of Alignment (that layout has no sensible centered/right-aligned form) — the subtitle below is unaffected. For a tappable title/subtitle (e.g. a "see all" link to another page), use "Other / custom type…" below instead and add title_page / subtitle_page — or any of scene_grid's other action fields with a title_/subtitle_ prefix — directly in the JSON; like every type here, re-saving through this simple form overwrites the card's options from scratch, so those fields wouldn't survive a later edit through it.</div>
+    `;
+  } else if (type === 'switch') {
+    container.innerHTML = `
+      <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room">
+      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., switch.living_room">
+      <label>"On" color (optional, ARGB hex — defaults to green)</label>${colorFieldHtml('optOnColor', '', '#FF2E5A46')}
+      ${iconFieldHtml('optIcon')}
     `;
   } else if (type === 'cover') {
     container.innerHTML = `
@@ -191,7 +198,7 @@ function updateCardFormInputs() {
             ${(dashboardData.activities || []).map(a => `<option value="${a.id}">${a.name} (${a.room})</option>`).join('')}
           </select>
           ${(dashboardData.activities || []).length === 0 ? '<div class="hint">No Activities yet — create one in the "Activities" section below for multi-device setups (e.g. IR-only, no Harmony/HA).</div>' : ''}
-          <label>Color (optional, ARGB hex — defaults to the standard tile color)</label><input type="text" id="giColor" placeholder="#66009688">
+          <label>Color (optional, ARGB hex — defaults to the standard tile color)</label>${colorFieldHtml('giColor', '', '#66009688')}
           <div class="divider" style="margin:12px 0"></div>
           <label><input type="checkbox" id="giTrack" onchange="onGiTrackChange()"> Track as Activity</label>
           <div class="hint">Makes this tile show up as the active AV Activity for its room — see ActivityRuntime. At most one tracked Activity is active per room at a time. Not needed if you picked a Composed Activity above — that's always tracked automatically, using its own room.</div>
@@ -354,7 +361,7 @@ function fillGridItemForm(type, item) {
     }
     const actRefSel = document.getElementById('giActivityRef');
     if (actRefSel) actRefSel.value = item.activity || '';
-    document.getElementById('giColor').value = item.color || '';
+    setColorFieldValue('giColor', item.color || '');
     document.getElementById('giTrack').checked = item.track === true;
     document.getElementById('giRoom').value = item.room || '';
     document.getElementById('giDevices').value = (item.devices || []).join(', ');
@@ -411,10 +418,11 @@ function cancelGridItemEdit() {
   document.getElementById('giName').value = '';
   document.getElementById('giIcon').value = '';
   updateIconThumb('giIcon');
-  ['giService', 'giEntityId', 'giData', 'giPage', 'giIrDevice', 'giIrCommand', 'giActivityRef', 'giColor'].forEach(id => {
+  ['giService', 'giEntityId', 'giData', 'giPage', 'giIrDevice', 'giIrCommand', 'giActivityRef'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  setColorFieldValue('giColor', '');
   const trackEl = document.getElementById('giTrack');
   if (trackEl) { trackEl.checked = false; document.getElementById('giRoom').value = ''; document.getElementById('giDevices').value = ''; onGiTrackChange(); }
   const harmonyModeSel = document.getElementById('giHarmonyMode');
@@ -443,7 +451,7 @@ function addGridItem(type) {
     const irDevice = document.getElementById('giIrDevice')?.value || '';
     const irCommand = document.getElementById('giIrCommand')?.value || '';
     const activityRef = document.getElementById('giActivityRef')?.value || '';
-    const color = document.getElementById('giColor').value.trim();
+    const color = colorFieldValue('giColor');
     if (entityId) item.entity_id = entityId;
     if (page) item.page = page;
     if (irDevice && irCommand) { item.irDevice = irDevice; item.irCommand = irCommand; }
@@ -581,6 +589,12 @@ function fillCardForm(card) {
     updateIconThumb('optTitleIcon');
     document.getElementById('optTitleDivider').checked = o.divider === true;
     document.getElementById('optTitleColor').value = o.color || '';
+  } else if (type === 'switch') {
+    document.getElementById('optName').value = o.name || '';
+    document.getElementById('optEntityId').value = o.entity_id || '';
+    setColorFieldValue('optOnColor', o.on_color || '');
+    document.getElementById('optIcon').value = o.icon || '';
+    updateIconThumb('optIcon');
   } else if (type === 'cover') {
     document.getElementById('optName').value = o.name || '';
     document.getElementById('optEntityId').value = o.entity_id || '';
@@ -728,6 +742,13 @@ function addCardToPage() {
     if (document.getElementById('optTitleDivider').checked) newCard.options.divider = true;
     const titleColor = document.getElementById('optTitleColor').value.trim();
     if (titleColor) newCard.options.color = titleColor;
+  } else if (type === 'switch') {
+    newCard.options.name = document.getElementById('optName').value || 'Switch';
+    newCard.options.entity_id = document.getElementById('optEntityId').value || 'switch.entity';
+    const onColor = colorFieldValue('optOnColor');
+    if (onColor) newCard.options.on_color = onColor;
+    const icon = document.getElementById('optIcon').value.trim();
+    if (icon) newCard.options.icon = icon;
   } else if (type === 'cover') {
     const coverName = document.getElementById('optName').value.trim();
     if (coverName) newCard.options.name = coverName;

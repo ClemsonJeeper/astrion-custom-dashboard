@@ -34,6 +34,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ThemeColors
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -83,13 +84,13 @@ class SpeakerGroupCard : CardRenderer {
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF1B343D))
+                    .background(ctx.theme.cardSurface)
                     .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
                 "Speakers",
-                color = Color(0xFF93AFB6),
+                color = ctx.theme.mutedText,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.sp,
@@ -145,14 +146,14 @@ class SpeakerGroupCard : CardRenderer {
                     Icon(
                         Icons.Filled.Speaker,
                         contentDescription = null,
-                        tint = Color(0xFF6EA8FE),
+                        tint = ctx.theme.accent,
                         modifier = Modifier.size(24.dp),
                     )
                 } else {
                     Icon(
                         if (grouped) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
                         contentDescription = if (grouped) "Ungroup" else "Group",
-                        tint = if (grouped) Color(0xFF6EA8FE) else Color(0xFF5A7783),
+                        tint = if (grouped) ctx.theme.accent else ctx.theme.mutedText,
                         modifier =
                             Modifier
                                 .size(26.dp)
@@ -162,7 +163,7 @@ class SpeakerGroupCard : CardRenderer {
                 }
                 Text(
                     label,
-                    color = Color(0xFFE6F0F1),
+                    color = ctx.theme.primaryText,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
@@ -173,7 +174,7 @@ class SpeakerGroupCard : CardRenderer {
                         vol != null -> "${(vol * 100).roundToInt()}%"
                         else -> "—"
                     },
-                    color = if (muted) Color(0xFFE79A9A) else Color(0xFF93AFB6),
+                    color = if (muted) ctx.theme.danger else ctx.theme.mutedText,
                     fontSize = 12.sp,
                 )
             }
@@ -181,15 +182,15 @@ class SpeakerGroupCard : CardRenderer {
             VolumeBar(entityId, vol, muted, ctx)
             // Controls: mute / vol- / vol+.
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SmallBtn(Icons.Filled.VolumeOff, active = muted) {
+                SmallBtn(Icons.Filled.VolumeOff, active = muted, theme = ctx.theme) {
                     ctx.client.callService(
                         ServiceCall.of("media_player", "volume_mute", entityId, "is_volume_muted" to !muted),
                     )
                 }
-                SmallBtn(Icons.Filled.VolumeDown) {
+                SmallBtn(Icons.Filled.VolumeDown, theme = ctx.theme) {
                     ctx.client.callService(ServiceCall("media_player", "volume_down", entityId))
                 }
-                SmallBtn(Icons.Filled.VolumeUp) {
+                SmallBtn(Icons.Filled.VolumeUp, theme = ctx.theme) {
                     ctx.client.callService(ServiceCall("media_player", "volume_up", entityId))
                 }
             }
@@ -246,14 +247,14 @@ class SpeakerGroupCard : CardRenderer {
                         .fillMaxWidth()
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF152B33)),
+                        .background(ctx.theme.insetSurface),
             ) {
                 Box(
                     modifier =
                         Modifier
                             .fillMaxWidth(dragLevel)
                             .fillMaxHeight()
-                            .background(if (muted) Color(0xFF5A7783) else Color(0xFF57C4A3)),
+                            .background(if (muted) ctx.theme.mutedText else ctx.theme.success),
                 )
             }
         }
@@ -262,6 +263,7 @@ class SpeakerGroupCard : CardRenderer {
     @Composable
     private fun SmallBtn(
         icon: ImageVector,
+        theme: ThemeColors,
         active: Boolean = false,
         onClick: () -> Unit,
     ) {
@@ -270,14 +272,14 @@ class SpeakerGroupCard : CardRenderer {
                 Modifier
                     .size(34.dp)
                     .clip(CircleShape)
-                    .background(if (active) Color(0xFF3A2E2E) else Color(0xFF2C4C58))
+                    .background(if (active) theme.danger.copy(alpha = 0.25f) else theme.controlBackground)
                     .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 icon,
                 contentDescription = null,
-                tint = if (active) Color(0xFFE06767) else Color(0xFFCBDCE0),
+                tint = if (active) theme.danger else theme.iconTint,
                 modifier = Modifier.size(18.dp),
             )
         }

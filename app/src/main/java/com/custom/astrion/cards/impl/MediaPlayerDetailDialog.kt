@@ -34,6 +34,7 @@ import androidx.compose.ui.window.Dialog
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.icons.MdiIcons
 import kotlin.time.Duration.Companion.seconds
 
@@ -54,6 +55,7 @@ fun MediaPlayerDetailDialog(
     name: String,
     e: EntityState?,
     client: HaClient,
+    theme: ThemeColors = ThemeColors.Default,
     onClose: () -> Unit,
 ) {
     val mediaButtons = remember(e) { computeMediaButtons(e, MediaPlayerCard.MEDIA_CONTROL_KEYS) }
@@ -83,7 +85,7 @@ fun MediaPlayerDetailDialog(
             modifier =
                 Modifier
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF1B343D))
+                    .background(theme.cardSurface)
                     .padding(20.dp)
                     .width(300.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -94,11 +96,11 @@ fun MediaPlayerDetailDialog(
                 Image(art!!, null, modifier = artMod, contentScale = ContentScale.Crop)
             } else {
                 val isOff = e == null || e.state == "off" || e.isUnavailable
-                Box(artMod.background(Color(0xFF3A2E5A)), contentAlignment = Alignment.Center) {
+                Box(artMod.background(theme.controlBackground), contentAlignment = Alignment.Center) {
                     Icon(
                         if (isOff) MdiIcons.CastOff else MdiIcons.Cast,
                         contentDescription = null,
-                        tint = Color(0x99FFFFFF),
+                        tint = Color.White.copy(alpha = 0.6f),
                         modifier = Modifier.size(48.dp),
                     )
                 }
@@ -107,7 +109,7 @@ fun MediaPlayerDetailDialog(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     title,
-                    color = Color(0xFFE6F0F1),
+                    color = theme.primaryText,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
@@ -116,7 +118,7 @@ fun MediaPlayerDetailDialog(
                 )
                 Text(
                     subtitle ?: mediaStateLabel(e?.state),
-                    color = Color(0xFF93AFB6),
+                    color = theme.mutedText,
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -125,7 +127,7 @@ fun MediaPlayerDetailDialog(
             }
 
             if (e != null && e.attrDouble("media_duration") != null) {
-                DialogProgressBar(e)
+                DialogProgressBar(e, theme)
             }
 
             if (mediaButtons.isNotEmpty()) {
@@ -136,7 +138,7 @@ fun MediaPlayerDetailDialog(
                 ) {
                     mediaButtons.forEach { b ->
                         val big = b.action == "media_play" || b.action == "media_pause"
-                        Circle(b.icon, if (big) 60.dp else 46.dp, accent = big || b.active) {
+                        Circle(b.icon, if (big) 60.dp else 46.dp, theme, accent = big || b.active) {
                             mp(b.action, b.data.toTypedArray())
                         }
                     }
@@ -149,14 +151,14 @@ fun MediaPlayerDetailDialog(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    volumeButtons.forEach { b -> Circle(b.icon, 40.dp) { mp(b.action, b.data.toTypedArray()) } }
+                    volumeButtons.forEach { b -> Circle(b.icon, 40.dp, theme) { mp(b.action, b.data.toTypedArray()) } }
                     if (hasVolumeSet) {
-                        DialogVolumeSlider(entityId, e, Modifier.weight(1f)) { level ->
+                        DialogVolumeSlider(entityId, e, Modifier.weight(1f), theme) { level ->
                             mp("volume_set", arrayOf("volume_level" to level))
                         }
                     } else if (hasVolumeStep) {
-                        Circle(MdiIcons.VolumeOff, 40.dp) { mp("volume_down") }
-                        Circle(MdiIcons.VolumeHigh, 40.dp) { mp("volume_up") }
+                        Circle(MdiIcons.VolumeOff, 40.dp, theme) { mp("volume_down") }
+                        Circle(MdiIcons.VolumeHigh, 40.dp, theme) { mp("volume_up") }
                     }
                 }
             }
@@ -170,7 +172,7 @@ fun MediaPlayerDetailDialog(
                         Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .background(if (on) Color(0xFF4C6EF5) else Color(0xFF2C4C58))
+                            .background(if (on) theme.accentSecondary else theme.controlBackground)
                             .clickable { mp(if (on) "turn_off" else "turn_on") },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -182,7 +184,7 @@ fun MediaPlayerDetailDialog(
 }
 
 @Composable
-private fun DialogProgressBar(e: EntityState) {
+private fun DialogProgressBar(e: EntityState, theme: ThemeColors) {
     val duration = e.attrDouble("media_duration") ?: 0.0
     // See MediaPlayerCard.MediaProgressBar's identical comment — Kodi's
     // media_content_id is a nested JsonObject, not a plain string, so this
@@ -205,19 +207,19 @@ private fun DialogProgressBar(e: EntityState) {
                     .fillMaxWidth()
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFF152B33)),
+                    .background(theme.insetSurface),
         ) {
             Box(
                 Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(fraction.coerceAtLeast(0.01f))
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFF4C6EF5)),
+                    .background(theme.accentSecondary),
             )
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(formatMediaTime(elapsed), color = Color(0xFF93AFB6), fontSize = 11.sp)
-            Text(formatMediaTime(duration), color = Color(0xFF93AFB6), fontSize = 11.sp)
+            Text(formatMediaTime(elapsed), color = theme.mutedText, fontSize = 11.sp)
+            Text(formatMediaTime(duration), color = theme.mutedText, fontSize = 11.sp)
         }
     }
 }
@@ -227,6 +229,7 @@ private fun DialogVolumeSlider(
     entityId: String,
     e: EntityState?,
     modifier: Modifier,
+    theme: ThemeColors,
     onCommit: (Float) -> Unit,
 ) {
     val level = (e?.attrDouble("volume_level") ?: 0.0).toFloat().coerceIn(0f, 1f)
@@ -237,7 +240,7 @@ private fun DialogVolumeSlider(
             modifier
                 .height(40.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF152B33))
+                .background(theme.insetSurface)
                 .pointerInput(entityId) {
                     detectHorizontalDragGestures(
                         onDragEnd = { dragLevel?.let(onCommit); dragLevel = null },
@@ -258,7 +261,7 @@ private fun DialogVolumeSlider(
                 .fillMaxHeight()
                 .fillMaxWidth(shown.coerceIn(0.02f, 1f))
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF4C6EF5)),
+                .background(theme.accentSecondary),
         )
     }
 }
@@ -267,6 +270,7 @@ private fun DialogVolumeSlider(
 private fun Circle(
     icon: ImageVector,
     size: androidx.compose.ui.unit.Dp,
+    theme: ThemeColors,
     accent: Boolean = false,
     onClick: () -> Unit,
 ) {
@@ -275,7 +279,7 @@ private fun Circle(
             Modifier
                 .size(size)
                 .clip(CircleShape)
-                .background(if (accent) Color(0xFF4C6EF5) else Color(0xFF23414B))
+                .background(if (accent) theme.accentSecondary else theme.controlBackground)
                 .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

@@ -50,14 +50,14 @@ class MonitorCard : CardRenderer {
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF1B343D))
+                    .background(ctx.theme.cardSurface)
                     .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (!title.isNullOrBlank()) {
                 Text(
                     title,
-                    color = Color(0xFFE6F0F1),
+                    color = ctx.theme.primaryText,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -73,10 +73,10 @@ class MonitorCard : CardRenderer {
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(name, color = Color(0xFF93AFB6), fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Text(name, color = ctx.theme.mutedText, fontSize = 14.sp, modifier = Modifier.weight(1f))
                     Text(
                         if (unit.isBlank()) value else "$value $unit",
-                        color = Color(0xFFE6F0F1),
+                        color = ctx.theme.primaryText,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                     )

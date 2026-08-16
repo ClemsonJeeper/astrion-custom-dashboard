@@ -52,7 +52,7 @@ class SwitchCard : CardRenderer {
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(if (on) onColor else Color(0xFF1E3841))
+                    .background(if (on) onColor else ctx.theme.controlBackground)
                     .clickable { ctx.client.toggle(entityId) }
                     .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -63,17 +63,17 @@ class SwitchCard : CardRenderer {
                     Modifier
                         .size(42.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF2A4954)),
+                        .background(ctx.theme.controlBackground),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon, contentDescription = null, tint = if (on) Color(0xFFE79A9A) else Color(0xFFB6C9CE))
+                Icon(icon, contentDescription = null, tint = if (on) ctx.theme.danger else ctx.theme.iconTint)
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(name, color = Color(0xFFE6F0F1), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(name, color = ctx.theme.primaryText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     if (on) stringResource(R.string.astrion_state_on) else stringResource(R.string.astrion_state_off),
-                    color = Color(0xFF93AFB6),
+                    color = ctx.theme.mutedText,
                     fontSize = 13.sp,
                 )
             }

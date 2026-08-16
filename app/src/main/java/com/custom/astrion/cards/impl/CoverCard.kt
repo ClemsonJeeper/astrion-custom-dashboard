@@ -47,6 +47,7 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.icons.MdiIcons
 import kotlin.math.roundToInt
 
@@ -174,26 +175,29 @@ class CoverCard : CardRenderer {
                                 isOpen,
                                 isClosed,
                                 ::call,
+                                theme = ctx.theme,
                                 modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier,
                                 arrangement = if (fillWidth) Arrangement.SpaceEvenly else Arrangement.spacedBy(8.dp),
                             )
                             CoverControl.POSITION -> PercentSlider(
                                 entityId = "$entityId-position",
                                 value = position ?: 0,
-                                color = Color(0xFF6FA8DC),
+                                color = ctx.theme.accent,
+                                theme = ctx.theme,
                                 onCommit = ::setPosition,
                             )
                             CoverControl.TILT -> PercentSlider(
                                 entityId = "$entityId-tilt",
                                 value = tilt ?: 0,
-                                color = Color(0xFF8FBF7F),
+                                color = ctx.theme.success,
+                                theme = ctx.theme,
                                 onCommit = ::setTiltPosition,
                             )
                             null -> {}
                         }
                     }
                     if (controls.size > 1) {
-                        CycleControlButton {
+                        CycleControlButton(theme = ctx.theme) {
                             val idx = controls.indexOf(resolvedActive)
                             activeControl = controls[(idx + 1) % controls.size]
                         }
@@ -203,9 +207,9 @@ class CoverCard : CardRenderer {
         }
 
         when (config.string("layout")) {
-            "horizontal" -> HorizontalLayout(name, stateLabel, coverIcon, controlsSlot, modifier = tileGestureModifier)
-            "vertical" -> VerticalLayout(name, stateLabel, coverIcon, controlsSlot, modifier = tileGestureModifier)
-            else -> DefaultLayout(name, stateLabel, coverIcon, controlsSlot, modifier = tileGestureModifier)
+            "horizontal" -> HorizontalLayout(name, stateLabel, coverIcon, controlsSlot, ctx.theme, modifier = tileGestureModifier)
+            "vertical" -> VerticalLayout(name, stateLabel, coverIcon, controlsSlot, ctx.theme, modifier = tileGestureModifier)
+            else -> DefaultLayout(name, stateLabel, coverIcon, controlsSlot, ctx.theme, modifier = tileGestureModifier)
         }
 
         if (showDetail) {
@@ -214,6 +218,7 @@ class CoverCard : CardRenderer {
                 name = name,
                 e = e,
                 client = ctx.client,
+                theme = ctx.theme,
                 onClose = { showDetail = false },
             )
         }
@@ -225,15 +230,15 @@ private enum class CoverControl { BUTTONS, POSITION, TILT }
 // ---- shared pieces ---------------------------------------------------------
 
 @Composable
-private fun CoverIcon(icon: ImageVector, size: Dp = 42.dp) {
+private fun CoverIcon(icon: ImageVector, theme: ThemeColors, size: Dp = 42.dp) {
     Box(
         modifier = Modifier
             .size(size)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF2A4954)),
+            .background(theme.controlBackground),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = Color(0xFFB6C9CE))
+        Icon(icon, contentDescription = null, tint = theme.iconTint)
     }
 }
 
@@ -241,19 +246,20 @@ private fun CoverIcon(icon: ImageVector, size: Dp = 42.dp) {
 private fun NameState(
     name: String,
     stateLabel: String,
+    theme: ThemeColors,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
     textAlign: TextAlign = TextAlign.Start,
 ) {
     Column(horizontalAlignment = horizontalAlignment) {
         Text(
             name,
-            color = Color(0xFFE6F0F1),
+            color = theme.primaryText,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             textAlign = textAlign,
         )
-        Text(stateLabel, color = Color(0xFF93AFB6), fontSize = 13.sp, textAlign = textAlign)
+        Text(stateLabel, color = theme.mutedText, fontSize = 13.sp, textAlign = textAlign)
     }
 }
 
@@ -263,19 +269,21 @@ private fun ControlsRow(
     isOpen: Boolean,
     isClosed: Boolean,
     call: (String) -> Unit,
+    theme: ThemeColors,
     modifier: Modifier = Modifier,
     arrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp),
 ) {
     Row(modifier = modifier, horizontalArrangement = arrangement) {
-        CircleBtn(MdiIcons.CoverUp, enabled = !isOpen) { call("open_cover") }
-        CircleBtn(Icons.Filled.Stop) { call("stop_cover") }
-        CircleBtn(MdiIcons.CoverDown, enabled = !isClosed) { call("close_cover") }
+        CircleBtn(MdiIcons.CoverUp, theme, enabled = !isOpen) { call("open_cover") }
+        CircleBtn(Icons.Filled.Stop, theme) { call("stop_cover") }
+        CircleBtn(MdiIcons.CoverDown, theme, enabled = !isClosed) { call("close_cover") }
     }
 }
 
 @Composable
 private fun CircleBtn(
     icon: ImageVector,
+    theme: ThemeColors,
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
@@ -283,27 +291,27 @@ private fun CircleBtn(
         modifier = Modifier
             .size(44.dp)
             .clip(CircleShape)
-            .background(Color(0xFF2C4C58))
+            .background(theme.controlBackground)
             .alpha(if (enabled) 1f else 0.35f)
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = Color(0xFFCBDCE0))
+        Icon(icon, contentDescription = null, tint = theme.iconTint)
     }
 }
 
 /** Small round "next control" button — cycles through the enabled controls, Mushroom-style. */
 @Composable
-private fun CycleControlButton(onClick: () -> Unit) {
+private fun CycleControlButton(theme: ThemeColors, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(36.dp)
             .clip(CircleShape)
-            .background(Color(0xFF2C4C58))
+            .background(theme.controlBackground)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color(0xFFCBDCE0))
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = theme.iconTint)
     }
 }
 
@@ -317,6 +325,7 @@ private fun PercentSlider(
     entityId: String,
     value: Int,
     color: Color,
+    theme: ThemeColors,
     onCommit: (Int) -> Unit,
 ) {
     // Uses -1f as a sentinel to denote 'no active drag', avoiding Float autoboxing.
@@ -329,7 +338,7 @@ private fun PercentSlider(
             .fillMaxWidth()
             .height(36.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF152B33))
+            .background(theme.insetSurface)
             .pointerInput(entityId) {
                 detectHorizontalDragGestures(
                     onDragEnd = {
@@ -363,7 +372,7 @@ private fun PercentSlider(
         )
         Text(
             "${(shownFraction * 100).roundToInt()}%",
-            color = Color(0xFFE6F0F1),
+            color = theme.primaryText,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
         )
@@ -378,20 +387,21 @@ private fun DefaultLayout(
     stateLabel: String,
     icon: ImageVector,
     controls: @Composable (fillWidth: Boolean) -> Unit,
+    theme: ThemeColors,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF1E3841))
+            .background(theme.controlBackground)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().then(modifier)) {
-            CoverIcon(icon)
+            CoverIcon(icon, theme)
             Spacer(Modifier.width(12.dp))
-            NameState(name, stateLabel)
+            NameState(name, stateLabel, theme)
         }
         controls(true)
     }
@@ -405,19 +415,20 @@ private fun HorizontalLayout(
     stateLabel: String,
     icon: ImageVector,
     controls: @Composable (fillWidth: Boolean) -> Unit,
+    theme: ThemeColors,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF1E3841))
+            .background(theme.controlBackground)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.then(modifier)) { CoverIcon(icon) }
+        Box(Modifier.then(modifier)) { CoverIcon(icon, theme) }
         Spacer(Modifier.width(12.dp))
-        Box(Modifier.weight(1f).then(modifier)) { NameState(name, stateLabel) }
+        Box(Modifier.weight(1f).then(modifier)) { NameState(name, stateLabel, theme) }
         Box(Modifier.width(140.dp)) { controls(false) }
     }
 }
@@ -430,20 +441,21 @@ private fun VerticalLayout(
     stateLabel: String,
     icon: ImageVector,
     controls: @Composable (fillWidth: Boolean) -> Unit,
+    theme: ThemeColors,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF1E3841))
+            .background(theme.controlBackground)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().then(modifier)) {
-            CoverIcon(icon, size = 48.dp)
+            CoverIcon(icon, theme, size = 48.dp)
             Spacer(Modifier.height(8.dp))
-            NameState(name, stateLabel, horizontalAlignment = Alignment.CenterHorizontally, textAlign = TextAlign.Center)
+            NameState(name, stateLabel, theme, horizontalAlignment = Alignment.CenterHorizontally, textAlign = TextAlign.Center)
         }
         Spacer(Modifier.height(10.dp))
         controls(true)

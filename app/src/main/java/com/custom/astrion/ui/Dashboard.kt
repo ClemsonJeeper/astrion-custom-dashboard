@@ -28,6 +28,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -121,6 +123,8 @@ fun Dashboard(
         HaLabels.init(context)
     }
     val connection by connectionState
+    val theme = remember(config.theme) { config.theme.toColors() }
+    ProvideTheme(theme) {
     // Status dot reflects the first configured hub — good enough for a single
     // glance indicator; a per-hub breakdown isn't worth the UI space here.
     val harmonyConnected by (harmonyRegistry.client()?.connected ?: remember { MutableStateFlow(false) }).collectAsState()
@@ -338,6 +342,7 @@ fun Dashboard(
         activities = activitiesById,
         startActivity = startActivity,
         activityRuntime = activityRuntime,
+        theme = theme,
     )
 
     // Hardware-button navigation: jump straight to the requested page, then
@@ -366,7 +371,7 @@ fun Dashboard(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF0E2229)),
+                .background(LocalTheme.current.background),
         ) {
             TopStatusBar(onSwipeDownToSettings = { showSettings = true })
             ConnectionBanner(connection)
@@ -411,6 +416,7 @@ fun Dashboard(
             )
         }
     }
+    }
 }
 
 /**
@@ -428,7 +434,7 @@ fun Dashboard(
  */
 @Composable
 private fun SettingsOverlay(ctx: CardContext, onClose: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0E2229))) {
+    Box(modifier = Modifier.fillMaxSize().background(LocalTheme.current.background)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -439,7 +445,7 @@ private fun SettingsOverlay(ctx: CardContext, onClose: () -> Unit) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Text(
                     "✕ " + stringResource(R.string.close),
-                    color = Color(0xFF93AFB6),
+                    color = LocalTheme.current.mutedText,
                     fontSize = 13.sp,
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
@@ -469,7 +475,7 @@ private fun SettingsOverlay(ctx: CardContext, onClose: () -> Unit) {
                     .width(40.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFF3A5560)),
+                    .background(LocalTheme.current.controlBackground),
             )
         }
     }
@@ -499,7 +505,7 @@ private fun ActivitiesOverlay(
     val activeByRoom by activityRuntime.activeByRoom.collectAsState()
     val active = remember(activeByRoom) { activityRuntime.activeActivities() }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0E2229))) {
+    Box(modifier = Modifier.fillMaxSize().background(LocalTheme.current.background)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -513,7 +519,7 @@ private fun ActivitiesOverlay(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Text(
                     "✕ " + stringResource(R.string.close),
-                    color = Color(0xFF93AFB6),
+                    color = LocalTheme.current.mutedText,
                     fontSize = 13.sp,
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
@@ -523,7 +529,7 @@ private fun ActivitiesOverlay(
             }
             Text(
                 stringResource(R.string.active_activities),
-                color = Color(0xFFCFCFCF),
+                color = LocalTheme.current.primaryText,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(horizontal = 10.dp),
@@ -531,7 +537,7 @@ private fun ActivitiesOverlay(
             if (active.isEmpty()) {
                 Text(
                     stringResource(R.string.no_active_activities),
-                    color = Color(0xFF6E8991),
+                    color = LocalTheme.current.mutedText,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(10.dp),
                 )
@@ -539,7 +545,7 @@ private fun ActivitiesOverlay(
             active.groupBy { it.room }.forEach { (room, activities) ->
                 Text(
                     room,
-                    color = Color(0xFF6EA8FE),
+                    color = LocalTheme.current.accent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -549,7 +555,7 @@ private fun ActivitiesOverlay(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFF13262D))
+                            .background(LocalTheme.current.insetSurface)
                             .clickable(enabled = activity.page != null) {
                                 activity.page?.let { ctx.navigateToPage(it); onClose() }
                             }
@@ -557,7 +563,7 @@ private fun ActivitiesOverlay(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text(activity.name, color = Color(0xFFCFCFCF), fontSize = 15.sp)
+                        Text(activity.name, color = LocalTheme.current.primaryText, fontSize = 15.sp)
                         // Dedicated per-room stop — the missing piece this
                         // overlay didn't have before: previously the only
                         // way to end a classic Harmony Activity was a
@@ -567,7 +573,7 @@ private fun ActivitiesOverlay(
                         // only this Activity's own hub.
                         Text(
                             stringResource(R.string.stop_activity),
-                            color = Color(0xFFE5837E),
+                            color = LocalTheme.current.danger,
                             fontSize = 13.sp,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
@@ -598,7 +604,7 @@ private fun ActivitiesOverlay(
                     .width(40.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFF3A5560)),
+                    .background(LocalTheme.current.controlBackground),
             )
         }
     }
@@ -624,7 +630,7 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF13262D))
+                    .background(LocalTheme.current.insetSurface)
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -732,11 +738,11 @@ private fun PageIndicator(
                     .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("‹", color = Color(0xFF6EA8FE), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("‹", color = LocalTheme.current.accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(4.dp))
                 Text(
                     currentPage.parent,
-                    color = Color(0xFF6EA8FE),
+                    color = LocalTheme.current.accent,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -762,7 +768,7 @@ private fun PageIndicator(
                         .padding(horizontal = 5.dp)
                         .size(if (active) 10.dp else 8.dp)
                         .clip(CircleShape)
-                        .background(if (active) Color(0xFF6EA8FE) else Color(0xFF33525E))
+                        .background(if (active) LocalTheme.current.accent else LocalTheme.current.controlBackground)
                         .clickable { onDotClick(sibling.index) },
                 )
             }
@@ -774,7 +780,7 @@ private fun PageIndicator(
         // zone already owns that) to avoid saying it twice in one row.
         Text(
             text = currentPage?.name ?: "",
-            color = Color(0xFF93AFB6),
+            color = LocalTheme.current.mutedText,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
@@ -789,7 +795,7 @@ private fun PageIndicator(
  * how you get past the visible window. */
 @Composable
 private fun EdgeEllipsis() {
-    Text("…", color = Color(0xFF3A5560), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 2.dp))
+    Text("…", color = LocalTheme.current.mutedText, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 2.dp))
 }
 
 
@@ -798,10 +804,10 @@ private fun ConnectionBanner(connection: ConnectionState) {
     if (connection == ConnectionState.CONNECTED) return
     val (label, color) = when (connection) {
         ConnectionState.CONNECTING,
-        ConnectionState.AUTHENTICATING -> "Connecting…" to Color(0xFF3A506B)
-        ConnectionState.AUTH_FAILED -> "Auth failed — check token" to Color(0xFF7A2E2E)
-        ConnectionState.ERROR -> "Connection error — retrying" to Color(0xFF7A2E2E)
-        else -> "Disconnected" to Color(0xFF33525E)
+        ConnectionState.AUTHENTICATING -> "Connecting…" to LocalTheme.current.controlBackground
+        ConnectionState.AUTH_FAILED -> "Auth failed — check token" to LocalTheme.current.danger
+        ConnectionState.ERROR -> "Connection error — retrying" to LocalTheme.current.danger
+        else -> "Disconnected" to LocalTheme.current.controlBackground
     }
     Box(
         modifier = Modifier
@@ -819,10 +825,10 @@ private fun ConfigNoticeBanner(text: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF4A3B1E))
+            .background(LocalTheme.current.amber.copy(alpha = 0.25f))
             .padding(10.dp),
     ) {
-        Text(text = text, color = Color(0xFFE8C77B), fontSize = 12.sp)
+        Text(text = text, color = LocalTheme.current.amber, fontSize = 12.sp)
     }
 }
 
@@ -831,9 +837,9 @@ private fun UnknownCard(type: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF2A2030))
+            .background(LocalTheme.current.cardSurface)
             .padding(14.dp),
     ) {
-        Text(text = "Unknown card type: \"$type\"", color = Color(0xFFE0A0A0), fontSize = 13.sp)
+        Text(text = "Unknown card type: \"$type\"", color = LocalTheme.current.danger, fontSize = 13.sp)
     }
 }

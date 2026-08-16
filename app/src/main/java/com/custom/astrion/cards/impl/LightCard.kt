@@ -45,6 +45,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.icons.MdiIcons
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
@@ -147,8 +148,8 @@ class LightCard : CardRenderer {
         val iconTint: Color
         when {
             !isOn -> {
-                iconBg = Color(0xFF2A4954)
-                iconTint = Color(0xFFB6C9CE)
+                iconBg = ctx.theme.controlBackground
+                iconTint = ctx.theme.iconTint
             }
             lightColor != null -> {
                 iconBg = lightColor.copy(alpha = 0.22f)
@@ -243,6 +244,7 @@ class LightCard : CardRenderer {
                                 entityId = "$entityId-brightness",
                                 value = brightnessPct ?: 0,
                                 color = barColor,
+                                theme = ctx.theme,
                                 onCommit = { pct -> commitBrightness(pct / 100f) },
                             )
                             LightControl.COLOR_TEMP -> ColorTempSlider(
@@ -257,7 +259,7 @@ class LightCard : CardRenderer {
                         }
                     }
                     if (controls.size > 1) {
-                        CycleControlButton {
+                        CycleControlButton(theme = ctx.theme) {
                             val idx = controls.indexOf(resolvedActive)
                             activeControl = controls[(idx + 1) % controls.size]
                         }
@@ -267,9 +269,9 @@ class LightCard : CardRenderer {
         }
 
         when (config.string("layout")) {
-            "horizontal" -> HorizontalLayout(name, stateLabel, icon, iconBg, iconTint, controlsSlot, modifier = tileGestureModifier)
-            "vertical" -> VerticalLayout(name, stateLabel, icon, iconBg, iconTint, controlsSlot, modifier = tileGestureModifier)
-            else -> DefaultLayout(name, stateLabel, icon, iconBg, iconTint, controlsSlot, modifier = tileGestureModifier)
+            "horizontal" -> HorizontalLayout(name, stateLabel, icon, iconBg, iconTint, controlsSlot, ctx.theme, modifier = tileGestureModifier)
+            "vertical" -> VerticalLayout(name, stateLabel, icon, iconBg, iconTint, controlsSlot, ctx.theme, modifier = tileGestureModifier)
+            else -> DefaultLayout(name, stateLabel, icon, iconBg, iconTint, controlsSlot, ctx.theme, modifier = tileGestureModifier)
         }
 
         if (showDetail) {
@@ -278,6 +280,7 @@ class LightCard : CardRenderer {
                 name = name,
                 e = e,
                 client = ctx.client,
+                theme = ctx.theme,
                 onClose = { showDetail = false },
             )
         }
@@ -311,34 +314,35 @@ private fun LightIcon(
 private fun NameState(
     name: String,
     stateLabel: String,
+    theme: ThemeColors,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
     textAlign: TextAlign = TextAlign.Start,
 ) {
     Column(horizontalAlignment = horizontalAlignment) {
         Text(
             name,
-            color = Color(0xFFE6F0F1),
+            color = theme.primaryText,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             textAlign = textAlign,
         )
-        Text(stateLabel, color = Color(0xFF93AFB6), fontSize = 13.sp, textAlign = textAlign)
+        Text(stateLabel, color = theme.mutedText, fontSize = 13.sp, textAlign = textAlign)
     }
 }
 
 /** Small round "next control" button — cycles through the enabled controls, Mushroom-style. */
 @Composable
-private fun CycleControlButton(onClick: () -> Unit) {
+private fun CycleControlButton(theme: ThemeColors, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(36.dp)
             .clip(CircleShape)
-            .background(Color(0xFF2C4C58))
+            .background(theme.controlBackground)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color(0xFFCBDCE0))
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = theme.iconTint)
     }
 }
 
@@ -353,6 +357,7 @@ private fun PercentSlider(
     entityId: String,
     value: Int,
     color: Color,
+    theme: ThemeColors,
     onCommit: (Int) -> Unit,
 ) {
     // Uses -1f as a sentinel to denote 'no active drag', avoiding Float autoboxing.
@@ -366,7 +371,7 @@ private fun PercentSlider(
                 .fillMaxWidth()
                 .height(36.dp)
                 .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF152B33))
+                .background(theme.insetSurface)
                 .pointerInput(entityId) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
@@ -401,7 +406,7 @@ private fun PercentSlider(
         )
         Text(
             "${(shownFraction * 100).roundToInt()}%",
-            color = Color(0xFFE6F0F1),
+            color = theme.primaryText,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
         )
@@ -500,6 +505,7 @@ private fun DefaultLayout(
     iconBg: Color,
     iconTint: Color,
     controls: @Composable (fillWidth: Boolean) -> Unit,
+    theme: ThemeColors,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -507,14 +513,14 @@ private fun DefaultLayout(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1E3841))
+                .background(theme.controlBackground)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().then(modifier)) {
             LightIcon(icon, iconBg, iconTint)
             Spacer(Modifier.width(12.dp))
-            NameState(name, stateLabel)
+            NameState(name, stateLabel, theme)
         }
         // Controls live outside modifier's tap/long-press area so dragging
         // them doesn't also toggle the light or open the dialog.
@@ -532,6 +538,7 @@ private fun HorizontalLayout(
     iconBg: Color,
     iconTint: Color,
     controls: @Composable (fillWidth: Boolean) -> Unit,
+    theme: ThemeColors,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -539,13 +546,13 @@ private fun HorizontalLayout(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1E3841))
+                .background(theme.controlBackground)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.then(modifier)) { LightIcon(icon, iconBg, iconTint) }
         Spacer(Modifier.width(12.dp))
-        Box(Modifier.weight(1f).then(modifier)) { NameState(name, stateLabel) }
+        Box(Modifier.weight(1f).then(modifier)) { NameState(name, stateLabel, theme) }
         Box(Modifier.width(140.dp)) { controls(false) }
     }
 }
@@ -560,6 +567,7 @@ private fun VerticalLayout(
     iconBg: Color,
     iconTint: Color,
     controls: @Composable (fillWidth: Boolean) -> Unit,
+    theme: ThemeColors,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -567,7 +575,7 @@ private fun VerticalLayout(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1E3841))
+                .background(theme.controlBackground)
                 .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -577,7 +585,7 @@ private fun VerticalLayout(
         ) {
             LightIcon(icon, iconBg, iconTint, size = 48.dp)
             Spacer(Modifier.height(8.dp))
-            NameState(name, stateLabel, horizontalAlignment = Alignment.CenterHorizontally, textAlign = TextAlign.Center)
+            NameState(name, stateLabel, theme, horizontalAlignment = Alignment.CenterHorizontally, textAlign = TextAlign.Center)
         }
         Spacer(Modifier.height(10.dp))
         controls(true)

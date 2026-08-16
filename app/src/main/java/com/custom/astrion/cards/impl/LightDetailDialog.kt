@@ -28,6 +28,7 @@ import androidx.compose.ui.window.Dialog
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ThemeColors
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.math.roundToInt
@@ -45,6 +46,7 @@ fun LightDetailDialog(
     name: String,
     e: EntityState?,
     client: HaClient,
+    theme: ThemeColors = ThemeColors.Default,
     onClose: () -> Unit,
 ) {
     val on = e?.isOn == true
@@ -69,7 +71,7 @@ fun LightDetailDialog(
             fun ch(i: Int) = (rgb[i] as? JsonPrimitive)?.content?.toIntOrNull()?.coerceIn(0, 255) ?: 255
             Color(ch(0), ch(1), ch(2))
         } else {
-            Color(0xFFFFD9A0)
+            theme.amber
         }
 
     fun commit(fraction: Float) {
@@ -105,18 +107,18 @@ fun LightDetailDialog(
             modifier =
                 Modifier
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF1B343D))
+                    .background(theme.cardSurface)
                     .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
                 "${(dragLevel * 100).roundToInt()}%",
-                color = Color(0xFFE6F0F1),
+                color = theme.primaryText,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
             )
-            Text(name, color = Color(0xFF93AFB6), fontSize = 13.sp)
+            Text(name, color = theme.mutedText, fontSize = 13.sp)
 
             // Vertical brightness pill: drag or tap to set; fill rises from the bottom.
             Box(
@@ -125,7 +127,7 @@ fun LightDetailDialog(
                         .width(120.dp)
                         .height(230.dp)
                         .clip(RoundedCornerShape(30.dp))
-                        .background(Color(0xFF152B33))
+                        .background(theme.insetSurface)
                         .pointerInput(entityId) {
                             detectVerticalDragGestures(
                                 onDragEnd = { commit(dragLevel) },
@@ -157,14 +159,14 @@ fun LightDetailDialog(
                     Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(if (on) Color(0xFFFFC24B) else Color(0xFF2C4C58))
+                        .background(if (on) theme.amber else theme.controlBackground)
                         .clickable { client.toggle(entityId) },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Filled.PowerSettingsNew,
                     contentDescription = "Toggle",
-                    tint = if (on) Color(0xFF241A00) else Color(0xFFCBDCE0),
+                    tint = if (on) Color(0xFF241A00) else theme.iconTint,
                 )
             }
 
@@ -201,11 +203,11 @@ fun LightDetailDialog(
                             modifier =
                                 Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF23414B))
+                                    .background(theme.controlBackground)
                                     .clickable { setKelvin(k) }
                                     .padding(horizontal = 12.dp, vertical = 8.dp),
                         ) {
-                            Text(label, color = Color(0xFFCBDCE0), fontSize = 12.sp)
+                            Text(label, color = theme.iconTint, fontSize = 12.sp)
                         }
                     }
                 }

@@ -96,12 +96,12 @@ fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center,
         ) {
-            Text(time, color = Color(0xFFCFCFCF), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(time, color = LocalTheme.current.primaryText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
 
             Icon(
                 imageVector = if (wifiConnected) Icons.Filled.Wifi else Icons.Filled.WifiOff,
                 contentDescription = null,
-                tint = Color(0xFF93AFB6),
+                tint = LocalTheme.current.mutedText,
                 modifier = Modifier.size(16.dp).align(Alignment.CenterStart),
             )
 
@@ -111,7 +111,7 @@ fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
             ) {
                 BatteryGlyph(percent = batteryPct, charging = charging)
                 Spacer(Modifier.padding(end = 2.dp))
-                Text("$batteryPct%", color = Color(0xFF93AFB6), fontSize = 12.sp)
+                Text("$batteryPct%", color = LocalTheme.current.mutedText, fontSize = 12.sp)
             }
         }
     }
@@ -124,11 +124,12 @@ private fun BatteryGlyph(
     percent: Int,
     charging: Boolean,
 ) {
+    val theme = LocalTheme.current
     val fillColor =
         when {
-            charging -> Color(0xFF4CAF50)
-            percent <= 15 -> Color(0xFFE53935)
-            else -> Color(0xFF93AFB6)
+            charging -> theme.success
+            percent <= 15 -> theme.danger
+            else -> theme.mutedText
         }
     Canvas(modifier = Modifier.size(width = 20.dp, height = 11.dp)) {
         val bodyWidth = size.width * 0.85f
@@ -136,13 +137,13 @@ private fun BatteryGlyph(
         val strokeWidth = 1.2.dp.toPx()
 
         drawRoundRect(
-            color = Color(0xFF93AFB6),
+            color = theme.mutedText,
             topLeft = Offset(0f, 0f),
             size = Size(bodyWidth, size.height),
             style = Stroke(width = strokeWidth),
         )
         drawRoundRect(
-            color = Color(0xFF93AFB6),
+            color = theme.mutedText,
             topLeft = Offset(bodyWidth + 1.dp.toPx(), size.height * 0.25f),
             size = Size(nubWidth - 1.dp.toPx(), size.height * 0.5f),
         )

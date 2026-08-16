@@ -29,6 +29,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ThemeColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -150,13 +151,13 @@ class PlexCard : CardRenderer {
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF1B343D))
+                    .background(ctx.theme.cardSurface)
                     .padding(vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 "Plex",
-                color = Color(0xFFE6F0F1),
+                color = ctx.theme.primaryText,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(horizontal = 14.dp),
@@ -165,14 +166,14 @@ class PlexCard : CardRenderer {
                 rows == null ->
                     Text(
                         "Loading…",
-                        color = Color(0xFF93AFB6),
+                        color = ctx.theme.mutedText,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(horizontal = 14.dp),
                     )
                 error != null ->
                     Text(
                         error!!,
-                        color = Color(0xFFE0A0A0),
+                        color = ctx.theme.danger,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(horizontal = 14.dp),
                     )
@@ -180,7 +181,7 @@ class PlexCard : CardRenderer {
                     rows!!.forEach { row ->
                         Text(
                             row.title,
-                            color = Color(0xFF93AFB6),
+                            color = ctx.theme.mutedText,
                             fontSize = 13.sp,
                             modifier = Modifier.padding(horizontal = 14.dp),
                         )
@@ -189,7 +190,7 @@ class PlexCard : CardRenderer {
                             contentPadding = PaddingValues(horizontal = 14.dp),
                         ) {
                             items(row.items) { item ->
-                                PosterTile(host, token, item) { play(item) }
+                                PosterTile(host, token, item, ctx.theme) { play(item) }
                             }
                         }
                     }
@@ -202,6 +203,7 @@ class PlexCard : CardRenderer {
         host: String,
         token: String,
         item: PlexItem,
+        theme: ThemeColors,
         onClick: () -> Unit,
     ) {
         Column(
@@ -240,19 +242,19 @@ class PlexCard : CardRenderer {
             if (bmp != null) {
                 Image(bmp!!, contentDescription = item.title, modifier = posterMod, contentScale = ContentScale.Crop)
             } else {
-                Box(posterMod.background(Color(0xFF152B33)))
+                Box(posterMod.background(theme.insetSurface))
             }
             Spacer(Modifier.height(4.dp))
             Text(
                 item.title,
-                color = Color(0xFFE6F0F1),
+                color = theme.primaryText,
                 fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 item.subtitle,
-                color = Color(0xFF93AFB6),
+                color = theme.mutedText,
                 fontSize = 10.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

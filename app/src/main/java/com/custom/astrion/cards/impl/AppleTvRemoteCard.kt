@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ui.ThemeColors
 
 /**
  * Apple TV remote styled like a Siri Remote.
@@ -71,7 +72,7 @@ class AppleTvRemoteCard : CardRenderer {
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF161616))
+                    .background(ctx.theme.cardSurface)
                     .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -82,14 +83,15 @@ class AppleTvRemoteCard : CardRenderer {
                 onLeft = { send("DirectionLeft") },
                 onRight = { send("DirectionRight") },
                 onSelect = { send("Select") },
+                theme = ctx.theme,
             )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                PillButton(icon = Icons.Filled.Menu, label = "Menu") { send("Menu") }
-                PillButton(label = "Home") { send("Home") }
+                PillButton(icon = Icons.Filled.Menu, label = "Menu", theme = ctx.theme) { send("Menu") }
+                PillButton(label = "Home", theme = ctx.theme) { send("Home") }
             }
 
             Box(
@@ -97,7 +99,7 @@ class AppleTvRemoteCard : CardRenderer {
                     Modifier
                         .size(56.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF2A2A2A))
+                        .background(ctx.theme.controlBackground)
                         .clickable {
                             send(if (isPlaying) "Pause" else "Play")
                             isPlaying = !isPlaying
@@ -107,7 +109,7 @@ class AppleTvRemoteCard : CardRenderer {
                 Icon(
                     if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                     contentDescription = null,
-                    tint = Color(0xFFE6E6E6),
+                    tint = ctx.theme.primaryText,
                 )
             }
         }
@@ -120,26 +122,27 @@ class AppleTvRemoteCard : CardRenderer {
         onLeft: () -> Unit,
         onRight: () -> Unit,
         onSelect: () -> Unit,
+        theme: ThemeColors,
     ) {
         Box(
             modifier =
                 Modifier
                     .size(220.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF232323))
+                    .background(theme.controlBackground)
                     .clickable(onClick = onSelect),
             contentAlignment = Alignment.Center,
         ) {
-            EdgeIcon(Icons.Filled.KeyboardArrowUp, Alignment.TopCenter, onUp)
-            EdgeIcon(Icons.Filled.KeyboardArrowDown, Alignment.BottomCenter, onDown)
-            EdgeIcon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, Alignment.CenterStart, onLeft)
-            EdgeIcon(Icons.AutoMirrored.Filled.KeyboardArrowRight, Alignment.CenterEnd, onRight)
+            EdgeIcon(Icons.Filled.KeyboardArrowUp, Alignment.TopCenter, onUp, theme)
+            EdgeIcon(Icons.Filled.KeyboardArrowDown, Alignment.BottomCenter, onDown, theme)
+            EdgeIcon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, Alignment.CenterStart, onLeft, theme)
+            EdgeIcon(Icons.AutoMirrored.Filled.KeyboardArrowRight, Alignment.CenterEnd, onRight, theme)
             Box(
                 modifier =
                     Modifier
                         .size(64.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF303030)),
+                        .background(theme.controlBackground),
             )
         }
     }
@@ -149,6 +152,7 @@ class AppleTvRemoteCard : CardRenderer {
         icon: ImageVector,
         align: Alignment,
         onClick: () -> Unit,
+        theme: ThemeColors,
     ) {
         Box(
             modifier =
@@ -165,7 +169,7 @@ class AppleTvRemoteCard : CardRenderer {
                         .clickable(onClick = onClick),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon, contentDescription = null, tint = Color(0xFF9A9A9A))
+                Icon(icon, contentDescription = null, tint = theme.mutedText)
             }
         }
     }
@@ -174,20 +178,21 @@ class AppleTvRemoteCard : CardRenderer {
     private fun PillButton(
         icon: ImageVector? = null,
         label: String,
+        theme: ThemeColors,
         onClick: () -> Unit,
     ) {
         Row(
             modifier =
                 Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(Color(0xFF2A2A2A))
+                    .background(theme.controlBackground)
                     .clickable(onClick = onClick)
                     .padding(horizontal = 18.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            icon?.let { Icon(it, contentDescription = null, tint = Color(0xFFE6E6E6)) }
-            Text(label, color = Color(0xFFE6E6E6), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            icon?.let { Icon(it, contentDescription = null, tint = theme.primaryText) }
+            Text(label, color = theme.primaryText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         }
     }
 }
