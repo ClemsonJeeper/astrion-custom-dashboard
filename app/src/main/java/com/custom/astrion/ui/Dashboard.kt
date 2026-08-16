@@ -306,8 +306,10 @@ fun Dashboard(
             val cfgIdx = config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
             if (cfgIdx >= 0) {
                 val visIdx = visibleIndices.indexOf(cfgIdx)
-                if (visIdx >= 0) scope.launch { pagerState.scrollToPage(visIdx) }
-                else showOverlayPage(cfgIdx)
+                if (visIdx >= 0) {
+                    scope.launch { pagerState.scrollToPage(visIdx) }
+                    if (swipeUpPageIndex != null) closeDrawer()
+                } else showOverlayPage(cfgIdx)
             }
         }
 
