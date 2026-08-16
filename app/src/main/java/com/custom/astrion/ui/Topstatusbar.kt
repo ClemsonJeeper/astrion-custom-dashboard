@@ -38,6 +38,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -59,8 +60,13 @@ import kotlin.time.Duration.Companion.seconds
 fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
     val context = LocalContext.current
     val density = LocalDensity.current
-    val triggerPx = with(density) { 40.dp.toPx() }
+    // Forgiving trigger: a slow drag only needs to clear ~18dp (down from 40dp)
+    // and a brisk downward flick (>= 500 px/s) opens Settings instantly no
+    // matter how short the travel. Both conditions are checked per drag frame.
+    val triggerPx = with(density) { 18.dp.toPx() }
+    val flickVelocityPx = 500f
     var dragAccumulated by remember { mutableFloatStateOf(0f) }
+    val velocityTracker = remember { VelocityTracker() }
 
     val wifiConnected = rememberWifiConnected(context)
     val (batteryPct, charging) = rememberBatteryState(context)
@@ -68,25 +74,31 @@ fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
 
     Row(
         modifier =
-        Modifier
-            .fillMaxWidth()
-            .height(30.dp)
-            .padding(horizontal = 14.dp)
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragStart = { dragAccumulated = 0f },
-                    onDragEnd = { dragAccumulated = 0f },
-                    onVerticalDrag = { change, dragAmount ->
-                        change.consume()
-                        dragAccumulated += dragAmount
-                        if (dragAccumulated > triggerPx) {
-                            onSwipeDownToSettings()
+            Modifier
+                .fillMaxWidth()
+                .height(30.dp)
+                .padding(horizontal = 14.dp)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onDragStart = {
                             dragAccumulated = 0f
-                        }
-                    }
-                )
-            },
-        verticalAlignment = Alignment.CenterVertically
+                            velocityTracker.resetTracking()
+                        },
+                        onDragEnd = { dragAccumulated = 0f },
+                        onDragCancel = { dragAccumulated = 0f },
+                        onVerticalDrag = { change, dragAmount ->
+                            change.consume()
+                            dragAccumulated += dragAmount
+                            velocityTracker.addPosition(change.uptimeMillis, change.position)
+                            val vy = velocityTracker.calculateVelocity().y
+                            if (dragAccumulated > triggerPx || vy > flickVelocityPx) {
+                                onSwipeDownToSettings()
+                                dragAccumulated = 0f
+                            }
+                        },
+                    )
+                },
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         // Box overlay: clock centered to the full bar width, Wi-Fi and
         // battery absolutely positioned to the edges so their widths don't

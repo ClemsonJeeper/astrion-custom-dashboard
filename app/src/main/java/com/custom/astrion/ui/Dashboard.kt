@@ -183,12 +183,28 @@ fun Dashboard(
 
     fun cancelDrawerAnim() { drawerAnim.job?.cancel(); drawerAnim.job = null }
 
-    /** Animate the drawer to whichever end is nearer its current offset. */
-    fun settleDrawer() {
+    /**
+     * Animate the drawer to its open or closed end. The commit threshold is
+     * deliberately forgiving: a slow drag only needs to clear ~20% of the
+     * drawer height to snap open (so a "somewhat" swipe-up still wins), and a
+     * brisk flick opens/closes regardless of how far the finger actually
+     * travelled. [velocityY] is px/s, negative = upward (opening); 0 means
+     * "no velocity info, decide by position alone" (the bottom strip and the
+     * overlay handle, which don't expose fling velocity).
+     */
+    fun settleDrawer(velocityY: Float = 0f) {
         val idx = swipeUpPageIndex ?: return
         if (drawerHeightPx <= 0f) return
         cancelDrawerAnim()
-        val target = if (drawerOffset < drawerHeightPx / 2f) 0f else drawerHeightPx
+        val openByPosition = drawerOffset < drawerHeightPx * 0.8f
+        val openByFlick = velocityY < -500f
+        val closeByFlick = velocityY > 500f
+        val target = when {
+            openByFlick -> 0f
+            closeByFlick -> drawerHeightPx
+            openByPosition -> 0f
+            else -> drawerHeightPx
+        }
         drawerAnim.job = scope.launch {
             animate(initialValue = drawerOffset, targetValue = target, animationSpec = tween<Float>(220)) { v, _ ->
                 drawerOffset = v
@@ -255,7 +271,7 @@ fun Dashboard(
             drawerOffset = (drawerOffset + delta).coerceIn(0f, drawerHeightPx)
         }
     }
-    val onSwipeUpSettle: () -> Unit = { settleDrawer() }
+    val onSwipeUpSettle: (Float) -> Unit = { v -> settleDrawer(v) }
 
 
     // Hidden pages are excluded from the horizontal pager and the dot row —
@@ -407,6 +423,7 @@ fun Dashboard(
                 if (d.deviceId !in incomingIds && d.powerOffOnExit) dispatchActivityPower(d, on = false)
             }
 
+<<<<<<< HEAD
             activity.devices.forEachIndexed { index, d ->
                 val alreadyOn = d.deviceId in outgoingDeviceIds
                 if (!alreadyOn && d.powerOnFirst) dispatchActivityPower(d, on = true)
@@ -414,6 +431,50 @@ fun Dashboard(
                 if (index < activity.devices.lastIndex && d.delayAfterMs > 0) {
                     delay(d.delayAfterMs.milliseconds)
                 }
+=======
+            // Bottom-edge swipe-up strip: the nestedScroll inside the pager
+            // only catches swipes that start ON the scrolling content. Swipes
+            // from the very bottom of the screen (where the user's thumb
+            // naturally starts) miss it — the pager doesn't extend to the
+            // screen edge, and immersive-sticky mode intercepts touches from
+            // the extreme bottom edge for the hidden nav bar. This thin strip
+            // sits just above the dot indicator, slightly inset from the
+            // edge, so it catches those bottom-originating upward swipes. It
+            // only activates when the current page declares a swipeUp target,
+            // and now drives the finger-tracking drawer directly.
+            val currentSwipeUp = visibleIndices.getOrNull(pagerState.currentPage)
+                ?.let { config.pages[it].swipeUp }
+            if (!currentSwipeUp.isNullOrBlank()) {
+                val stripVelocityTracker = remember { androidx.compose.ui.input.pointer.util.VelocityTracker() }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(18.dp)
+                        .pointerInput(currentSwipeUp) {
+                            detectVerticalDragGestures(
+                                onDragStart = {
+                                    cancelDrawerAnim()
+                                    stripVelocityTracker.resetTracking()
+                                },
+                                onDragEnd = {
+                                    val vy = stripVelocityTracker.calculateVelocity().y
+                                    settleDrawer(if (vy.isNaN()) 0f else vy)
+                                },
+                                onDragCancel = { settleDrawer() },
+                            ) { change, dragAmount ->
+                                stripVelocityTracker.addPosition(change.uptimeMillis, change.position)
+                                // Begin only on an upward drag; once begun,
+                                // track both directions so the user can pull
+                                // it back down before releasing.
+                                if (swipeUpPageIndex == null) {
+                                    if (dragAmount < 0f) currentSwipeUp?.let(onSwipeUpBegin)
+                                    else return@detectVerticalDragGestures
+                                }
+                                onSwipeUpDrag(dragAmount)
+                            }
+                        },
+                )
+>>>>>>> 1ee7098 (feat(ui): forgiving swipe gestures + swipe-down-to-close anywhere)
             }
 
             activityRuntime.markActiveById(activity.id)
@@ -652,7 +713,7 @@ fun Dashboard(
                         onDragDelta = { d ->
                             drawerOffset = (drawerOffset + d).coerceIn(0f, drawerHeightPx)
                         },
-                        onDragEnd = { settleDrawer() },
+                        onDragEnd = { v -> settleDrawer(v) },
                         onClose = { closeDrawer() },
                     )
                 }
@@ -871,7 +932,7 @@ private fun PageContent(
     swipeUp: String? = null,
     onSwipeUpBegin: (String) -> Unit = {},
     onSwipeUpDrag: (Float) -> Unit = {},
-    onSwipeUpSettle: () -> Unit = {},
+    onSwipeUpSettle: (Float) -> Unit = {},
 ) {
     val pinned = page.cards.filter { it.options["pin"] == "bottom" }
     val scrolling = page.cards.filter { it.options["pin"] != "bottom" }
@@ -926,22 +987,77 @@ private fun PageContent(
 }
 
 /**
+ * [NestedScrollConnection] that closes the swipe-up drawer from a downward
+ * overscroll inside the overlay's scrollable content. When the content is
+ * scrolled to the top and the user drags further down, [onPostScroll] receives
+ * a positive `available.y`: on the first such event we call [onStart] to
+ * cancel any running settle animation, then forward each px to [onDrag] so the
+ * drawer slides down under the finger; [onPostFling] invokes [onSettle] with
+ * the fling velocity (px/s, positive = downward) so a brisk downward flick
+ * dismisses the drawer even from a short drag. Consumes the overscroll so the
+ * platform glow doesn't fire. This is the downward mirror of
+ * [rememberSwipeUpDragConnection], and exists for the same reason: putting
+ * `detectVerticalDragGestures` on the same node as `verticalScroll` does not
+ * work (the scroll consumer wins), so we hook the overscroll via nestedScroll
+ * instead.
+ */
+@Composable
+private fun rememberSwipeDownCloseConnection(
+    onStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onSettle: (Float) -> Unit,
+): NestedScrollConnection {
+    val startRef = rememberUpdatedState(onStart)
+    val dragRef = rememberUpdatedState(onDrag)
+    val settleRef = rememberUpdatedState(onSettle)
+    val active = remember { booleanArrayOf(false) }
+    return remember(Unit) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (source == NestedScrollSource.UserInput && available.y > 0f) {
+                    if (!active[0]) {
+                        active[0] = true
+                        startRef.value.invoke()
+                    }
+                    dragRef.value.invoke(available.y) // positive → closes
+                    return available // consume so the platform overscroll glow doesn't fire
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (active[0]) {
+                    active[0] = false
+                    settleRef.value.invoke(available.y)
+                }
+                return available
+            }
+        }
+    }
+}
+
+/**
  * [NestedScrollConnection] that drives the swipe-up drawer from a page's
  * upward overscroll. Upward overscroll arrives in [onPostScroll] as a negative
  * `available.y` (the scrolling child couldn't consume the upward drag): on the
  * first such event we call [onBegin] to materialise the drawer closed, then
  * forward each px to [onDrag] so the drawer follows the finger. [onSettle] is
- * invoked from [onPostFling] (which fires for both fling and plain lift) to
- * animate the drawer to its nearest end. Only reacts to user drag, not fling
- * momentum, for the open phase. Consumes the overscroll so the platform glow
- * doesn't fire.
+ * invoked from [onPostFling] (which fires for both fling and plain lift) with
+ * the fling velocity (px/s, negative = upward) so a brisk flick opens the
+ * drawer even if the finger barely travelled. Only reacts to user drag, not
+ * fling momentum, for the open phase. Consumes the overscroll so the platform
+ * glow doesn't fire.
  */
 @Composable
 private fun rememberSwipeUpDragConnection(
     targetName: String,
     onBegin: (String) -> Unit,
     onDrag: (Float) -> Unit,
-    onSettle: () -> Unit,
+    onSettle: (Float) -> Unit,
 ): NestedScrollConnection {
     val beginRef = rememberUpdatedState(onBegin)
     val dragRef = rememberUpdatedState(onDrag)
@@ -968,7 +1084,7 @@ private fun rememberSwipeUpDragConnection(
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 if (active[0]) {
                     active[0] = false
-                    settleRef.value.invoke()
+                    settleRef.value.invoke(available.y)
                 }
                 return available
             }
@@ -994,27 +1110,37 @@ private fun SwipeUpOverlay(
     ctx: CardContext,
     onDragStart: () -> Unit,
     onDragDelta: (Float) -> Unit,
-    onDragEnd: () -> Unit,
+    onDragEnd: (Float) -> Unit,
     onClose: () -> Unit,
 ) {
     val pinned = page.cards.filter { it.options["pin"] == "bottom" }
     val scrolling = page.cards.filter { it.options["pin"] != "bottom" }
+    val velocityTracker = remember { androidx.compose.ui.input.pointer.util.VelocityTracker() }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0E2229))) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Top bar: swipe-down-to-close handle (centered) + close button (end).
             // The drag tracks the drawer under the finger; on release the host
-            // settles it open or closed.
+            // settles it open or closed. Velocity is forwarded so a brisk
+            // downward flick closes the drawer even from near-open.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(44.dp)
                     .pointerInput(Unit) {
                         detectVerticalDragGestures(
-                            onDragStart = { onDragStart() },
-                            onDragEnd = { onDragEnd() },
-                            onDragCancel = { onDragEnd() },
-                        ) { _, dragAmount ->
+                            onDragStart = {
+                                onDragStart()
+                                velocityTracker.resetTracking()
+                            },
+                            onDragEnd = {
+                                val vy = if (velocityTracker.calculateVelocity().y.isNaN()) 0f
+                                         else velocityTracker.calculateVelocity().y
+                                onDragEnd(vy)
+                            },
+                            onDragCancel = { onDragEnd(0f) },
+                        ) { change, dragAmount ->
+                            velocityTracker.addPosition(change.uptimeMillis, change.position)
                             onDragDelta(dragAmount)
                         }
                     },
@@ -1040,12 +1166,25 @@ private fun SwipeUpOverlay(
                 )
             }
 
-            // Page cards: same pinned/scrolling split as PageContent.
+            // Page cards: same pinned/scrolling split as PageContent. The
+            // scrolling column also carries a nestedScroll overscroll consumer
+            // that closes the drawer on a downward overscroll (content scrolled
+            // to top + drag down) — the mirror of the page's swipe-up open
+            // connection. This lets the user swipe down anywhere in the cards
+            // to dismiss the drawer, not just from the top handle. Using
+            // nestedScroll (not detectVerticalDragGestures) avoids the
+            // documented conflict with verticalScroll on the same node.
+            val closeConnection = rememberSwipeDownCloseConnection(
+                onStart = { onDragStart() },
+                onDrag = { d -> onDragDelta(d) },
+                onSettle = { v -> onDragEnd(v) },
+            )
             Column(modifier = Modifier.fillMaxSize()) {
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
+                        .nestedScroll(closeConnection)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
