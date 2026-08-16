@@ -164,6 +164,7 @@ class HaClient(
                 }
                 put("target", target)
             }
+        Log.d(TAG, "callService: ${call.domain}.${call.service} entity=${call.entityId} data=${call.data}")
         send(msg)
     }
 
@@ -436,7 +437,17 @@ class HaClient(
 
     /** Result of get_states arrives as an array in the `result` field. */
     private fun onResult(obj: JsonObject) {
-        val result = obj["result"]?.jsonArray ?: return
+        // Service-call results have `result: null` or `result: {}` (not an
+        // array) — nothing to seed from, just check success and return.
+        val resultEl = obj["result"] ?: return
+        if (resultEl !is JsonArray) {
+            val success = obj["success"]?.jsonPrimitive?.content
+            if (success == "false") {
+                Log.w(TAG, "Service call failed: ${obj["error"]}")
+            }
+            return
+        }
+        val result = resultEl
         for (el in result) {
             val e = el.jsonObject
             val entityId = e["entity_id"]?.jsonPrimitive?.content ?: continue

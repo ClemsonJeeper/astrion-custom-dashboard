@@ -155,12 +155,12 @@ function updateCardFormInputs() {
       <select id="optFanStyle">
         <option value="auto">Auto (detect from entity)</option>
         <option value="simple">Simple (percentage tile)</option>
+        <option value="step">Step (increase/decrease fan speed)</option>
         <option value="full">Full (presets + oscillate)</option>
       </select>
       <label>Preset modes override (optional, comma-separated, in display order — normally read from the entity)</label><input type="text" id="optFanPresetModes" placeholder="Level 1,Level 2,Level 3,Level 4">
-      <label>Percentage step (simple layout / no-preset fallback)</label><input type="number" id="optFanStep" value="20" min="1" max="100">
       <label><input type="checkbox" id="optFanShowCaptions" checked> Show captions ("Preset"/"Oscillate") above chip rows</label>
-      <div class="hint">"Auto" shows the full layout (power button, presets, oscillate toggle) whenever the entity reports preset_modes or an oscillating attribute; otherwise it falls back to the simple percentage tile. Force one or the other with Layout above.</div>
+      <div class="hint">"Auto" shows the full layout (power button, presets, oscillate toggle) whenever the entity reports preset_modes or an oscillating attribute; otherwise it falls back to the simple percentage tile. "Step" uses HA's increase/decrease speed services. Force one with Layout above.</div>
     `;
   } else if (type === 'climate') {
     container.innerHTML = `
@@ -683,9 +683,8 @@ function fillCardForm(card) {
   } else if (type === 'fan') {
     document.getElementById('optName').value = o.name || '';
     document.getElementById('optEntityId').value = o.entity_id || '';
-    document.getElementById('optFanStyle').value = ['simple', 'full'].includes(o.style) ? o.style : 'auto';
+    document.getElementById('optFanStyle').value = ['simple', 'step', 'full'].includes(o.style) ? o.style : 'auto';
     document.getElementById('optFanPresetModes').value = (o.preset_modes || []).join(',');
-    document.getElementById('optFanStep').value = o.step ?? 20;
     document.getElementById('optFanShowCaptions').checked = o.show_captions !== false;
   } else if (type === 'climate') {
     document.getElementById('optName').value = o.name || '';
@@ -868,8 +867,6 @@ function addCardToPage() {
     if (document.getElementById('optFanStyle').value !== 'auto') newCard.options.style = document.getElementById('optFanStyle').value;
     const presetModes = document.getElementById('optFanPresetModes').value.trim();
     if (presetModes) newCard.options.preset_modes = presetModes.split(',').map(s => s.trim()).filter(Boolean);
-    const step = parseInt(document.getElementById('optFanStep').value, 10);
-    if (!isNaN(step) && step !== 20) newCard.options.step = step;
     if (!document.getElementById('optFanShowCaptions').checked) newCard.options.show_captions = false;
   } else if (type === 'climate') {
     newCard.options.name = document.getElementById('optName').value || 'Climate';

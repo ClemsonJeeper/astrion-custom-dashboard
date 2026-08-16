@@ -43,6 +43,10 @@ import com.custom.astrion.ui.ThemeColors
  *   0-100 percentage): a bigger card with a dedicated power button, preset
  *   chips (or a percentage stepper if there are no presets), and an
  *   oscillate on/off toggle.
+ * - **step**: a minimal single row — left-justified "-", center percentage
+ *   display, right-justified "+". Each press steps `percentage` by `step`
+ *   (e.g. `step: 13` → 13→26→39…). No name, no power button; just the
+ *   stepper. Tap-to-toggle isn't exposed in this layout.
  *
  * Uses `fan.toggle`, `fan.set_percentage`, `fan.set_preset_mode`, and `fan.oscillate`.
  *
@@ -59,7 +63,7 @@ import com.custom.astrion.ui.ThemeColors
  *   }
  * }
  * ```
- * `style` — `"auto"` (default), `"simple"`, or `"full"`. `preset_modes` is an
+ * `style` — `"auto"` (default), `"simple"`, `"step"`, or `"full"`. `preset_modes` is an
  * optional override (order respected), same pattern as `ClimateCard`'s
  * `fan_modes`/`swing_modes`: normally read straight from the entity so it
  * always matches what the device actually supports. `"off"` is always
@@ -93,7 +97,8 @@ class FanCard : CardRenderer {
         val oscillating = e?.attrBoolean("oscillating") == true
 
         val styleOpt = config.string("style")
-        val useFull = styleOpt == "full" || (styleOpt != "simple" && (presetModes.isNotEmpty() || oscillateSupported))
+        val useStep = styleOpt == "step"
+        val useFull = !useStep && (styleOpt == "full" || (styleOpt != "simple" && (presetModes.isNotEmpty() || oscillateSupported)))
         val showCaptions = config.options["show_captions"] as? Boolean ?: true
 
         fun setPercentage(p: Int) =
@@ -110,6 +115,48 @@ class FanCard : CardRenderer {
             ctx.client.callService(
                 ServiceCall.of("fan", "oscillate", entityId, "oscillating" to v),
             )
+
+        if (useStep) {
+            val pct = percentage ?: 0
+            val explicitName = config.string("name")
+            fun changeSpeed(direction: String) =
+                ctx.client.callService(
+                    ServiceCall.of("fan", direction, entityId),
+                )
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(ctx.theme.controlBackground)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (explicitName != null) {
+                    Text(
+                        explicitName,
+                        color = ctx.theme.primaryText,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    StepBtn("-", ctx.theme) { changeSpeed("decrease_speed") }
+                    Text(
+                        if (on) "$pct%" else stringResource(R.string.astrion_state_off),
+                        color = ctx.theme.primaryText,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    StepBtn("+", ctx.theme) { changeSpeed("increase_speed") }
+                }
+            }
+            return
+        }
 
         if (!useFull) {
             val pct = percentage ?: 0
@@ -309,5 +356,30 @@ private fun CircleBtn(
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = theme.iconTint)
+    }
+}
+
+/** Text-based "-" / "+" button used by [FanCard]'s step layout. */
+@Composable
+private fun StepBtn(
+    label: String,
+    theme: ThemeColors,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(theme.insetSurface)
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            color = theme.iconTint,
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
