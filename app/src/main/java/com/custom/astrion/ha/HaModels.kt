@@ -33,12 +33,18 @@ data class EntityState(
 
     fun attr(key: String): JsonElement? = attributes[key]
 
-    /** Attribute as String, or null if absent/not a primitive. */
-    fun attrString(key: String): String? = attributes[key]?.jsonPrimitive?.contentOrNull
+    /** Attribute as String, or null if absent/not a primitive. Deliberately
+     * casts (`as?`) rather than using the `.jsonPrimitive` extension, which
+     * *throws* — not returns null — on a JsonObject/JsonArray value (e.g.
+     * Kodi's `media_content_id`, which HA reports as a nested object instead
+     * of a plain string like most other media players). A non-primitive
+     * attribute should degrade to "we don't have this", not crash the card
+     * rendering it. */
+    fun attrString(key: String): String? = (attributes[key] as? JsonPrimitive)?.contentOrNull
 
     /** Attribute as Double, or null. Handles ints and numeric strings too. */
     fun attrDouble(key: String): Double? =
-        attributes[key]?.jsonPrimitive?.let { prim ->
+        (attributes[key] as? JsonPrimitive)?.let { prim ->
             prim.doubleOrNull ?: prim.contentOrNull?.toDoubleOrNull()
         }
 
@@ -47,7 +53,7 @@ data class EntityState(
 
     /** Attribute as Boolean, or null. Handles boolean primitives and boolean strings ("true"/"false"). */
     fun attrBoolean(key: String): Boolean? =
-        attributes[key]?.jsonPrimitive?.let { prim ->
+        (attributes[key] as? JsonPrimitive)?.let { prim ->
             prim.booleanOrNull ?: prim.contentOrNull?.toBooleanStrictOrNull()
         }
 

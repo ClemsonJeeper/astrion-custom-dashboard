@@ -12,6 +12,22 @@ function updateCardFormInputs() {
       <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., light.living_room">
       ${iconFieldHtml('optIcon')}
     `;
+  } else if (type === 'title') {
+    container.innerHTML = `
+      <label>Title</label><input type="text" id="optTitle" placeholder="e.g., Living Room">
+      <label>Subtitle (optional)</label><input type="text" id="optSubtitle" placeholder="e.g., 3 lights on">
+      <label>Alignment</label>
+      <select id="optTitleAlignment">
+        <option value="start">Start (left)</option>
+        <option value="center">Center</option>
+        <option value="end">End (right)</option>
+        <option value="justify">Justify</option>
+      </select>
+      ${iconFieldHtml('optTitleIcon')}
+      <label class="inline-check"><input type="checkbox" id="optTitleDivider"> Divider line (fills the rest of the row after the title)</label>
+      <label>Color (optional, ARGB/RGB hex — defaults to the standard title color, also tints the divider line)</label><input type="text" id="optTitleColor" placeholder="#7FB3C4">
+      <div class="hint">A section header for grouping the cards below it — no entity of its own. Setting an icon or the divider always left-aligns the title row regardless of Alignment (that layout has no sensible centered/right-aligned form) — the subtitle below is unaffected. For a tappable title/subtitle (e.g. a "see all" link to another page), use "Other / custom type…" below instead and add title_page / subtitle_page — or any of scene_grid's other action fields with a title_/subtitle_ prefix — directly in the JSON; like every type here, re-saving through this simple form overwrites the card's options from scratch, so those fields wouldn't survive a later edit through it.</div>
+    `;
   } else if (type === 'cover') {
     container.innerHTML = `
       <label>Name (optional, defaults to the entity's friendly name)</label><input type="text" id="optName" placeholder="e.g., Volet Chambre">
@@ -149,13 +165,29 @@ function updateCardFormInputs() {
             <option value="command">Device command</option>
           </select>
           <div id="giHarmonyPicker"></div>
-          <label>IR activity (sends locally, no hub needed) — OR —</label>
-          <select id="giIrActivity">
+          <label>IR device + command (sends locally, no hub needed) — OR —</label>
+          <select id="giIrDevice" onchange="onGiIrDeviceChange()">
             <option value="">— none —</option>
-            ${(dashboardData.irActivities || []).map(a => `<option value="${a.id}">${a.name}</option>`).join('')}
+            ${(dashboardData.irDevices || []).map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
           </select>
-          ${(dashboardData.irActivities || []).length === 0 ? '<div class="hint">No IR activities yet — create one in the "IR Activities" section below, then come back here.</div>' : ''}
+          <select id="giIrCommand"><option value="">— select a device first —</option></select>
+          ${(dashboardData.irDevices || []).length === 0 ? '<div class="hint">No IR devices yet — create one in the "IR Devices" section below, then come back here.</div>' : ''}
+          <label>Composed Activity (sequences multiple devices) — OR —</label>
+          <select id="giActivityRef">
+            <option value="">— none —</option>
+            ${(dashboardData.activities || []).map(a => `<option value="${a.id}">${a.name} (${a.room})</option>`).join('')}
+          </select>
+          ${(dashboardData.activities || []).length === 0 ? '<div class="hint">No Activities yet — create one in the "Activities" section below for multi-device setups (e.g. IR-only, no Harmony/HA).</div>' : ''}
           <label>Color (optional, ARGB hex — defaults to the standard tile color)</label><input type="text" id="giColor" placeholder="#66009688">
+          <div class="divider" style="margin:12px 0"></div>
+          <label><input type="checkbox" id="giTrack" onchange="onGiTrackChange()"> Track as Activity</label>
+          <div class="hint">Makes this tile show up as the active AV Activity for its room — see ActivityRuntime. At most one tracked Activity is active per room at a time. Not needed if you picked a Composed Activity above — that's always tracked automatically, using its own room.</div>
+          <div id="giRoomField" style="display:none">
+            <label>Room</label><input type="text" id="giRoom" placeholder="e.g., Living Room">
+            <label>Physical devices this Activity involves (optional — IR/Harmony device ids, comma-separated)</label>
+            <input type="text" id="giDevices" placeholder="e.g., samsung_hw_m550, lg_oled_65b8">
+            <div class="hint">Lets a later *composed* Activity in the same room know this device was already on, so it doesn't needlessly re-toggle it (matters most for a device with only a Power Toggle command, no discrete on/off). Especially worth setting for a Harmony-backed tile — Astrion has no other way to know which physical devices a Harmony Activity touches.</div>
+          </div>
         `}
         ${iconFieldHtml('giIcon')}
         <button type="button" class="secondary" onclick="addGridItem('${type}')" id="giSubmitBtn">+ Add ${label.toLowerCase()} to this card</button>
@@ -226,6 +258,20 @@ function updateMediaTopButtonsVisibility() {
 
 let editingGridItem = null; // index of the button/scene being edited within _pendingGridItems, or null
 
+function onGiTrackChange() {
+  const checked = document.getElementById('giTrack').checked;
+  document.getElementById('giRoomField').style.display = checked ? '' : 'none';
+}
+
+function onGiIrDeviceChange() {
+  const deviceId = document.getElementById('giIrDevice').value;
+  const cmdSel = document.getElementById('giIrCommand');
+  const device = (dashboardData.irDevices || []).find(d => d.id === deviceId);
+  if (!device) { cmdSel.innerHTML = '<option value="">— select a device first —</option>'; return; }
+  cmdSel.innerHTML = '<option value="">— select a command —</option>' +
+    Object.entries(device.commands).map(([id, c]) => `<option value="${id}">${id} — ${c.label || id}</option>`).join('');
+}
+
 function renderAppleTvHarmonyFields() {
   const container = document.getElementById('atvHarmonyPicker');
   if (!container) return;
@@ -239,10 +285,11 @@ function renderAppleTvHarmonyFields() {
 async function fillAppleTvHarmonyFields(o) {
   renderAppleTvHarmonyFields();
   if (harmonyAvailable) {
-    const hubId = o.hub || (harmonyHubsList[0] && harmonyHubsList[0].localId) || '';
-    document.getElementById('atvHub').value = hubId;
-    await onHarmonyHubChange('device', 'atv');
-    document.getElementById('atvDeviceSelect').value = o.deviceId || '';
+    document.getElementById('atvHub').value = o.hub || '';
+    if (o.hub) {
+      await onHarmonyHubChange('device', 'atv');
+      document.getElementById('atvDeviceSelect').value = o.deviceId || '';
+    }
   } else {
     document.getElementById('optDeviceId').value = o.deviceId || '';
   }
@@ -276,32 +323,6 @@ function renderGridItemsList(type) {
   });
 }
 
-async function fillGiHarmonySection(item) {
-  const modeSel = document.getElementById('giHarmonyMode');
-  if (!modeSel) return; // button_grid form has no Harmony section
-  const mode = item.activityId ? 'activity' : (item.harmonyDevice && item.harmonyCommand) ? 'command' : '';
-  modeSel.value = mode;
-  onGiHarmonyModeChange();
-  if (!mode) return;
-  if (harmonyAvailable) {
-    const hubId = item.hub || (harmonyHubsList[0] && harmonyHubsList[0].localId) || '';
-    document.getElementById('giHub').value = hubId;
-    await onHarmonyHubChange(mode, 'gi');
-    if (mode === 'activity') {
-      document.getElementById('giActivitySelect').value = item.activityId || '';
-    } else {
-      document.getElementById('giDeviceSelect').value = item.harmonyDevice || '';
-      onHarmonyDeviceChange('gi');
-      document.getElementById('giCommandSelect').value = item.harmonyCommand || '';
-    }
-  } else if (mode === 'activity') {
-    document.getElementById('giActivityId').value = item.activityId || '';
-  } else {
-    document.getElementById('giHarmonyDevice').value = item.harmonyDevice || '';
-    document.getElementById('giHarmonyCommand').value = item.harmonyCommand || '';
-  }
-}
-
 function fillGridItemForm(type, item) {
   document.getElementById('giName').value = item.name || '';
   document.getElementById('giIcon').value = item.icon || '';
@@ -313,12 +334,29 @@ function fillGridItemForm(type, item) {
   } else {
     document.getElementById('giEntityId').value = item.entity_id || '';
     document.getElementById('giPage').value = item.page || '';
-    const irSel = document.getElementById('giIrActivity');
-    if (irSel) irSel.value = item.irActivity || '';
+    if (item.irDevice) {
+      document.getElementById('giIrDevice').value = item.irDevice;
+      onGiIrDeviceChange();
+      document.getElementById('giIrCommand').value = item.irCommand || '';
+    }
+    const actRefSel = document.getElementById('giActivityRef');
+    if (actRefSel) actRefSel.value = item.activity || '';
     document.getElementById('giColor').value = item.color || '';
+    document.getElementById('giTrack').checked = item.track === true;
+    document.getElementById('giRoom').value = item.room || '';
+    document.getElementById('giDevices').value = (item.devices || []).join(', ');
+    onGiTrackChange();
   }
 }
 
+/**
+ * Restores a scene/button item's Harmony fields into the form when editing.
+ * Deliberately does NOT default `hub` to "the first configured hub" when the
+ * item has none — with more than one hub configured, guessing is exactly
+ * the kind of silent wrong-hub bug that bit us before. An item saved before
+ * `hub` was mandatory just shows the Hub select empty, forcing an explicit
+ * pick before it can be saved again (see the validation in addGridItem()).
+ */
 async function fillGiHarmonySection(item) {
   const modeSel = document.getElementById('giHarmonyMode');
   if (!modeSel) return; // button_grid form has no Harmony section
@@ -327,15 +365,16 @@ async function fillGiHarmonySection(item) {
   onGiHarmonyModeChange();
   if (!mode) return;
   if (harmonyAvailable) {
-    const hubId = item.hub || (harmonyHubsList[0] && harmonyHubsList[0].localId) || '';
-    document.getElementById('giHub').value = hubId;
-    await onHarmonyHubChange(mode, 'gi');
-    if (mode === 'activity') {
-      document.getElementById('giActivitySelect').value = item.activityId || '';
-    } else {
-      document.getElementById('giDeviceSelect').value = item.harmonyDevice || '';
-      onHarmonyDeviceChange('gi');
-      document.getElementById('giCommandSelect').value = item.harmonyCommand || '';
+    document.getElementById('giHub').value = item.hub || '';
+    if (item.hub) {
+      await onHarmonyHubChange(mode, 'gi');
+      if (mode === 'activity') {
+        document.getElementById('giActivitySelect').value = item.activityId || '';
+      } else {
+        document.getElementById('giDeviceSelect').value = item.harmonyDevice || '';
+        onHarmonyDeviceChange('gi');
+        document.getElementById('giCommandSelect').value = item.harmonyCommand || '';
+      }
     }
   } else if (mode === 'activity') {
     document.getElementById('giActivityId').value = item.activityId || '';
@@ -359,10 +398,12 @@ function cancelGridItemEdit() {
   document.getElementById('giName').value = '';
   document.getElementById('giIcon').value = '';
   updateIconThumb('giIcon');
-  ['giService', 'giEntityId', 'giData', 'giPage', 'giIrActivity', 'giColor'].forEach(id => {
+  ['giService', 'giEntityId', 'giData', 'giPage', 'giIrDevice', 'giIrCommand', 'giActivityRef', 'giColor'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  const trackEl = document.getElementById('giTrack');
+  if (trackEl) { trackEl.checked = false; document.getElementById('giRoom').value = ''; document.getElementById('giDevices').value = ''; onGiTrackChange(); }
   const harmonyModeSel = document.getElementById('giHarmonyMode');
   if (harmonyModeSel) { harmonyModeSel.value = ''; onGiHarmonyModeChange(); }
   const btn = document.getElementById('giSubmitBtn');
@@ -386,11 +427,15 @@ function addGridItem(type) {
   } else {
     const entityId = document.getElementById('giEntityId').value.trim();
     const page = document.getElementById('giPage').value.trim();
-    const irActivity = document.getElementById('giIrActivity')?.value || '';
+    const irDevice = document.getElementById('giIrDevice')?.value || '';
+    const irCommand = document.getElementById('giIrCommand')?.value || '';
+    const activityRef = document.getElementById('giActivityRef')?.value || '';
     const color = document.getElementById('giColor').value.trim();
     if (entityId) item.entity_id = entityId;
     if (page) item.page = page;
-    if (irActivity) item.irActivity = irActivity;
+    if (irDevice && irCommand) { item.irDevice = irDevice; item.irCommand = irCommand; }
+    else if (irDevice && !irCommand) { alert('Pick an IR command, or clear the IR device field.'); return; }
+    if (activityRef) item.activity = activityRef;
     if (color) item.color = color;
 
     const harmonyMode = document.getElementById('giHarmonyMode')?.value || '';
@@ -418,6 +463,16 @@ function addGridItem(type) {
         item.harmonyDevice = document.getElementById('giHarmonyDevice').value.trim();
         item.harmonyCommand = document.getElementById('giHarmonyCommand').value.trim();
       }
+    }
+
+    const track = document.getElementById('giTrack')?.checked || false;
+    if (track) {
+      const room = document.getElementById('giRoom').value.trim();
+      if (!room) { alert('A tracked Activity needs a Room — that\'s what makes it exclusive at runtime.'); return; }
+      item.track = true;
+      item.room = room;
+      const devices = document.getElementById('giDevices').value.split(',').map(s => s.trim()).filter(Boolean);
+      if (devices.length) item.devices = devices;
     }
   }
   window._pendingGridItems = window._pendingGridItems || [];
@@ -505,6 +560,14 @@ function fillCardForm(card) {
     document.getElementById('optEntityId').value = o.entity_id || '';
     document.getElementById('optIcon').value = o.icon || '';
     updateIconThumb('optIcon');
+  } else if (type === 'title') {
+    document.getElementById('optTitle').value = o.title || '';
+    document.getElementById('optSubtitle').value = o.subtitle || '';
+    document.getElementById('optTitleAlignment').value = ['center', 'end', 'justify'].includes(o.alignment) ? o.alignment : 'start';
+    document.getElementById('optTitleIcon').value = o.icon || '';
+    updateIconThumb('optTitleIcon');
+    document.getElementById('optTitleDivider').checked = o.divider === true;
+    document.getElementById('optTitleColor').value = o.color || '';
   } else if (type === 'cover') {
     document.getElementById('optName').value = o.name || '';
     document.getElementById('optEntityId').value = o.entity_id || '';
@@ -634,6 +697,19 @@ function addCardToPage() {
     newCard.options.entity_id = document.getElementById('optEntityId').value || 'domain.entity';
     const icon = document.getElementById('optIcon').value.trim();
     if (icon) newCard.options.icon = icon;
+  } else if (type === 'title') {
+    const title = document.getElementById('optTitle').value.trim();
+    const subtitle = document.getElementById('optSubtitle').value.trim();
+    if (!title && !subtitle) { alert('Set a title, a subtitle, or both.'); return; }
+    if (title) newCard.options.title = title;
+    if (subtitle) newCard.options.subtitle = subtitle;
+    const alignment = document.getElementById('optTitleAlignment').value;
+    if (alignment !== 'start') newCard.options.alignment = alignment;
+    const titleIcon = document.getElementById('optTitleIcon').value.trim();
+    if (titleIcon) newCard.options.icon = titleIcon;
+    if (document.getElementById('optTitleDivider').checked) newCard.options.divider = true;
+    const titleColor = document.getElementById('optTitleColor').value.trim();
+    if (titleColor) newCard.options.color = titleColor;
   } else if (type === 'cover') {
     const coverName = document.getElementById('optName').value.trim();
     if (coverName) newCard.options.name = coverName;

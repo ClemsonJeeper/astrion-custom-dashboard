@@ -66,15 +66,19 @@
       <div id="hotkeysList" style="margin-top:12px"></div>
     </div>
 
-    <h2>2. IR Activities</h2>
+    <h2>2. IR Devices</h2>
     <div class="section-box">
-      <div class="hint">Sends a sequence of raw IR commands directly through the device's built-in blaster — no Harmony hub or Home Assistant needed. Build one here, then pick it from a scene_grid item's "IR activity" action.</div>
+      <div class="hint">
+        A registry of named IR commands per physical device — works fully offline,
+        no Harmony hub, no Home Assistant, no cloud. Used by scene_grid tiles
+        (IR device + command) and by Activities' IR-sourced devices below.
+      </div>
 
-      <label>Activity name</label>
-      <input type="text" id="irActName" placeholder="e.g., Watch TV">
+      <label>Device name</label>
+      <input type="text" id="irDevName" placeholder="e.g., TV Salon">
 
-      <div class="hint" style="margin-top:10px"><strong>Add a step</strong></div>
-      <label>Category</label>
+      <div class="hint" style="margin-top:10px"><strong>Add a command</strong></div>
+      <label>From the community database</label>
       <select id="irCategory" onchange="onIrCategoryChange()"><option value="">Loading…</option></select>
       <label>Brand</label>
       <select id="irBrand" onchange="onIrBrandChange()" disabled><option value="">— select a category first —</option></select>
@@ -82,21 +86,45 @@
       <select id="irModel" onchange="onIrModelChange()" disabled><option value="">— select a brand first —</option></select>
       <label>Command</label>
       <select id="irCommand" disabled><option value="">— select a model first —</option></select>
-      <label>Delay after this step (ms, 0 = none — skipped on the last step)</label>
-      <input type="number" id="irStepDelay" value="400" min="0">
-      <div class="btn-row">
-        <button type="button" class="secondary" onclick="addIrStep()">+ Add step to activity</button>
+      <div class="btn-row" style="margin-top:6px">
+        <button type="button" class="secondary" onclick="importAllIrCommands()">Import all commands from this model</button>
       </div>
 
-      <div id="irStepsList" style="margin-top:12px"></div>
+      <label style="margin-top:10px">— or — paste a Pronto Hex code manually</label>
+      <input type="text" id="irManualPronto" placeholder="0000 006D 0022 0000 00AC 00AC 0016 0016 ...">
+      <input type="text" id="irManualLabel" placeholder='Label (optional, e.g. "Power")' style="margin-top:6px">
+
+      <label style="margin-top:10px">Save this command as</label>
+      <input type="text" id="irCommandId" placeholder="e.g., power, hdmi1, volume_up">
       <div class="btn-row">
-        <button id="saveIrActivityBtn" onclick="saveIrActivity()">Save activity</button>
-        <button id="cancelIrActivityEditBtn" class="secondary" style="display:none" onclick="cancelIrActivityEdit()">Cancel edit</button>
+        <button type="button" class="secondary" onclick="addIrCommand()">+ Add command</button>
       </div>
-      <div id="irActivitiesList" style="margin-top:12px"></div>
+
+      <div id="irCommandsList" style="margin-top:12px"></div>
+      <div class="btn-row">
+        <button id="saveIrDeviceBtn" onclick="saveIrDevice()">Save device</button>
+        <button id="cancelIrDeviceEditBtn" class="secondary" style="display:none" onclick="cancelIrDeviceEdit()">Cancel edit</button>
+      </div>
+      <div id="irDevicesList" style="margin-top:12px"></div>
     </div>
 
-    <h2>3. Generated JSON</h2>
+    <h2>3. Activities</h2>
+    <div class="section-box">
+      <div class="hint">
+        A composed AV Activity ("Watch Apple TV", "Listen to Music"...) that
+        orchestrates more than one device, mixing IR/Harmony/HA freely. Scoped
+        to one room — at runtime, only one Activity is active per room at a
+        time. For a single-device/single-action Activity (one HA script, one
+        existing Harmony Activity), you don't need this section — just tick
+        "Track as Activity" on a scene_grid tile instead.
+      </div>
+      <div class="btn-row">
+        <button onclick="startActivityWizard()">+ New Activity</button>
+      </div>
+      <div id="activitiesList" style="margin-top:12px"></div>
+    </div>
+
+    <h2>4. Generated JSON</h2>
     <textarea id="jsonOutput" readonly></textarea>
     <div class="btn-row">
       <button onclick="copyJson()">Copy JSON</button>
@@ -248,6 +276,7 @@
       <label>Card type</label>
       <select id="cardTypeSelect" onchange="updateCardFormInputs()">
         <optgroup label="Common">
+          <option value="title">Title (title)</option>
           <option value="light">Light (light)</option>
           <option value="switch">Switch (switch)</option>
           <option value="cover">Cover / Shutter (cover)</option>
@@ -302,6 +331,22 @@
   </div>
 </div>
 
+<div id="activityWizardModal" class="preview-modal" onclick="if (event.target === this) closeActivityWizard()">
+  <div class="preview-modal-inner ha-dialog">
+    <button class="preview-modal-close" onclick="closeActivityWizard()">✕ Close</button>
+    <h2 style="margin-top:0" id="activityWizardTitle">New Activity</h2>
+    <div id="wizStepLabel" class="hint" style="margin-bottom:10px"></div>
+    <div class="section-box">
+      <div id="wizBody"></div>
+      <div class="btn-row" style="margin-top:14px">
+        <button id="wizBackBtn" class="secondary" onclick="wizardBack()">Back</button>
+        <button id="wizNextBtn" onclick="wizardNext()">Next</button>
+        <button id="wizSaveBtn" style="display:none" onclick="saveActivityWizard()">Save Activity</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="iconPickerModal" class="preview-modal" onclick="if (event.target === this) closeIconPicker()">
   <div class="preview-modal-inner icon-picker-inner">
     <button class="preview-modal-close" onclick="closeIconPicker()">✕ Close</button>
@@ -317,6 +362,7 @@
 <script src="js/harmony.js"></script>
 <script src="js/hotkeys.js"></script>
 <script src="js/ir.js"></script>
+<script src="js/activities.js"></script>
 <script src="js/export.js"></script>
 <script src="js/preview.js"></script>
 <script src="js/device.js"></script>

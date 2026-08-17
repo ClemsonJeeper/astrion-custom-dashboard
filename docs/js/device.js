@@ -37,7 +37,8 @@ function applyParsedDashboard(parsed) {
     })),
     hotkeys: parsed.hotkeys || [],
     longHotkeys: parsed.longHotkeys || [],
-    irActivities: parsed.irActivities || [],
+    irDevices: parsed.irDevices || [],
+    activities: parsed.activities || [],
   };
   if (dashboardData.pages.length === 0) {
     dashboardData.pages.push({ name: "Home", cards: [], hotkeys: [], longHotkeys: [] });

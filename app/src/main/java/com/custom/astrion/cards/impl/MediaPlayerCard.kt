@@ -503,10 +503,16 @@ class MediaPlayerCard : CardRenderer {
     @Composable
     private fun MediaProgressBar(e: EntityState) {
         val duration = e.attrDouble("media_duration") ?: 0.0
-        var elapsed by remember(e.entityId, e.attrString("media_content_id")) {
+        // Keyed on the raw JsonElement's string form, not attrString() —
+        // Kodi reports media_content_id as a nested JsonObject
+        // ({"imdb":"...", "tmdb":"..."}) rather than a plain string like
+        // most other media players, so attrString() would always see null
+        // for it and this key would never change between tracks. toString()
+        // works for both shapes and still changes when the track does.
+        var elapsed by remember(e.entityId, e.attr("media_content_id")?.toString()) {
             mutableDoubleStateOf(currentMediaPosition(e))
         }
-        LaunchedEffect(e.entityId, e.state, e.attrString("media_content_id")) {
+        LaunchedEffect(e.entityId, e.state, e.attr("media_content_id")?.toString()) {
             while (e.state == "playing") {
                 elapsed = currentMediaPosition(e)
                 kotlinx.coroutines.delay(1.seconds)

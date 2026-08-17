@@ -2,7 +2,9 @@ package com.custom.astrion
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
+import android.hardware.ConsumerIrManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -87,6 +89,15 @@ class MainActivity : ComponentActivity() {
 
     /** Owns one HarmonyHubClient per configured Harmony hub. */
     private lateinit var harmonyRegistry: HarmonyHubRegistry
+
+    /** Local IR blaster — used by hotkeys with irDevice+irCommand (see
+     * runHotkey()) and shared with the composed-Activity switch executor in
+     * Dashboard.kt's own Compose-scoped instance; this one is MainActivity's
+     * own since hotkey dispatch happens outside Compose. Null on hardware
+     * with no IR blaster. */
+    private val irManager: ConsumerIrManager? by lazy {
+        getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
+    }
 
     private lateinit var configServer: ConfigServer
     private val keyRouter = HardwareKeyRouter()
@@ -267,7 +278,8 @@ class MainActivity : ComponentActivity() {
      *  1. Page navigation
      *  2. Harmony Activity by id
      *  3. Direct Harmony hub command (harmonyDevice + harmonyCommand) — no HA involved
-     *  4. Home Assistant service call
+     *  4. Local IR command (irDevice + irCommand) — no hub, no HA, fully offline
+     *  5. Home Assistant service call
      */
     private fun runHotkey(hk: HotkeyConfig): Boolean {
         hk.page?.let { pageName ->
@@ -288,6 +300,19 @@ class MainActivity : ComponentActivity() {
         if (device != null && command != null) {
             harmonyRegistry.client(hk.hub)?.sendCommand(device, command)
                 ?: Log.w("MainActivity", "hotkey harmonyCommand (hub=${hk.hub}) but that hub isn't configured")
+            return true
+        }
+
+        val irDevice = hk.irDevice
+        val irCommand = hk.irCommand
+        if (irDevice != null && irCommand != null) {
+            val irStep = dashboard.config.irDevices.firstOrNull { it.id == irDevice }?.commands?.get(irCommand)
+            if (irStep != null) {
+                runCatching { irManager?.transmit(irStep.freq, irStep.pattern.toIntArray()) }
+                    .onFailure { Log.e("MainActivity", "hotkey IR send failed: $irDevice/$irCommand", it) }
+            } else {
+                Log.w("MainActivity", "hotkey irDevice=$irDevice irCommand=$irCommand not found in AppConfig.irDevices")
+            }
             return true
         }
 

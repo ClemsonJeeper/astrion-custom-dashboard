@@ -17,10 +17,20 @@ data class AppConfig(
     val hotkeys: List<HotkeyConfig> = emptyList(),
     /** Long-press (~500ms hold) button bindings — same shape as hotkeys. */
     val longHotkeys: List<HotkeyConfig> = emptyList(),
-    /** Named local IR sequences, sent directly through the device's own IR
-     * blaster (ConsumerIrManager) — no Harmony hub or network needed.
-     * Referenced by id from a scene_grid item's `irActivity` field. */
-    val irActivities: List<IrActivityConfig> = emptyList(),
+    /** Local IR devices — a registry of named commands per physical device,
+     * sent directly through the device's own IR blaster (ConsumerIrManager).
+     * No hub, no Home Assistant, no cloud — the resilience baseline: works
+     * even if every cloud service involved (Harmony's included) disappears.
+     * Referenced by id from a scene_grid item's `irDevice`+`irCommand`
+     * fields, or as one of an ActivityConfig's `devices`. */
+    val irDevices: List<IrDeviceConfig> = emptyList(),
+    /** Composed AV Activities ("Watch Apple TV", "Listen to Music"...) that
+     * orchestrate more than one device — the multi-device case Harmony's own
+     * Activity engine handles internally, reimplemented here so it also
+     * works for IR-only and mixed-source setups (see ActivityConfig doc).
+     * Single-device/single-action Activities don't need an entry here at
+     * all — see the NOTE further down for that lighter-weight path. */
+    val activities: List<ActivityConfig> = emptyList(),
 )
 
 /**
@@ -66,6 +76,33 @@ data class HotkeyConfig(
      * HarmonyHubRegistry.client(). Only meaningful alongside
      * harmonyDevice/harmonyCommand or harmonyActivity. */
     val hub: String? = null,
+    /** Local IR command sent directly through the device's own blaster —
+     * `irDevice` is an [IrDeviceConfig].id, `irCommand` a key in its
+     * `commands` map. Independent of Harmony/HA, checked after
+     * harmonyDevice+harmonyCommand and before a plain `service` call. */
+    val irDevice: String? = null,
+    val irCommand: String? = null,
+    /** Marks this binding as a trackable AV Activity — see AppConfig-level
+     * doc on "Activities" below. When true, `room` is required: this is what
+     * makes it show up in ActivityRuntime and in an "active activities" card,
+     * and what makes starting it replace whatever Activity was previously
+     * tracked as active in the same room. The actual action fired on press
+     * is still whichever of `page`/`service`/`harmonyDevice+harmonyCommand`/
+     * `harmonyActivity`/`irDevice+irCommand` above is set — `track` adds
+     * bookkeeping, it doesn't change what gets executed. */
+    val track: Boolean = false,
+    val room: String? = null,
+    /** Physical devices this binding's Activity is known to involve —
+     * purely a bookkeeping hint for [ActivityRuntime]'s switchActivity diff,
+     * never dispatched to directly. Matters most for a Harmony-backed
+     * tracked Activity: the hub handles the actual devices internally, so
+     * without this hint a *composed* Activity that later takes over the
+     * same room has no way to know a device (e.g. a shared soundbar) was
+     * already on, and may needlessly power-cycle it — a real problem for a
+     * device with only a `PowerToggle` command and no discrete on/off.
+     * Plain device-catalog ids (same ones used in an ActivityConfig's
+     * `devices[].deviceId`), regardless of source. */
+    val devices: List<String> = emptyList(),
 ) {
     /** Helper flags to quickly check hotkey action type. */
     val isPageNavigation: Boolean get() = !page.isNullOrBlank()
@@ -75,27 +112,114 @@ data class HotkeyConfig(
 }
 
 /**
- * A named sequence of raw IR sends, executed locally through the device's
- * built-in IR blaster — the offline, no-hub equivalent of a Harmony
- * Activity. Resolved and stored fully-formed (freq + pattern already
- * decoded from Pronto Hex) by the web builder; the app never parses a
- * protocol or touches `docs/ir-database/` itself.
+ * A local IR device: a stable id/name plus a registry of named commands
+ * (freq+pattern already resolved from Pronto Hex by the web builder, either
+ * from `ir-database/` or pasted in by hand — the app never parses a
+ * protocol or touches `docs/ir-database/` itself). The offline, no-hub,
+ * no-cloud equivalent of a Harmony device: works even if every cloud
+ * service disappears overnight.
  */
 @Suppress("Unused")
-data class IrActivityConfig(
+data class IrDeviceConfig(
     val id: String,
     val name: String = id,
-    val steps: List<IrStepConfig>,
+    /** commandId (freeform, e.g. "power", "volume_up", "hdmi1") -> resolved IR frame. */
+    val commands: Map<String, IrStepConfig>,
 )
 
 /** One IR transmission: `freq` (Hz) + `pattern` (alternating on/off
- * durations in µs) map straight onto `ConsumerIrManager.transmit()`.
- * `delayAfterMs` waits before the *next* step fires (ignored on the last
- * step) — gives the target device time to process before the next command,
- * e.g. TV power-on before the input-source command that follows it. */
+ * durations in µs) map straight onto `ConsumerIrManager.transmit()`. */
 @Suppress("Unused")
 data class IrStepConfig(
     val freq: Int,
     val pattern: List<Int>,
+)
+
+// NOTE: a *single-action* Activity (one HA script, one existing Harmony
+// Activity — the hub already orchestrates everything for that one — or one
+// direct command) doesn't need an ActivityConfig entry at all: just mark a
+// scene_grid item or HotkeyConfig `track = true` with a `room`, same as
+// before. Its action is whichever field was already there: `entityId`,
+// `activityId`+`hub`, `harmonyDevice`+`harmonyCommand`, or `irDevice`+
+// `irCommand`. `track` just makes it visible to ActivityRuntime and to the
+// "active activities" overlay.
+//
+// A *composed* Activity — more than one device, where Astrion itself (not a
+// hub) has to decide what to power on/off when switching — needs the real
+// thing below.
+
+/**
+ * One user-facing AV Activity that orchestrates more than one device
+ * ("Watch Apple TV" = TV on HDMI1 + receiver on HDMI2 + lights off). Astrion
+ * itself runs the start sequence and, when switching to a *different*
+ * Activity in the same `room`, diffs `devices` against the incoming
+ * Activity's so a device used by both is left alone (no needless off/on
+ * flicker, just a possible input change) while a device only in the
+ * outgoing one gets powered off — see ActivityRuntime.switchActivity().
+ *
+ * Referenced by id from a scene_grid item's `activity` field. Always
+ * implicitly tracked (no separate `track` flag needed) — the whole point of
+ * defining one is room exclusivity.
+ */
+@Suppress("Unused")
+data class ActivityConfig(
+    val id: String,
+    val name: String,
+    val room: String,
+    val icon: String? = null,
+    /** Page to open when this Activity becomes active — optional; a
+     * composed Activity can exist purely for room-exclusivity/orchestration
+     * without navigating anywhere. */
+    val page: String? = null,
+    val devices: List<ActivityDeviceConfig>,
+    /** Which of `devices` (by `deviceId`) VOLUME_UP/DOWN/MUTE hotkeys should
+     * target while this Activity is active. Paired with the three commands
+     * below — the builder writes them out as page-scoped hotkeys on `page`
+     * when this Activity is saved (see docs/js/activities.js), not read
+     * directly by the app at runtime; PageConfig.hotkeys already overrides
+     * global bindings while its page is on screen, so no separate "which
+     * room is the panel in right now" runtime logic is needed. */
+    val volumeDeviceId: String? = null,
+    val volumeUpCommand: String? = null,
+    val volumeDownCommand: String? = null,
+    val muteCommand: String? = null,
+)
+
+/**
+ * One device's role within an [ActivityConfig].
+ *
+ * `source` selects which registry `deviceId` resolves against:
+ *  - `"ir"` — an [IrDeviceConfig].id; `powerOnCommand`/`powerOffCommand`/
+ *    `inputCommand`, if set, are commandIds in that device's `commands` map.
+ *  - `"harmony"` — a Harmony device id (via `hub`); same three fields, but
+ *    Harmony command names (e.g. "PowerOn"/"PowerOff"/"InputHdmi1").
+ *  - `"ha"` — a Home Assistant entity id. Power is `turn_on`/`turn_off`
+ *    (gated by `powerOnFirst`/`powerOffOnExit`, `powerOnCommand`/
+ *    `powerOffCommand` are ignored); `inputCommand`, if set, is passed as
+ *    `media_player.select_source`'s `source`.
+ *
+ * On Activity start: if this device wasn't already on for the *previous*
+ * Activity in the same room (or `powerOnFirst` is true regardless),
+ * `powerOnCommand` fires, then — after `delayAfterMs` — `inputCommand`. On
+ * losing the room to a *different* Activity: if this device isn't also used
+ * by the incoming one (or `powerOffOnExit` is true regardless),
+ * `powerOffCommand` fires; a device shared by both is left alone entirely
+ * (no power cycle, no re-sent input) unless the incoming Activity gives it a
+ * different `inputCommand`.
+ */
+@Suppress("Unused")
+data class ActivityDeviceConfig(
+    val deviceId: String,
+    val source: String,
+    val hub: String? = null,
+    val powerOnCommand: String? = null,
+    val powerOffCommand: String? = null,
+    val inputCommand: String? = null,
+    val powerOnFirst: Boolean = true,
+    val powerOffOnExit: Boolean = true,
+    /** Wait this long after this device's start commands before starting the
+     * *next* device's — e.g. TV on, wait 2s, then the receiver. Ignored on
+     * the last device and on stop (power-off runs with no delays between
+     * devices — nothing downstream needs to wait for it). */
     val delayAfterMs: Int = 0,
 )

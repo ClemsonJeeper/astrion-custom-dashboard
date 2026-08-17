@@ -39,9 +39,34 @@ import java.io.File
  *     { "key": "UP", "service": "remote.send_command",
  *       "entityId": "remote.the_club_tvv", "data": { "command": "DPAD_UP" } },
  *     { "key": "LIGHT", "page": "Lights" },
- *     { "key": "VOLUME_UP", "harmonyDevice": "62845789", "harmonyCommand": "VolumeUp" }
+ *     { "key": "VOLUME_UP", "harmonyDevice": "62845789", "harmonyCommand": "VolumeUp" },
+ *     { "key": "SCENE", "harmonyActivity": "39568252", "hub": "living_hub",
+ *       "track": true, "room": "Living Room" }
+ *   ],
+ *   "irDevices": [
+ *     { "id": "salon_tv", "name": "TV Salon",
+ *       "commands": {
+ *         "power": { "freq": 38000, "pattern": [9000, 4500, 560, 560] },
+ *         "hdmi1": { "freq": 38000, "pattern": [9000, 4500, 560, 1690] }
+ *       } }
+ *   ],
+ *   "activities": [
+ *     { "id": "salon_appletv", "name": "Apple TV", "room": "Salon",
+ *       "volumeDeviceId": "salon_ampli",
+ *       "devices": [
+ *         { "deviceId": "salon_tv", "source": "ir",
+ *           "powerOnCommand": "power", "inputCommand": "hdmi1" },
+ *         { "deviceId": "salon_ampli", "source": "ir", "hub": null,
+ *           "powerOnCommand": "power", "inputCommand": "hdmi2", "delayAfterMs": 500 }
+ *       ] }
  *   ]
  * }
+ *
+ * A *single-action* Activity (one HA script, one existing Harmony Activity,
+ * or one direct command) still doesn't need an "activities" entry — just
+ * "track": true + "room" on a scene_grid item or hotkey, as above. The
+ * "activities" section above is only for *composed*, multi-device
+ * Activities — see the NOTE atop AppConfig.kt.
  *
  * A bare top-level array is also accepted for convenience — it becomes a single
  * page named "Main" with no hotkeys.
@@ -100,8 +125,9 @@ object DashboardLoader {
                 val start = root["startPage"]?.jsonPrimitive?.intOrNull ?: 0
                 val hotkeys = root["hotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
                 val longHotkeys = root["longHotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
-                val irActivities = root["irActivities"]?.jsonArray?.map { parseIrActivity(it.jsonObject) } ?: emptyList()
-                AppConfig(pages, start.coerceIn(0, pages.size - 1), hotkeys, longHotkeys, irActivities)
+                val irDevices = root["irDevices"]?.jsonArray?.map { parseIrDevice(it.jsonObject) } ?: emptyList()
+                val activities = root["activities"]?.jsonArray?.map { parseActivity(it.jsonObject) } ?: emptyList()
+                AppConfig(pages, start.coerceIn(0, pages.size - 1), hotkeys, longHotkeys, irDevices, activities)
             }
             else -> error("top level must be an object or array")
         }
@@ -131,17 +157,21 @@ object DashboardLoader {
         val harmonyCommand = obj["harmonyCommand"]?.jsonPrimitive?.content
         val harmonyActivity = obj["harmonyActivity"]?.jsonPrimitive?.content
         val hub = obj["hub"]?.jsonPrimitive?.content
-        return HotkeyConfig(key, page, service, entityId, data, harmonyDevice, harmonyCommand, harmonyActivity, hub)
+        val irDevice = obj["irDevice"]?.jsonPrimitive?.content
+        val irCommand = obj["irCommand"]?.jsonPrimitive?.content
+        val track = obj["track"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+        val room = obj["room"]?.jsonPrimitive?.content
+        val devices = obj["devices"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+        return HotkeyConfig(key, page, service, entityId, data, harmonyDevice, harmonyCommand, harmonyActivity, hub, irDevice, irCommand, track, room, devices)
     }
 
-    private fun parseIrActivity(obj: JsonObject): IrActivityConfig {
-        val id = obj["id"]?.jsonPrimitive?.content ?: error("irActivity missing \"id\"")
+    private fun parseIrDevice(obj: JsonObject): IrDeviceConfig {
+        val id = obj["id"]?.jsonPrimitive?.content ?: error("irDevice missing \"id\"")
         val name = obj["name"]?.jsonPrimitive?.content ?: id
-        val steps =
-            obj["steps"]?.jsonArray?.map { parseIrStep(it.jsonObject) }
-                ?: error("irActivity \"$id\" missing \"steps\"")
-        if (steps.isEmpty()) error("irActivity \"$id\" has an empty \"steps\" list")
-        return IrActivityConfig(id, name, steps)
+        val commandsObj = obj["commands"]?.jsonObject ?: error("irDevice \"$id\" missing \"commands\"")
+        if (commandsObj.isEmpty()) error("irDevice \"$id\" has an empty \"commands\" map")
+        val commands = commandsObj.entries.associate { (cmdId, v) -> cmdId to parseIrStep(v.jsonObject) }
+        return IrDeviceConfig(id, name, commands)
     }
 
     private fun parseIrStep(obj: JsonObject): IrStepConfig {
@@ -150,9 +180,46 @@ object DashboardLoader {
             obj["pattern"]?.jsonArray?.map { it.jsonPrimitive.int }
                 ?: error("IR step missing \"pattern\"")
         if (pattern.isEmpty()) error("IR step has an empty \"pattern\"")
-        val delayAfterMs = obj["delayAfterMs"]?.jsonPrimitive?.intOrNull ?: 0
-        return IrStepConfig(freq, pattern, delayAfterMs)
+        return IrStepConfig(freq, pattern)
     }
+
+    private fun parseActivity(obj: JsonObject): ActivityConfig {
+        val id = obj["id"]?.jsonPrimitive?.content ?: error("activity missing \"id\"")
+        val name = obj["name"]?.jsonPrimitive?.content ?: id
+        val room = obj["room"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+            ?: error("activity \"$id\" missing \"room\"")
+        val icon = obj["icon"]?.jsonPrimitive?.content
+        val page = obj["page"]?.jsonPrimitive?.content
+        val devicesArr = obj["devices"]?.jsonArray ?: error("activity \"$id\" missing \"devices\"")
+        if (devicesArr.isEmpty()) error("activity \"$id\" has an empty \"devices\" list")
+        val devices = devicesArr.map { parseActivityDevice(it.jsonObject, id) }
+        val volumeDeviceId = obj["volumeDeviceId"]?.jsonPrimitive?.content
+        val volumeUpCommand = obj["volumeUpCommand"]?.jsonPrimitive?.content
+        val volumeDownCommand = obj["volumeDownCommand"]?.jsonPrimitive?.content
+        val muteCommand = obj["muteCommand"]?.jsonPrimitive?.content
+        return ActivityConfig(id, name, room, icon, page, devices, volumeDeviceId, volumeUpCommand, volumeDownCommand, muteCommand)
+    }
+
+    private fun parseActivityDevice(
+        obj: JsonObject,
+        activityId: String,
+    ): ActivityDeviceConfig {
+        val deviceId = obj["deviceId"]?.jsonPrimitive?.content ?: error("a device in activity \"$activityId\" is missing \"deviceId\"")
+        val source = obj["source"]?.jsonPrimitive?.content ?: error("device \"$deviceId\" in activity \"$activityId\" is missing \"source\"")
+        if (source !in setOf("ir", "harmony", "ha")) error("device \"$deviceId\" in activity \"$activityId\" has unknown source \"$source\"")
+        val hub = obj["hub"]?.jsonPrimitive?.content
+        val powerOnCommand = obj["powerOnCommand"]?.jsonPrimitive?.content
+        val powerOffCommand = obj["powerOffCommand"]?.jsonPrimitive?.content
+        val inputCommand = obj["inputCommand"]?.jsonPrimitive?.content
+        val powerOnFirst = obj["powerOnFirst"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: true
+        val powerOffOnExit = obj["powerOffOnExit"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: true
+        val delayAfterMs = obj["delayAfterMs"]?.jsonPrimitive?.intOrNull ?: 0
+        return ActivityDeviceConfig(
+            deviceId, source, hub, powerOnCommand, powerOffCommand, inputCommand,
+            powerOnFirst, powerOffOnExit, delayAfterMs,
+        )
+    }
+
 
     // ---- serialize defaults -------------------------------------------------
 
@@ -199,24 +266,66 @@ object DashboardLoader {
             )
             put("hotkeys", encodeHotkeys(cfg.hotkeys))
             put("longHotkeys", encodeHotkeys(cfg.longHotkeys))
-            if (cfg.irActivities.isNotEmpty()) {
+            if (cfg.irDevices.isNotEmpty()) {
                 put(
-                    "irActivities",
+                    "irDevices",
                     buildJsonArray {
-                        cfg.irActivities.forEach { activity ->
+                        cfg.irDevices.forEach { device ->
                             add(
                                 buildJsonObject {
-                                    put("id", activity.id)
-                                    put("name", activity.name)
+                                    put("id", device.id)
+                                    put("name", device.name)
                                     put(
-                                        "steps",
-                                        buildJsonArray {
-                                            activity.steps.forEach { step ->
-                                                add(
+                                        "commands",
+                                        buildJsonObject {
+                                            device.commands.forEach { (cmdId, step) ->
+                                                put(
+                                                    cmdId,
                                                     buildJsonObject {
                                                         put("freq", step.freq)
                                                         put("pattern", buildJsonArray { step.pattern.forEach { add(JsonPrimitive(it)) } })
-                                                        if (step.delayAfterMs != 0) put("delayAfterMs", step.delayAfterMs)
+                                                    },
+                                                )
+                                            }
+                                        },
+                                    )
+                                },
+                            )
+                        }
+                    },
+                )
+            }
+            if (cfg.activities.isNotEmpty()) {
+                put(
+                    "activities",
+                    buildJsonArray {
+                        cfg.activities.forEach { act ->
+                            add(
+                                buildJsonObject {
+                                    put("id", act.id)
+                                    put("name", act.name)
+                                    put("room", act.room)
+                                    act.icon?.let { put("icon", it) }
+                                    act.page?.let { put("page", it) }
+                                    act.volumeDeviceId?.let { put("volumeDeviceId", it) }
+                                    act.volumeUpCommand?.let { put("volumeUpCommand", it) }
+                                    act.volumeDownCommand?.let { put("volumeDownCommand", it) }
+                                    act.muteCommand?.let { put("muteCommand", it) }
+                                    put(
+                                        "devices",
+                                        buildJsonArray {
+                                            act.devices.forEach { d ->
+                                                add(
+                                                    buildJsonObject {
+                                                        put("deviceId", d.deviceId)
+                                                        put("source", d.source)
+                                                        d.hub?.let { put("hub", it) }
+                                                        d.powerOnCommand?.let { put("powerOnCommand", it) }
+                                                        d.powerOffCommand?.let { put("powerOffCommand", it) }
+                                                        d.inputCommand?.let { put("inputCommand", it) }
+                                                        if (!d.powerOnFirst) put("powerOnFirst", false)
+                                                        if (!d.powerOffOnExit) put("powerOffOnExit", false)
+                                                        if (d.delayAfterMs != 0) put("delayAfterMs", d.delayAfterMs)
                                                     },
                                                 )
                                             }
@@ -244,6 +353,11 @@ object DashboardLoader {
                         hk.harmonyCommand?.let { put("harmonyCommand", it) }
                         hk.harmonyActivity?.let { put("harmonyActivity", it) }
                         hk.hub?.let { put("hub", it) }
+                        hk.irDevice?.let { put("irDevice", it) }
+                        hk.irCommand?.let { put("irCommand", it) }
+                        if (hk.track) put("track", true)
+                        hk.room?.let { put("room", it) }
+                        if (hk.devices.isNotEmpty()) put("devices", buildJsonArray { hk.devices.forEach { add(JsonPrimitive(it)) } })
                     },
                 )
             }

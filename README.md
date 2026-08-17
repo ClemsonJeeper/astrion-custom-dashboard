@@ -1,4 +1,8 @@
 <!-- markdownlint-disable-next-line MD033 -->
+<p align="center">
+  <img src="docs/banner_astrion_custom_dashboard.png" alt="Astrion Custom Dashboard Banner">
+</p>
+
 # <img src="docs/app-icon.svg" width="48" align="center" alt="Astrion Custom Icon"> Astrion Custom Dashboard
 
 [![GH-release](https://img.shields.io/github/v/release/dckiller51/astrion-custom-dashboard.svg?style=flat-square)](https://github.com/dckiller51/astrion-custom-dashboard/releases)
