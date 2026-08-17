@@ -157,9 +157,12 @@ object DashboardLoader {
         val harmonyCommand = obj["harmonyCommand"]?.jsonPrimitive?.content
         val harmonyActivity = obj["harmonyActivity"]?.jsonPrimitive?.content
         val hub = obj["hub"]?.jsonPrimitive?.content
+        val irDevice = obj["irDevice"]?.jsonPrimitive?.content
+        val irCommand = obj["irCommand"]?.jsonPrimitive?.content
         val track = obj["track"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
         val room = obj["room"]?.jsonPrimitive?.content
-        return HotkeyConfig(key, page, service, entityId, data, harmonyDevice, harmonyCommand, harmonyActivity, hub, track, room)
+        val devices = obj["devices"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+        return HotkeyConfig(key, page, service, entityId, data, harmonyDevice, harmonyCommand, harmonyActivity, hub, irDevice, irCommand, track, room, devices)
     }
 
     private fun parseIrDevice(obj: JsonObject): IrDeviceConfig {
@@ -191,7 +194,10 @@ object DashboardLoader {
         if (devicesArr.isEmpty()) error("activity \"$id\" has an empty \"devices\" list")
         val devices = devicesArr.map { parseActivityDevice(it.jsonObject, id) }
         val volumeDeviceId = obj["volumeDeviceId"]?.jsonPrimitive?.content
-        return ActivityConfig(id, name, room, icon, page, devices, volumeDeviceId)
+        val volumeUpCommand = obj["volumeUpCommand"]?.jsonPrimitive?.content
+        val volumeDownCommand = obj["volumeDownCommand"]?.jsonPrimitive?.content
+        val muteCommand = obj["muteCommand"]?.jsonPrimitive?.content
+        return ActivityConfig(id, name, room, icon, page, devices, volumeDeviceId, volumeUpCommand, volumeDownCommand, muteCommand)
     }
 
     private fun parseActivityDevice(
@@ -302,6 +308,9 @@ object DashboardLoader {
                                     act.icon?.let { put("icon", it) }
                                     act.page?.let { put("page", it) }
                                     act.volumeDeviceId?.let { put("volumeDeviceId", it) }
+                                    act.volumeUpCommand?.let { put("volumeUpCommand", it) }
+                                    act.volumeDownCommand?.let { put("volumeDownCommand", it) }
+                                    act.muteCommand?.let { put("muteCommand", it) }
                                     put(
                                         "devices",
                                         buildJsonArray {
@@ -344,8 +353,11 @@ object DashboardLoader {
                         hk.harmonyCommand?.let { put("harmonyCommand", it) }
                         hk.harmonyActivity?.let { put("harmonyActivity", it) }
                         hk.hub?.let { put("hub", it) }
+                        hk.irDevice?.let { put("irDevice", it) }
+                        hk.irCommand?.let { put("irCommand", it) }
                         if (hk.track) put("track", true)
                         hk.room?.let { put("room", it) }
+                        if (hk.devices.isNotEmpty()) put("devices", buildJsonArray { hk.devices.forEach { add(JsonPrimitive(it)) } })
                     },
                 )
             }

@@ -18,6 +18,7 @@ import com.custom.astrion.cards.impl.SceneGridCard
 import com.custom.astrion.cards.impl.SourceSelectCard
 import com.custom.astrion.cards.impl.SpeakerGroupCard
 import com.custom.astrion.cards.impl.SwitchCard
+import com.custom.astrion.cards.impl.TitleCard
 import com.custom.astrion.cards.impl.TvRemoteCard
 import com.custom.astrion.cards.impl.VacuumCard
 import com.custom.astrion.ha.HaLabels
@@ -55,6 +56,7 @@ class AstrionApp : Application() {
             SourceSelectCard(),
             SpeakerGroupCard(),
             SwitchCard(),
+            TitleCard(),
             TvRemoteCard(),
             VacuumCard(),
             // ← Register your own card types here

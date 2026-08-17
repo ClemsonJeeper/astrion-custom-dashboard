@@ -184,10 +184,13 @@ fun MediaPlayerDetailDialog(
 @Composable
 private fun DialogProgressBar(e: EntityState) {
     val duration = e.attrDouble("media_duration") ?: 0.0
-    var elapsed by remember(e.entityId, e.attrString("media_content_id")) {
+    // See MediaPlayerCard.MediaProgressBar's identical comment — Kodi's
+    // media_content_id is a nested JsonObject, not a plain string, so this
+    // keys on the raw JsonElement's string form instead of attrString().
+    var elapsed by remember(e.entityId, e.attr("media_content_id")?.toString()) {
         mutableDoubleStateOf(currentMediaPosition(e))
     }
-    LaunchedEffect(e.entityId, e.state, e.attrString("media_content_id")) {
+    LaunchedEffect(e.entityId, e.state, e.attr("media_content_id")?.toString()) {
         while (e.state == "playing") {
             elapsed = currentMediaPosition(e)
             kotlinx.coroutines.delay(1.seconds)

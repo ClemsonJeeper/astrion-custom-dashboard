@@ -76,16 +76,33 @@ data class HotkeyConfig(
      * HarmonyHubRegistry.client(). Only meaningful alongside
      * harmonyDevice/harmonyCommand or harmonyActivity. */
     val hub: String? = null,
+    /** Local IR command sent directly through the device's own blaster —
+     * `irDevice` is an [IrDeviceConfig].id, `irCommand` a key in its
+     * `commands` map. Independent of Harmony/HA, checked after
+     * harmonyDevice+harmonyCommand and before a plain `service` call. */
+    val irDevice: String? = null,
+    val irCommand: String? = null,
     /** Marks this binding as a trackable AV Activity — see AppConfig-level
      * doc on "Activities" below. When true, `room` is required: this is what
      * makes it show up in ActivityRuntime and in an "active activities" card,
      * and what makes starting it replace whatever Activity was previously
      * tracked as active in the same room. The actual action fired on press
      * is still whichever of `page`/`service`/`harmonyDevice+harmonyCommand`/
-     * `harmonyActivity` above is set — `track` adds bookkeeping, it doesn't
-     * change what gets executed. */
+     * `harmonyActivity`/`irDevice+irCommand` above is set — `track` adds
+     * bookkeeping, it doesn't change what gets executed. */
     val track: Boolean = false,
     val room: String? = null,
+    /** Physical devices this binding's Activity is known to involve —
+     * purely a bookkeeping hint for [ActivityRuntime]'s switchActivity diff,
+     * never dispatched to directly. Matters most for a Harmony-backed
+     * tracked Activity: the hub handles the actual devices internally, so
+     * without this hint a *composed* Activity that later takes over the
+     * same room has no way to know a device (e.g. a shared soundbar) was
+     * already on, and may needlessly power-cycle it — a real problem for a
+     * device with only a `PowerToggle` command and no discrete on/off.
+     * Plain device-catalog ids (same ones used in an ActivityConfig's
+     * `devices[].deviceId`), regardless of source. */
+    val devices: List<String> = emptyList(),
 ) {
     /** Helper flags to quickly check hotkey action type. */
     val isPageNavigation: Boolean get() = !page.isNullOrBlank()
@@ -156,8 +173,16 @@ data class ActivityConfig(
     val page: String? = null,
     val devices: List<ActivityDeviceConfig>,
     /** Which of `devices` (by `deviceId`) VOLUME_UP/DOWN/MUTE hotkeys should
-     * target while this Activity is active. */
+     * target while this Activity is active. Paired with the three commands
+     * below — the builder writes them out as page-scoped hotkeys on `page`
+     * when this Activity is saved (see docs/js/activities.js), not read
+     * directly by the app at runtime; PageConfig.hotkeys already overrides
+     * global bindings while its page is on screen, so no separate "which
+     * room is the panel in right now" runtime logic is needed. */
     val volumeDeviceId: String? = null,
+    val volumeUpCommand: String? = null,
+    val volumeDownCommand: String? = null,
+    val muteCommand: String? = null,
 )
 
 /**

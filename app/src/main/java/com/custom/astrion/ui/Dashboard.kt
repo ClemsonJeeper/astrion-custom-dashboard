@@ -217,17 +217,41 @@ fun Dashboard(
     // false), a device only in the incoming one gets powered on + its input
     // (unless powerOnFirst is false). Devices execute in declared order,
     // each waited on for its own delayAfterMs before the next starts.
+    // The composed-Activity switch: diffs the outgoing Activity (whatever
+    // was active in `activity.room` before, if anything — Harmony-backed or
+    // composed, both work uniformly via TrackedActivity.devices, see below)
+    // against `activity` itself. A device present in both is left alone —
+    // no power cycle, and its input is only re-sent if this Activity gives
+    // it one — a device only in the outgoing one gets powered off (unless
+    // powerOffOnExit is false), a device only in the incoming one gets
+    // powered on + its input (unless powerOnFirst is false). Devices execute
+    // in declared order, each waited on for its own delayAfterMs before the
+    // next starts.
+    //
+    // "Already on" is read from TrackedActivity.devices, not from a
+    // composed ActivityConfig's own device list — this matters a lot for a
+    // shared device with only a toggle command (no discrete on/off, e.g.
+    // many IR soundbars): if the outgoing Activity was Harmony-backed (no
+    // ActivityConfig of its own at all), we'd otherwise have no idea a
+    // shared device was already on and could send an unwanted toggle. See
+    // HotkeyConfig.devices / the scene_grid "devices" hint for how a
+    // Harmony-backed tracked tile declares which physical devices it
+    // touches. Actual *stop* commands (powerOffCommand) still only fire for
+    // a genuinely composed outgoing Activity — a Harmony-backed one has no
+    // ActivityDeviceConfig of its own to run one from; its hub is left to
+    // manage its own devices' power on its own terms.
     suspend fun switchActivity(activity: ActivityConfig) {
-        val outgoing = activityRuntime.activeActivity(activity.room)?.let { activitiesById[it.id] }
+        val outgoingTracked = activityRuntime.activeActivity(activity.room)
+        val outgoingDeviceIds = outgoingTracked?.devices?.toSet().orEmpty()
         val incomingIds = activity.devices.map { it.deviceId }.toSet()
 
-        outgoing?.devices?.forEach { d ->
+        val outgoingComposed = outgoingTracked?.let { activitiesById[it.id] }
+        outgoingComposed?.devices?.forEach { d ->
             if (d.deviceId !in incomingIds && d.powerOffOnExit) dispatchActivityPower(d, on = false)
         }
 
-        val outgoingIds = outgoing?.devices?.map { it.deviceId }?.toSet().orEmpty()
         activity.devices.forEachIndexed { index, d ->
-            val alreadyOn = d.deviceId in outgoingIds
+            val alreadyOn = d.deviceId in outgoingDeviceIds
             if (!alreadyOn && d.powerOnFirst) dispatchActivityPower(d, on = true)
             dispatchActivityCommand(d, d.inputCommand)
             if (index < activity.devices.lastIndex && d.delayAfterMs > 0) {

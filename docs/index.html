@@ -118,28 +118,8 @@
         existing Harmony Activity), you don't need this section — just tick
         "Track as Activity" on a scene_grid tile instead.
       </div>
-
-      <label>Name</label>
-      <input type="text" id="actName" placeholder="e.g., Apple TV">
-
-      <label>Room</label>
-      <input type="text" id="actRoom" placeholder="e.g., Living Room">
-
-      <div id="actIconField"></div>
-
-      <label>Page to open when this Activity starts (optional)</label>
-      <input type="text" id="actPage" placeholder="e.g., Apple TV">
-
-      <div class="hint" style="margin-top:10px"><strong>Devices</strong></div>
-      <div id="actDevFields"></div>
-      <div id="actDevicesList" style="margin-top:12px"></div>
-
-      <label style="margin-top:10px">Which device handles volume (optional)</label>
-      <select id="actVolumeDeviceId"><option value="">— none —</option></select>
-
       <div class="btn-row">
-        <button id="saveActivityBtn" onclick="saveActivity()">Save Activity</button>
-        <button id="cancelActivityEditBtn" class="secondary" style="display:none" onclick="cancelActivityEdit()">Cancel edit</button>
+        <button onclick="startActivityWizard()">+ New Activity</button>
       </div>
       <div id="activitiesList" style="margin-top:12px"></div>
     </div>
@@ -296,6 +276,7 @@
       <label>Card type</label>
       <select id="cardTypeSelect" onchange="updateCardFormInputs()">
         <optgroup label="Common">
+          <option value="title">Title (title)</option>
           <option value="light">Light (light)</option>
           <option value="switch">Switch (switch)</option>
           <option value="cover">Cover / Shutter (cover)</option>
@@ -345,6 +326,22 @@
         <button onclick="savePageDialog()">Save</button>
         <button class="secondary" onclick="closePageDialog()">Cancel</button>
         <button id="pageDialogDeleteBtn" class="danger" style="display:none" onclick="deletePageFromDialog()">Delete page</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="activityWizardModal" class="preview-modal" onclick="if (event.target === this) closeActivityWizard()">
+  <div class="preview-modal-inner ha-dialog">
+    <button class="preview-modal-close" onclick="closeActivityWizard()">✕ Close</button>
+    <h2 style="margin-top:0" id="activityWizardTitle">New Activity</h2>
+    <div id="wizStepLabel" class="hint" style="margin-bottom:10px"></div>
+    <div class="section-box">
+      <div id="wizBody"></div>
+      <div class="btn-row" style="margin-top:14px">
+        <button id="wizBackBtn" class="secondary" onclick="wizardBack()">Back</button>
+        <button id="wizNextBtn" onclick="wizardNext()">Next</button>
+        <button id="wizSaveBtn" style="display:none" onclick="saveActivityWizard()">Save Activity</button>
       </div>
     </div>
   </div>

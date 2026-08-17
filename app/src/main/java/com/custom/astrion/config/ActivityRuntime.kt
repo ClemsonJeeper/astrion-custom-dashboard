@@ -23,6 +23,14 @@ data class TrackedActivity(
      * state over the "last tapped" fallback — see [ActivityRuntime.bind]. */
     val harmonyActivityId: String? = null,
     val harmonyHub: String? = null,
+    /** Physical devices this Activity is known to involve, plain
+     * device-catalog ids regardless of source — for a composed Activity,
+     * `ActivityConfig.devices.map { it.deviceId }`; for a lightweight
+     * `track: true` tile/hotkey, an explicit `"devices"` hint list (mainly
+     * useful for a Harmony-backed one, since the hub's own devices are
+     * otherwise invisible to Astrion). Used purely for [Dashboard.kt]'s
+     * switchActivity diff — never dispatched to directly. */
+    val devices: List<String> = emptyList(),
 )
 
 /**
@@ -150,6 +158,8 @@ class ActivityRuntime(config: AppConfig) {
         val entityId = scene["entity_id"] as? String
         val harmonyActivityId = scene["activityId"] as? String
         val id = entityId ?: harmonyActivityId ?: name.lowercase().replace(Regex("[^a-z0-9]+"), "_")
+        @Suppress("UNCHECKED_CAST")
+        val devices = (scene["devices"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
         return TrackedActivity(
             id = id,
             name = name,
@@ -158,6 +168,7 @@ class ActivityRuntime(config: AppConfig) {
             page = (scene["page"] as? String) ?: fallbackPage,
             harmonyActivityId = harmonyActivityId,
             harmonyHub = scene["hub"] as? String,
+            devices = devices,
         )
     }
 
@@ -180,6 +191,7 @@ class ActivityRuntime(config: AppConfig) {
                     page = hk.page ?: fallbackPage,
                     harmonyActivityId = hk.harmonyActivity,
                     harmonyHub = hk.hub,
+                    devices = hk.devices,
                 )
         }
 
@@ -206,6 +218,7 @@ class ActivityRuntime(config: AppConfig) {
                 room = act.room,
                 icon = act.icon,
                 page = act.page,
+                devices = act.devices.map { it.deviceId },
             )
         }
         return found
