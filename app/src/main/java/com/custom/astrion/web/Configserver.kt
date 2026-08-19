@@ -19,8 +19,11 @@ import com.custom.astrion.harmony.HarmonyHubRegistry
 import com.custom.astrion.update.UpdateChecker
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.util.UUID
 
@@ -44,6 +47,10 @@ import java.util.UUID
  *                        in the dashboard editor's hotkey form
  *  GET  /harmony-discover resolve a hub's numeric hubId from its IP alone
  *                        (?ip=<address>) — used by the "Auto-detect ID" button
+ *  GET  /camera-snapshot proxy a single still frame for a camera.* entity
+ *                        (?entity=<id>) through this device's HA token, as
+ *                        image/jpeg — lets the editor preview show a real
+ *                        camera frame (the browser has no HA token of its own)
  *  GET  /dashboard.json  download the current dashboard.json (backup)
  *  POST /dashboard.json  replace dashboard.json, then live-reload the dashboard
  *  POST /icons           upload a PNG into /sdcard/astrion/icons/
@@ -144,6 +151,7 @@ class ConfigServer(
                 "/harmony-config" -> if (method == Method.GET) serveHarmonyConfig(session) else methodNotAllowed()
                 "/harmony-hubs" -> if (method == Method.GET) serveHarmonyHubs() else methodNotAllowed()
                 "/harmony-discover" -> if (method == Method.GET) serveHarmonyDiscover(session) else methodNotAllowed()
+                "/camera-snapshot" -> if (method == Method.GET) serveCameraSnapshot(session) else methodNotAllowed()
                 "/icons-list" -> if (method == Method.GET) serveIconsList() else methodNotAllowed()
                 "/check-update" -> if (method == Method.GET) handleCheckUpdate() else methodNotAllowed()
                 "/save-connection" -> if (method == Method.POST) handleSaveConnection(session) else methodNotAllowed()
@@ -808,6 +816,53 @@ class ConfigServer(
         }
         onStopActivity(room)
         return newFixedLengthResponse(Response.Status.OK, "application/json", """{"status":"ok","room":"$room"}""")
+    }
+
+    /**
+     * Proxies a single still frame for a `camera.*` entity through this device's
+     * stored HA token, returned as image/jpeg. The dashboard editor's camera
+     * preview points an <img> at `/camera-snapshot?entity=camera.foo`; the
+     * browser can't reach HA's token-authenticated camera_proxy endpoint itself,
+     * so the app fetches it here. `no-store` so the preview shows a fresh frame
+     * each time it's re-rendered.
+     */
+    private fun serveCameraSnapshot(session: IHTTPSession): Response {
+        val entity = session.parameters["entity"]?.firstOrNull()?.trim().orEmpty()
+        if (entity.isBlank()) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "Missing entity")
+        }
+        val haUrl = RemoteSettings.haUrl(context)
+        val haToken = RemoteSettings.haToken(context)
+        if (haUrl.isBlank() || haToken.isBlank()) {
+            return newFixedLengthResponse(Response.Status.SERVICE_UNAVAILABLE, "text/plain", "HA not configured")
+        }
+        // The browser has no HA token of its own, so the app fetches the
+        // token-authenticated camera_proxy frame here and re-serves it.
+        val path = if (entity.startsWith("camera.")) "/api/camera_proxy/$entity" else null
+        if (path == null) {
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not a camera entity: $entity")
+        }
+        val req =
+            Request.Builder()
+                .url(haUrl.trimEnd('/') + path)
+                .header("Authorization", "Bearer $haToken")
+                .build()
+        val bytes =
+            try {
+                OkHttpClient().newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "HA returned ${resp.code}")
+                    resp.body?.bytes()
+                }
+            } catch (e: Exception) {
+                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Fetch failed: ${e.message}")
+            }
+        if (bytes == null) {
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Empty response from HA")
+        }
+        val resp =
+            newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong())
+        resp.addHeader("Cache-Control", "no-store")
+        return resp
     }
 
     // ---- actions --------------------------------------------------------------

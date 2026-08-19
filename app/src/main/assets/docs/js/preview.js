@@ -702,6 +702,32 @@ function renderPreview() {
           <div class="card-title"><span>${card.type} (${items.length} items)</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
           ${gridHtml}
         </div>`;
+    } else if (card.type === 'camera') {
+      const o = card.options || {};
+      const title = o.name || haFriendlyName(o.entity_id) || prettyEntityName(o.entity_id) || 'Camera';
+      const aspect = (o.aspect != null && Number(o.aspect) > 0) ? Number(o.aspect) : (16 / 9);
+      const fit = o.fit === 'contain' ? 'contain' : 'cover';
+      const mode = o.mode === 'snapshot' ? 'snapshot' : 'stream';
+      const paddingPct = (100 / aspect).toFixed(3);
+      // Only try to pull a real frame when the editor is served by the device
+      // itself (it has the HA token to proxy /camera-snapshot). On GitHub Pages
+      // / offline this stays a placeholder, like the other cards' live data.
+      const canFetch = (typeof deviceModeAvailable !== 'undefined' && deviceModeAvailable) && !!o.entity_id;
+      const snapUrl = canFetch ? `/camera-snapshot?entity=${encodeURIComponent(o.entity_id)}&_=${Date.now()}` : '';
+      const placeholder = `<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#9FB6BD;"><div style="width:44px; height:44px;">${mdiSvg(MDI.video)}</div></div>`;
+      const imgHtml = snapUrl
+        ? `<img src="${snapUrl}" alt="${title}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:${fit};" onerror="this.style.display='none'">`
+        : '';
+      cardEl.innerHTML = `
+        <div class="card">
+          <div class="card-title"><span>camera (${mode})</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
+          <div style="position:relative; width:100%; padding-top:${paddingPct}%; border-radius:14px; overflow:hidden; background:#0E1116;">
+            ${placeholder}
+            ${imgHtml}
+            <div style="position:absolute; left:0; right:0; bottom:0; padding:8px 12px; background:linear-gradient(to top, rgba(0,0,0,.75), transparent); color:#fff; font-weight:600; font-size:13px;">${title}</div>
+          </div>
+          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'camera.entity'} · ${canFetch ? 'live frame from this device' : "placeholder here — a real still shows when opened from your device's /builder/"} · on the remote: ${mode === 'stream' ? 'live MJPEG stream (auto-falls-back to stills)' : 'still snapshot refresh'}</div>
+        </div>`;
     } else {
       cardEl.className = 'card';
       cardEl.innerHTML = `

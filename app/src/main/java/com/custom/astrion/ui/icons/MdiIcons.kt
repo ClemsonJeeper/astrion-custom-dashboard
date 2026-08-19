@@ -338,6 +338,26 @@ object MdiIcons {
         )
     }
 
+    /** Video-camera glyph — [CameraCard]'s placeholder/loading avatar. */
+    val Video: ImageVector by lazy {
+        mdi(
+            "mdi_video",
+            "M17,10.5V7A1,1 0 0,0 16,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 17,17V13.5L21,17.5V6.5L17,10.5Z",
+        )
+    }
+
+    /**
+     * Video-camera glyph, slashed — [CameraCard]'s avatar when the camera is
+     * unavailable / no frame could be fetched.
+     */
+    val VideoOff: ImageVector by lazy {
+        mdi(
+            "mdi_video_off",
+            "M3.27,2L2,3.27L4.73,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 16.73,17.73L19.73,20.73L21," +
+                "19.46M21,6.5L17,10.5V7A1,1 0 0,0 16,6H9.82L21,17.18V6.5Z",
+        )
+    }
+
     private fun mdi(
         name: String,
         pathData: String,
