@@ -123,6 +123,30 @@ function updateCardFormInputs() {
     `;
     document.getElementById('optMediaVariant').addEventListener('change', updateMediaTopButtonsVisibility);
     updateMediaTopButtonsVisibility();
+  } else if (type === 'camera') {
+    container.innerHTML = `
+      <label>Name (optional, defaults to the entity's friendly name)</label><input type="text" id="optName" placeholder="e.g., Front Door">
+      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., camera.front_door">
+      <label>Mode</label>
+      <select id="optCameraMode">
+        <option value="stream">Live stream (MJPEG — real motion)</option>
+        <option value="snapshot">Snapshot only (refresh a still — lowest CPU)</option>
+      </select>
+      <label>Snapshot interval (seconds — snapshot mode, and stream-drop fallback)</label><input type="number" id="optCameraInterval" value="2" min="1" max="60">
+      <label>Aspect ratio (width ÷ height)</label>
+      <select id="optCameraAspect">
+        <option value="1.7778">16:9 (widescreen)</option>
+        <option value="1.3333">4:3 (standard)</option>
+        <option value="1">1:1 (square)</option>
+        <option value="0.75">3:4 (portrait)</option>
+      </select>
+      <label>Fit</label>
+      <select id="optCameraFit">
+        <option value="cover">Cover (fill the card, crop edges)</option>
+        <option value="contain">Contain (show the whole frame, letterbox)</option>
+      </select>
+      <div class="hint">"Live stream" decodes Home Assistant's MJPEG feed for real motion; if it stalls it auto-falls-back to still snapshots, then retries. If a camera feels laggy on the remote, switch that card to "Snapshot only" — no reinstall needed. The preview below pulls one real frame from this device when it's connected to HA.</div>
+    `;
   } else if (type === 'fan') {
     container.innerHTML = `
       <label>Name</label><input type="text" id="optName" placeholder="e.g., Standing Fan">
@@ -644,6 +668,18 @@ function fillCardForm(card) {
     document.getElementById('optMediaVolSet').checked = vCtrls.includes('set');
     document.getElementById('optMediaTopButtons').value = JSON.stringify(o.top_buttons || [], null, 2);
     updateMediaTopButtonsVisibility();
+  } else if (type === 'camera') {
+    document.getElementById('optName').value = o.name || '';
+    document.getElementById('optEntityId').value = o.entity_id || '';
+    document.getElementById('optCameraMode').value = o.mode === 'snapshot' ? 'snapshot' : 'stream';
+    document.getElementById('optCameraInterval').value = o.snapshot_interval ?? 2;
+    // Snap the aspect dropdown to the stored value when it matches a preset;
+    // an unusual custom aspect just shows the default here (the JSON keeps its
+    // own value until the card is re-saved from this form).
+    const aspSel = document.getElementById('optCameraAspect');
+    aspSel.value = (o.aspect != null) ? String(o.aspect) : '1.7778';
+    if (!aspSel.value) aspSel.value = '1.7778';
+    document.getElementById('optCameraFit').value = o.fit === 'contain' ? 'contain' : 'cover';
   } else if (type === 'fan') {
     document.getElementById('optName').value = o.name || '';
     document.getElementById('optEntityId').value = o.entity_id || '';
@@ -816,6 +852,16 @@ function addCardToPage() {
         return;
       }
     }
+  } else if (type === 'camera') {
+    const camName = document.getElementById('optName').value.trim();
+    if (camName) newCard.options.name = camName;
+    newCard.options.entity_id = document.getElementById('optEntityId').value || 'camera.entity';
+    if (document.getElementById('optCameraMode').value === 'snapshot') newCard.options.mode = 'snapshot';
+    const camInterval = parseInt(document.getElementById('optCameraInterval').value, 10);
+    if (Number.isFinite(camInterval) && camInterval !== 2) newCard.options.snapshot_interval = camInterval;
+    const camAspect = parseFloat(document.getElementById('optCameraAspect').value);
+    if (Number.isFinite(camAspect) && Math.abs(camAspect - 1.7778) > 0.001) newCard.options.aspect = camAspect;
+    if (document.getElementById('optCameraFit').value === 'contain') newCard.options.fit = 'contain';
   } else if (type === 'fan') {
     newCard.options.name = document.getElementById('optName').value || 'Fan';
     newCard.options.entity_id = document.getElementById('optEntityId').value || 'fan.entity';

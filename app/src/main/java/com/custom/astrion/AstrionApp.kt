@@ -4,6 +4,7 @@ import android.app.Application
 import com.custom.astrion.cards.CardRegistry
 import com.custom.astrion.cards.impl.AppleTvRemoteCard
 import com.custom.astrion.cards.impl.ButtonGridCard
+import com.custom.astrion.cards.impl.CameraCard
 import com.custom.astrion.cards.impl.ClimateCard
 import com.custom.astrion.cards.impl.ClockWeatherCard
 import com.custom.astrion.cards.impl.CoverCard
@@ -43,6 +44,7 @@ class AstrionApp : Application() {
         CardRegistry.register(
             AppleTvRemoteCard(),
             ButtonGridCard(),
+            CameraCard(),
             ClimateCard(),
             ClockWeatherCard(),
             CoverCard(),

@@ -91,6 +91,16 @@ class HaClient(
             .callTimeout(10, TimeUnit.SECONDS)
             .build()
 
+    // Client for long-lived streaming GETs (MJPEG camera_proxy_stream): no call
+    // or read timeout so the never-ending multipart response isn't torn down,
+    // but a real connect timeout so a dead HA doesn't hang the reader forever.
+    private val streamHttp =
+        OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .callTimeout(0, TimeUnit.MILLISECONDS)
+            .build()
+
     private var socket: WebSocket? = null
     private var heartbeatJob: Job? = null
 
@@ -183,6 +193,47 @@ class HaClient(
                 null
             }
         }
+
+    /**
+     * Fetch a URL/HA-relative path as raw bytes, with the bearer token attached.
+     * Same auth/one-shot semantics as [fetchBitmap] but returns the undecoded
+     * body — used to proxy a single camera frame through the config server so
+     * the editor preview can show a real still without the HA token.
+     */
+    suspend fun fetchBytes(path: String): ByteArray? =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
+                val req = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
+                imageHttp.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return@withContext null
+                    resp.body?.bytes()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "fetchBytes failed for $path", e)
+                null
+            }
+        }
+
+    /**
+     * Open an authenticated streaming GET (e.g. HA's MJPEG
+     * `/api/camera_proxy_stream/<entity>?token=…`). Returns the raw OkHttp
+     * [Response]; the caller OWNS it and MUST close it (use `resp.use { … }`)
+     * to release the connection. Uses the no-timeout [streamHttp] client so the
+     * never-ending multipart body isn't cut off. Blocking network call — invoke
+     * off the main thread. Returns null if the request can't even be dispatched.
+     */
+    fun openStream(path: String): Response? {
+        if (baseUrl.isBlank()) return null
+        return try {
+            val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
+            val req = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
+            streamHttp.newCall(req).execute()
+        } catch (e: Exception) {
+            Log.w(TAG, "openStream failed for $path", e)
+            null
+        }
+    }
 
     /**
      * Browse a media_player's library via the standard `media_player/browse_media`

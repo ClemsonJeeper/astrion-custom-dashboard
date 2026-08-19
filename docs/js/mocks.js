@@ -36,6 +36,8 @@ const MDI = {
   swingOff: 'M13,8.1V6.1C18.3,6.6 20,11.4 20,14H23L20.1,16.9L17.2,14H18C18,11.9 16.4,8.6 13,8.1M7.8,7.1L2.4,1.7L1.1,3L6.3,8.2C4.7,10 4,12.4 4,14H1L5,18L9,14H6C6,12.7 6.6,11 7.9,9.7L20.9,22.7L22.2,21.4L9.3,8.7L7.8,7.1M11,6.1L9.5,6.4L11,7.8V6.1Z',
   swingOn: 'M17.45,17.55L12,23L6.55,17.55L7.96,16.14L11,19.17V4.83L7.96,7.86L6.55,6.45L12,1L17.45,6.45L16.04,7.86L13,4.83V19.17L16.04,16.14L17.45,17.55Z',
   waterPercent: 'M12,3.25C12,3.25 6,10 6,14C6,17.32 8.69,20 12,20A6,6 0 0,0 18,14C18,10 12,3.25 12,3.25M14.47,9.97L15.53,11.03L9.53,17.03L8.47,15.97M9.75,10A1.25,1.25 0 0,1 11,11.25A1.25,1.25 0 0,1 9.75,12.5A1.25,1.25 0 0,1 8.5,11.25A1.25,1.25 0 0,1 9.75,10M14.25,14.5A1.25,1.25 0 0,1 15.5,15.75A1.25,1.25 0 0,1 14.25,17A1.25,1.25 0 0,1 13,15.75A1.25,1.25 0 0,1 14.25,14.5Z',
+  video: 'M17,10.5V7A1,1 0 0,0 16,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 17,17V13.5L21,17.5V6.5L17,10.5Z',
+  videoOff: 'M3.27,2L2,3.27L4.73,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 16.73,17.73L19.73,20.73L21,19.46M21,6.5L17,10.5V7A1,1 0 0,0 16,6H9.82L21,17.18V6.5Z',
 };
 function mdiSvg(path) { return `<svg viewBox="0 0 24 24" fill="currentColor"><path d="${path}"/></svg>`; }
 
@@ -276,6 +278,16 @@ const MEDIA_MOCK = {
   media_duration: 183,
   shuffle: false,
   repeat: 'off',
+};
+
+const CAMERA_MOCK = {
+  friendly_name: 'Front Door',
+  state: 'streaming', // idle | streaming
+  // entity_picture normally looks like /api/camera_proxy/camera.x?token=…; the
+  // static editor can't reach it, so the preview only uses this to know the
+  // entity is a camera. On a real device the preview fetches a live frame from
+  // /camera-snapshot instead.
+  entity_picture: null,
 };
 
 // Mirrors MediaPlayerCard.kt's Feature bitmask check (EntityState.supports).
