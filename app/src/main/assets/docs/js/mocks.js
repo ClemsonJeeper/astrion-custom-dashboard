@@ -138,7 +138,16 @@ function vacuumStateLabel(s) { return VACUUM_STATE_LABELS[s] || vacuumPrettyLabe
 // since (unlike vacuum_state) it isn't a fixed HA-wide value set.
 function vacuumPrettyLabel(s) { return s.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); }
 
-// Fake example fan entity (real data, from fan.mi_smart_standing_fan_2).
+// Fake example input_select entity — mirrors the "video output" use case
+// from the GitHub feature request this card answers, more useful as a
+// builder preview than an arbitrary generic example would be.
+const SELECT_MOCK = {
+  friendly_name: 'Living Room Output',
+  entity_id: 'input_select.video_output_living_room',
+  state: 'TV',
+  options: ['TV', 'Projector'],
+};
+
 const FAN_MOCK = {
   friendly_name: 'Mi Smart Standing Fan 2',
   state: 'on',
@@ -187,6 +196,9 @@ MDI.windowShutterOpen = 'M3,4H21V8H19V20H17V8H7V20H5V8H3V4M8,9H16V11H8V9Z';
 MDI.coverUp = 'M21,19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3H19C20.11,3 21,3.9 21,5V19M13,18V9.5L16.5,13L17.92,11.58L12,5.66L6.08,11.58L7.5,13L11,9.5V18H13Z';
 MDI.coverDown = 'M3,5A2,2 0 0,1 5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5M11,6V14.5L7.5,11L6.08,12.42L12,18.34L17.92,12.42L16.5,11L13,14.5V6H11Z';
 MDI.stop = 'M6,6H18V18H6V6Z';
+// Approximates AndroidX's Icons.Filled.List glyph (a bulleted list) used by
+// SelectCard.kt's icon — preview-only, not guaranteed pixel-identical.
+MDI.list = 'M7,5H21V7H7V5M7,13V11H21V13H7M4,4.5A1.5,1.5 0 0,1 5.5,6A1.5,1.5 0 0,1 4,7.5A1.5,1.5 0 0,1 2.5,6A1.5,1.5 0 0,1 4,4.5M4,10.5A1.5,1.5 0 0,1 5.5,12A1.5,1.5 0 0,1 4,13.5A1.5,1.5 0 0,1 2.5,12A1.5,1.5 0 0,1 4,10.5M7,19V17H21V19H7M4,16.5A1.5,1.5 0 0,1 5.5,18A1.5,1.5 0 0,1 4,19.5A1.5,1.5 0 0,1 2.5,18A1.5,1.5 0 0,1 4,16.5Z';
 // Standard Material "chevron-right" glyph — mirrors Icons.Filled.ChevronRight
 // used by CoverCard.kt/LightCard.kt's CycleControlButton to switch between
 // several enabled controls (buttons/position/tilt, brightness/colour-temp/colour).

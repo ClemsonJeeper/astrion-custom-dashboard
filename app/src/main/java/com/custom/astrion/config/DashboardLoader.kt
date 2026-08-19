@@ -32,6 +32,8 @@ import java.io.File
  *   "startPage": 1,
  *   "pages": [
  *     { "name": "Lights", "cards": [ { "type": "...", "options": { ... } } ] },
+ *     { "name": "Video",  "cards": [ ... ] },
+ *     { "name": "Apple TV", "parent": "Video", "cards": [ ... ] },
  *     { "name": "Main",   "cards": [ ... ] },
  *     { "name": "TV",     "cards": [ ... ] }
  *   ],
@@ -119,7 +121,8 @@ object DashboardLoader {
                         val cards = obj["cards"]?.jsonArray?.map { parseCard(it.jsonObject) } ?: emptyList()
                         val pageHotkeys = obj["hotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
                         val pageLongHotkeys = obj["longHotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
-                        PageConfig(name, cards, pageHotkeys, pageLongHotkeys)
+                        val parent = obj["parent"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+                        PageConfig(name, cards, pageHotkeys, pageLongHotkeys, parent)
                     }
                 if (pages.isEmpty()) error("\"pages\" is empty")
                 val start = root["startPage"]?.jsonPrimitive?.intOrNull ?: 0
@@ -244,6 +247,7 @@ object DashboardLoader {
                         add(
                             buildJsonObject {
                                 put("name", page.name)
+                                page.parent?.let { put("parent", it) }
                                 put(
                                     "cards",
                                     buildJsonArray {

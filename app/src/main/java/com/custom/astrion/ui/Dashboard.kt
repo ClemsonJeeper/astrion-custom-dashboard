@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
@@ -100,6 +102,18 @@ fun Dashboard(
     setWakeOnMotionEnabled: (Boolean) -> Unit = {},
     configServerEnabled: Boolean = true,
     setConfigServerEnabled: (Boolean) -> Unit = {},
+    /** Fired once per [ActivityRuntime] instance (i.e. once per config
+     * load) so MainActivity can hold a live reference for ConfigServer's
+     * `/activities*` routes — ActivityRuntime is created here, inside
+     * Compose, rather than in MainActivity, so it can react to a
+     * dashboard.json reload the same way `remember(config)` already does. */
+    onActivityRuntimeReady: (ActivityRuntime) -> Unit = {},
+    /** Same hoisting pattern for the start/stop actions themselves — these
+     * close over `activitiesById`/`harmonyRegistry`/`client`, which only
+     * exist in this Composable's scope, so ConfigServer gets a fresh
+     * function reference instead of duplicating the dispatch logic. */
+    onStartActivityReady: ((String) -> Unit) -> Unit = {},
+    onStopActivityReady: ((String) -> Unit) -> Unit = {},
 ) {
     val entities by entitiesState
     val context = LocalContext.current
@@ -131,6 +145,7 @@ fun Dashboard(
             }
         }
     }
+    LaunchedEffect(activityRuntime) { onActivityRuntimeReady(activityRuntime) }
 
     // Card-driven navigation: any card can call this with a page name (as it
     // appears in dashboard.json's "pages[].name", case-insensitive) to jump
@@ -268,6 +283,39 @@ fun Dashboard(
         } ?: Log.w("Dashboard", "startActivity: unknown activity \"$activityId\"")
     }
 
+    // The missing counterpart to switchActivity/startActivity: stops
+    // whichever Activity is currently active in `room`, without starting a
+    // new one. Two real cases:
+    //  - Composed Activity (AppConfig.activities): send each device's own
+    //    powerOffCommand (same as switchActivity's outgoing-diff branch,
+    //    just with an empty incoming set), then clear the room.
+    //  - Harmony-backed tracked Activity: Harmony has no "stop just this
+    //    Activity" command — a hub always runs exactly one Activity at a
+    //    time, so PowerOff on *that Activity's own hub* is the correct,
+    //    narrowest possible stop (it never touches a different room's hub).
+    //    ActivityRuntime.bind()'s own "-1" handling clears the room(s) that
+    //    hub drives once the hub confirms it, so no explicit clear() here.
+    // A plain HA-entity tracked tile has no dedicated "stop" of its own
+    // (it's whatever a scene_grid tap already toggles) — just clear it.
+    fun stopActivity(room: String) {
+        val tracked = activityRuntime.activeActivity(room) ?: return
+        val composed = activitiesById[tracked.id]
+        when {
+            composed != null -> {
+                composed.devices.forEach { d -> if (d.powerOffOnExit) dispatchActivityPower(d, on = false) }
+                activityRuntime.clear(room)
+            }
+            tracked.harmonyActivityId != null ->
+                harmonyRegistry.client(tracked.harmonyHub)?.startActivity("-1")
+                    ?: Log.w("Dashboard", "stopActivity($room): hub ${tracked.harmonyHub} not configured")
+            else -> activityRuntime.clear(room)
+        }
+    }
+    LaunchedEffect(activityRuntime) {
+        onStartActivityReady(startActivity)
+        onStopActivityReady(::stopActivity)
+    }
+
     val ctx = CardContext(
         entities = entities,
         client = client,
@@ -340,6 +388,13 @@ fun Dashboard(
                 // a dot tap is a direct jump too, not a swipe gesture, so it
                 // shouldn't visibly scroll through pages in between.
                 onDotClick = { index -> scope.launch { pagerState.scrollToPage(index) } },
+                onNavigateToParent = {
+                    val parentName = config.pages.getOrNull(pagerState.currentPage)?.parent
+                    val idx = parentName?.let { name ->
+                        config.pages.indexOfFirst { it.name.equals(name, ignoreCase = true) }
+                    }
+                    if (idx != null && idx >= 0) scope.launch { pagerState.scrollToPage(idx) }
+                },
                 onSwipeUpToActivities = { showActivities = true },
             )
         }
@@ -348,7 +403,12 @@ fun Dashboard(
             SettingsOverlay(ctx = ctx, onClose = { showSettings = false })
         }
         if (showActivities) {
-            ActivitiesOverlay(activityRuntime = activityRuntime, ctx = ctx, onClose = { showActivities = false })
+            ActivitiesOverlay(
+                activityRuntime = activityRuntime,
+                ctx = ctx,
+                onStop = ::stopActivity,
+                onClose = { showActivities = false },
+            )
         }
     }
 }
@@ -430,6 +490,10 @@ private fun SettingsOverlay(ctx: CardContext, onClose: () -> Unit) {
 private fun ActivitiesOverlay(
     activityRuntime: ActivityRuntime,
     ctx: CardContext,
+    /** Stops the Activity active in a given room — see Dashboard()'s own
+     * `stopActivity`. Separate from `onClose`: stopping doesn't dismiss the
+     * overlay, so more than one room can be stopped in a row. */
+    onStop: (room: String) -> Unit,
     onClose: () -> Unit,
 ) {
     val activeByRoom by activityRuntime.activeByRoom.collectAsState()
@@ -491,8 +555,25 @@ private fun ActivitiesOverlay(
                             }
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text(activity.name, color = Color(0xFFCFCFCF), fontSize = 15.sp)
+                        // Dedicated per-room stop — the missing piece this
+                        // overlay didn't have before: previously the only
+                        // way to end a classic Harmony Activity was a
+                        // generic PowerOff hotkey, which (when a hub drives
+                        // more than one room) kills every room on that hub
+                        // instead of just this one. stopActivity() targets
+                        // only this Activity's own hub.
+                        Text(
+                            stringResource(R.string.stop_activity),
+                            color = Color(0xFFE5837E),
+                            fontSize = 13.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onStop(room) }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
                     }
                 }
             }
@@ -562,28 +643,66 @@ private fun RenderCard(cardConfig: CardConfig, ctx: CardContext) {
         UnknownCard(cardConfig.type)
     }
 }
-
 /**
  * Row of page dots + current page name at the bottom of the screen —
  * doubles as the swipe-UP trigger for the "Active Activities" overlay, the
  * bottom-edge mirror of [TopStatusBar]'s swipe-down-to-settings gesture.
  * Same accumulated-drag-past-a-threshold approach, just the opposite sign.
+ *
+ * The dots represent the *current page's siblings* — every page sharing
+ * the same [PageConfig.parent] (including root pages, which all share the
+ * implicit `parent == null`) — not the whole flat page list. On a
+ * dashboard with no hierarchy at all every page shares `parent == null`,
+ * so every page is a sibling of every other one and this renders exactly
+ * as it did before parent/child pages existed: one dot per page, no
+ * chevron. Windowed to at most [MAX_VISIBLE_DOTS] around the current
+ * position so a page with many siblings never grows this row's height.
+ *
+ * The chevron on the left only appears on a child page (one with a
+ * non-null `parent`) and is the on-screen twin of the hardware BACK key's
+ * new behavior (see PageConfig.parent's own doc comment): tap it, or press
+ * BACK, to jump straight to this page's parent. Swiping itself is
+ * unaffected by hierarchy — it's still one continuous pager over the full
+ * flat `pages` list in file order, same as always; only the dots and the
+ * chevron change to reflect where you are in the tree.
  */
+private const val MAX_VISIBLE_DOTS = 5
+
 @Composable
 private fun PageIndicator(
     pages: List<PageConfig>,
     current: Int,
     onDotClick: (Int) -> Unit,
+    onNavigateToParent: () -> Unit,
     onSwipeUpToActivities: () -> Unit,
 ) {
     val density = LocalDensity.current
     val triggerPx = with(density) { 40.dp.toPx() }
     var dragAccumulated by remember { mutableFloatStateOf(0f) }
 
+    val currentPage = pages.getOrNull(current)
+    val hasHierarchy = remember(pages) { pages.any { it.parent != null } }
+    val siblings = remember(pages, currentPage?.parent) {
+        pages.withIndex().filter { (_, p) -> p.parent == currentPage?.parent }
+    }
+    val currentSiblingPos = siblings.indexOfFirst { it.index == current }.coerceAtLeast(0)
+
+    val windowStart: Int
+    val windowEnd: Int
+    if (siblings.size <= MAX_VISIBLE_DOTS) {
+        windowStart = 0
+        windowEnd = siblings.lastIndex
+    } else {
+        val half = MAX_VISIBLE_DOTS / 2
+        val centeredStart = (currentSiblingPos - half).coerceAtLeast(0)
+        windowStart = centeredStart.coerceAtMost(siblings.size - MAX_VISIBLE_DOTS)
+        windowEnd = windowStart + MAX_VISIBLE_DOTS - 1
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 5.dp)
+            .padding(vertical = 5.dp, horizontal = 10.dp)
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragStart = { dragAccumulated = 0f },
@@ -598,29 +717,81 @@ private fun PageIndicator(
                     },
                 )
             },
-        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        pages.forEachIndexed { index, _ ->
-            val active = index == current
-            Box(
+        // Left zone: only a child page shows this — jump to its parent.
+        // A fixed-width spacer on other pages keeps the dots visually
+        // centered instead of drifting sideways as you move between a
+        // child page and a root one within the same dashboard.
+        if (currentPage?.parent != null) {
+            Row(
                 modifier = Modifier
-                    .padding(horizontal = 5.dp)
-                    .size(if (active) 10.dp else 8.dp)
-                    .clip(CircleShape)
-                    .background(if (active) Color(0xFF6EA8FE) else Color(0xFF33525E))
-                    .clickable { onDotClick(index) },
-            )
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { onNavigateToParent() }
+                    .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("‹", color = Color(0xFF6EA8FE), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    currentPage.parent,
+                    color = Color(0xFF6EA8FE),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        } else if (hasHierarchy) {
+            Spacer(Modifier.width(44.dp))
         }
-        Spacer(Modifier.width(10.dp))
+
+        // Center zone: the windowed sibling dots.
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (windowStart > 0) EdgeEllipsis()
+            for (i in windowStart..windowEnd) {
+                val sibling = siblings[i]
+                val active = i == currentSiblingPos
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 5.dp)
+                        .size(if (active) 10.dp else 8.dp)
+                        .clip(CircleShape)
+                        .background(if (active) Color(0xFF6EA8FE) else Color(0xFF33525E))
+                        .clickable { onDotClick(sibling.index) },
+                )
+            }
+            if (windowEnd < siblings.lastIndex) EdgeEllipsis()
+        }
+
+        // Right zone: current page name — unchanged from before hierarchy
+        // existed, deliberately not repeating the parent name (the left
+        // zone already owns that) to avoid saying it twice in one row.
         Text(
-            text = pages.getOrNull(current)?.name ?: "",
+            text = currentPage?.name ?: "",
             color = Color(0xFF93AFB6),
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
+
+/** A small "there are more siblings this way" marker at a clipped edge of
+ * the dot window — text rather than a dot so it can never be mistaken for
+ * a page itself. Not clickable; swipe (or the chevron, for the parent) is
+ * how you get past the visible window. */
+@Composable
+private fun EdgeEllipsis() {
+    Text("…", color = Color(0xFF3A5560), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 2.dp))
+}
+
 
 @Composable
 private fun ConnectionBanner(connection: ConnectionState) {

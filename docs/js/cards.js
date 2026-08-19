@@ -47,6 +47,19 @@ function updateCardFormInputs() {
       </div>
       <div class="hint">Status shows "Open"/"Closed" at 0%/100%, otherwise "N% open" — translated automatically in the app. Up/down buttons auto-disable once fully open/closed. If several controls are checked, only one shows at a time on the card — a small button cycles through them, same as Mushroom. Position/tilt sliders only appear if the entity actually reports that attribute.</div>
     `;
+  } else if (type === 'select') {
+    container.innerHTML = `
+      <label>Name (optional, defaults to the entity's friendly name)</label><input type="text" id="optName" placeholder="e.g., Living room output">
+      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., input_select.video_output_living_room">
+      <label>Icon color (optional, hex — tints the icon, same as the Mushroom select card's own icon_color)</label><input type="text" id="optSelectIconColor" placeholder="#6EA8FE">
+      <label>Layout</label>
+      <select id="optSelectLayout">
+        <option value="default">Default (icon + name/state, control full-width below)</option>
+        <option value="horizontal">Horizontal (icon + name/state left, control right)</option>
+        <option value="vertical">Vertical (icon, name, state, control — all centered/stacked)</option>
+      </select>
+      <div class="hint">For any input_select.* or select.* entity — shows the current option and, tapped, a dropdown of every option from the entity's own list; picking one calls the right select_option service automatically. For a media_player's own source list (HDMI inputs, apps, etc.) use "Source selector (source_select)" instead — that one reads a different HA attribute/service and won't work here.</div>
+    `;
   } else if (type === 'light') {
     container.innerHTML = `
       <label>Name (optional, defaults to the entity's friendly name)</label><input type="text" id="optName" placeholder="e.g., Kitchen">
@@ -580,6 +593,11 @@ function fillCardForm(card) {
     document.getElementById('optCoverCtrlButtons').checked = hasCoverCtrlOpts ? (o.show_buttons_control === true) : true;
     document.getElementById('optCoverCtrlPosition').checked = o.show_position_control === true;
     document.getElementById('optCoverCtrlTilt').checked = o.show_tilt_position_control === true;
+  } else if (type === 'select') {
+    document.getElementById('optName').value = o.name || '';
+    document.getElementById('optEntityId').value = o.entity_id || '';
+    document.getElementById('optSelectIconColor').value = o.icon_color || '';
+    document.getElementById('optSelectLayout').value = ['horizontal', 'vertical'].includes(o.layout) ? o.layout : 'default';
   } else if (type === 'light') {
     document.getElementById('optName').value = o.name || '';
     document.getElementById('optEntityId').value = o.entity_id || '';
@@ -724,6 +742,14 @@ function addCardToPage() {
     newCard.options.show_buttons_control = document.getElementById('optCoverCtrlButtons').checked;
     newCard.options.show_position_control = document.getElementById('optCoverCtrlPosition').checked;
     newCard.options.show_tilt_position_control = document.getElementById('optCoverCtrlTilt').checked;
+  } else if (type === 'select') {
+    const selectName = document.getElementById('optName').value.trim();
+    if (selectName) newCard.options.name = selectName;
+    newCard.options.entity_id = document.getElementById('optEntityId').value || 'input_select.entity';
+    const selectIconColor = document.getElementById('optSelectIconColor').value.trim();
+    if (selectIconColor) newCard.options.icon_color = selectIconColor;
+    const selectLayout = document.getElementById('optSelectLayout').value;
+    if (selectLayout !== 'default') newCard.options.layout = selectLayout;
   } else if (type === 'light') {
     const lightName = document.getElementById('optName').value.trim();
     if (lightName) newCard.options.name = lightName;

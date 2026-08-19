@@ -45,6 +45,16 @@ data class PageConfig(
     val cards: List<CardConfig>,
     val hotkeys: List<HotkeyConfig> = emptyList(),
     val longHotkeys: List<HotkeyConfig> = emptyList(),
+    /** Optional parent page name — makes this page a child in a navigation
+     * tree (e.g. "Apple TV" with parent "Vidéo"), rather than a flat
+     * top-level page. Entering a child is unchanged: any card's own
+     * `navigateToPage`, exactly like today. Leaving is new: the hardware
+     * BACK key (previously a no-op unless a page-specific hotkey bound it —
+     * see MainActivity's `dispatchKeyEvent`) now jumps to this page's
+     * parent when nothing else claims BACK first, so an AV page that binds
+     * its own BACK hotkey is never affected. null (default) = today's flat
+     * top-level page, behavior unchanged. */
+    val parent: String? = null,
 )
 
 /**

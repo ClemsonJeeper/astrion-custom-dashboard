@@ -43,6 +43,7 @@ function importJson() {
         cards: p.cards || [],
         hotkeys: p.hotkeys || [],
         longHotkeys: p.longHotkeys || [],
+        ...(p.parent ? { parent: p.parent } : {}),
       })),
       hotkeys: parsed.hotkeys || [],
       longHotkeys: parsed.longHotkeys || [],
@@ -89,10 +90,43 @@ function openPageDialog(index) {
   const isNew = index === null;
   document.getElementById('pageDialogTitle').textContent = isNew ? 'Add page' : 'Page settings';
   document.getElementById('pageDialogName').value = isNew ? '' : dashboardData.pages[index].name;
+  populatePageParentSelect(index);
+  document.getElementById('pageDialogParent').value = isNew ? '' : (dashboardData.pages[index].parent || '');
   document.getElementById('pageDialogStart').checked = isNew ? false : (dashboardData.startPage === index);
   document.getElementById('pageDialogDeleteBtn').style.display = isNew ? 'none' : '';
   document.getElementById('pageDialogModal').classList.add('open');
   document.getElementById('pageDialogName').focus();
+}
+
+// Every page that would create a cycle if picked as `excludeIndex`'s
+// parent: the page itself, plus every one of its own descendants
+// (transitively) — picking a descendant as your own parent would make the
+// tree loop back on itself. `excludeIndex === null` (adding a brand new
+// page) has no descendants yet, so nothing to exclude beyond nothing.
+function pagesUnavailableAsParentOf(excludeIndex) {
+  if (excludeIndex === null) return new Set();
+  const excludedNames = new Set([dashboardData.pages[excludeIndex].name]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    dashboardData.pages.forEach(p => {
+      if (p.parent && excludedNames.has(p.parent) && !excludedNames.has(p.name)) {
+        excludedNames.add(p.name);
+        grew = true;
+      }
+    });
+  }
+  return excludedNames;
+}
+
+function populatePageParentSelect(excludeIndex) {
+  const select = document.getElementById('pageDialogParent');
+  const unavailable = pagesUnavailableAsParentOf(excludeIndex);
+  select.innerHTML = '<option value="">— None (top-level page) —</option>' +
+    dashboardData.pages
+      .filter(p => !unavailable.has(p.name))
+      .map(p => `<option value="${p.name.replace(/"/g, '&quot;')}">${p.name}</option>`)
+      .join('');
 }
 
 function closePageDialog() {
@@ -103,16 +137,29 @@ function closePageDialog() {
 function savePageDialog() {
   const name = document.getElementById('pageDialogName').value.trim();
   if (!name) { alert('Give the page a name.'); return; }
+  const parent = document.getElementById('pageDialogParent').value || undefined;
   const makeStart = document.getElementById('pageDialogStart').checked;
 
   if (editingPage === null) {
-    dashboardData.pages.push({ name, cards: [], hotkeys: [], longHotkeys: [] });
+    const page = { name, cards: [], hotkeys: [], longHotkeys: [] };
+    if (parent) page.parent = parent;
+    dashboardData.pages.push(page);
     currentActivePage = dashboardData.pages.length - 1;
     if (makeStart) dashboardData.startPage = currentActivePage;
   } else {
-    dashboardData.pages[editingPage].name = name;
+    const page = dashboardData.pages[editingPage];
+    const oldName = page.name;
+    page.name = name;
+    if (parent) page.parent = parent; else delete page.parent;
     if (makeStart) dashboardData.startPage = editingPage;
     else if (dashboardData.startPage === editingPage) dashboardData.startPage = 0;
+
+    // Renaming a page that others point to as their parent — keep the tree
+    // intact instead of silently orphaning them to a name that no longer
+    // exists (which the app would then just treat as "no parent found").
+    if (oldName !== name) {
+      dashboardData.pages.forEach(p => { if (p.parent === oldName) p.parent = name; });
+    }
   }
 
   closePageDialog();
@@ -123,7 +170,13 @@ function deletePageFromDialog() {
   const i = editingPage;
   if (i === null) return;
   if (dashboardData.pages.length <= 1) { alert('You need at least one page.'); return; }
-  if (!confirm(`Delete page "${dashboardData.pages[i].name}" and everything on it (cards, page hotkeys)?`)) return;
+  const deletedName = dashboardData.pages[i].name;
+  const children = dashboardData.pages.filter(p => p.parent === deletedName);
+  const childWarning = children.length
+    ? ` ${children.length} child page(s) (${children.map(c => c.name).join(', ')}) will become top-level pages instead of being deleted.`
+    : '';
+  if (!confirm(`Delete page "${deletedName}" and everything on it (cards, page hotkeys)?${childWarning}`)) return;
+  children.forEach(c => delete c.parent);
   dashboardData.pages.splice(i, 1);
   if (currentActivePage >= dashboardData.pages.length) currentActivePage = dashboardData.pages.length - 1;
   if (dashboardData.startPage >= dashboardData.pages.length) dashboardData.startPage = 0;

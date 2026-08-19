@@ -5,6 +5,7 @@
     <string name="close">Fermer</string>
     <string name="active_activities">Activités actives</string>
     <string name="no_active_activities">Rien d\'actif pour l\'instant</string>
+    <string name="stop_activity">Arrêter</string>
     <string name="connected">Connecté</string>
     <string name="disconnected">Déconnecté</string>
 

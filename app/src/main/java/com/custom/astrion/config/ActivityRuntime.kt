@@ -78,6 +78,15 @@ class ActivityRuntime(config: AppConfig) {
         _activeByRoom.value = _activeByRoom.value + (activity.room to activity.id)
     }
 
+    /** Marks [room] as having no active Activity — the counterpart of
+     * [markActive]. Called once a room's Activity has actually been stopped
+     * (composed Activity's own poweroff devices sent, or a Harmony hub
+     * confirmed PowerOff via [bind]'s own "-1" handling); never call this
+     * speculatively before the stop action itself has been dispatched. */
+    fun clear(room: String) {
+        _activeByRoom.value = _activeByRoom.value + (room to null)
+    }
+
     /** Same as [markActive], by id — for callers (like a composed Activity's
      * executor in Dashboard.kt) that only have the id on hand. No-op if the
      * id isn't a known trackable Activity. */
