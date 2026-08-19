@@ -24,6 +24,7 @@ import androidx.compose.ui.window.Dialog
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ThemeColors
 import kotlin.math.roundToInt
 
 /**
@@ -43,6 +44,7 @@ fun CoverDetailDialog(
     name: String,
     e: EntityState?,
     client: HaClient,
+    theme: ThemeColors = ThemeColors.Default,
     onClose: () -> Unit,
 ) {
     val position = e?.attrInt("current_position") // 0..100
@@ -74,18 +76,18 @@ fun CoverDetailDialog(
             modifier =
                 Modifier
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF1B343D))
+                    .background(theme.cardSurface)
                     .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
                 "${(dragLevel * 100).roundToInt()}%",
-                color = Color(0xFFE6F0F1),
+                color = theme.primaryText,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
             )
-            Text(name, color = Color(0xFF93AFB6), fontSize = 13.sp)
+            Text(name, color = theme.mutedText, fontSize = 13.sp)
 
             // Vertical position pill: drag or tap to set; fill rises from the bottom,
             // same interaction as LightDetailDialog's brightness pill.
@@ -95,7 +97,7 @@ fun CoverDetailDialog(
                         .width(120.dp)
                         .height(230.dp)
                         .clip(RoundedCornerShape(30.dp))
-                        .background(Color(0xFF152B33))
+                        .background(theme.insetSurface)
                         .pointerInput(entityId) {
                             detectVerticalDragGestures(
                                 onDragEnd = { commit(dragLevel) },
@@ -117,7 +119,7 @@ fun CoverDetailDialog(
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
                             .fillMaxHeight(dragLevel.coerceIn(0.02f, 1f))
-                            .background(Color(0xFF6FA3B3).copy(alpha = 0.9f)),
+                            .background(theme.accent.copy(alpha = 0.9f)),
                 )
             }
 
@@ -132,11 +134,11 @@ fun CoverDetailDialog(
                         modifier =
                             Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF23414B))
+                                .background(theme.controlBackground)
                                 .clickable { setPreset(pct) }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                     ) {
-                        Text("$pct%", color = Color(0xFFCBDCE0), fontSize = 12.sp)
+                        Text("$pct%", color = theme.iconTint, fontSize = 12.sp)
                     }
                 }
             }

@@ -63,16 +63,16 @@ class SourceSelectCard : CardRenderer {
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF1E3841))
+                        .background(ctx.theme.controlBackground)
                         .clickable(enabled = sources.isNotEmpty()) { expanded = true }
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(name, color = Color(0xFF93AFB6), fontSize = 11.sp)
+                    Text(name, color = ctx.theme.mutedText, fontSize = 11.sp)
                     Text(
                         current ?: if (sources.isEmpty()) "No sources (device off?)" else "Select source…",
-                        color = Color(0xFFE6F0F1),
+                        color = ctx.theme.primaryText,
                         fontSize = 15.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -81,7 +81,7 @@ class SourceSelectCard : CardRenderer {
                 Icon(
                     Icons.Filled.ArrowDropDown,
                     contentDescription = null,
-                    tint = if (sources.isEmpty()) Color(0xFF5A7783) else Color(0xFFCBDCE0),
+                    tint = if (sources.isEmpty()) ctx.theme.mutedText else ctx.theme.iconTint,
                 )
             }
 
@@ -90,7 +90,7 @@ class SourceSelectCard : CardRenderer {
                 onDismissRequest = { expanded = false },
                 modifier =
                     Modifier
-                        .background(Color(0xFF1E3841))
+                        .background(ctx.theme.controlBackground)
                         .widthIn(max = 400.dp),
             ) {
                 sources.forEach { s ->
@@ -98,7 +98,7 @@ class SourceSelectCard : CardRenderer {
                         text = {
                             Text(
                                 s,
-                                color = if (s == current) Color(0xFF6EA8FE) else Color(0xFFE6F0F1),
+                                color = if (s == current) ctx.theme.accent else ctx.theme.primaryText,
                                 fontSize = 14.sp,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,

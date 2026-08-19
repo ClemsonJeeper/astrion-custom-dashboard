@@ -6,6 +6,7 @@ import com.custom.astrion.config.ActivityRuntime
 import com.custom.astrion.config.IrDeviceConfig
 import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.HaClient
+import com.custom.astrion.ui.ThemeColors
 
 /**
  * THE EXTENSIBILITY CORE.
@@ -82,6 +83,10 @@ class CardContext(
      * `track: true`, or `activity`) call into this after firing their own
      * action; an "active activities" overlay reads from it directly. */
     val activityRuntime: ActivityRuntime? = null,
+    /** Resolved theme colors for this dashboard. Cards read from here instead
+     * of hardcoded Color literals. Defaults to the original palette so cards
+     * render correctly even without a provider (e.g. in previews/tests). */
+    val theme: ThemeColors = com.custom.astrion.ui.ThemeColors.Default,
 )
 
 /**

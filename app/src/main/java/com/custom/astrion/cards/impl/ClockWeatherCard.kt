@@ -24,6 +24,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.HaLabels
+import com.custom.astrion.ui.ThemeColors
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -105,7 +106,7 @@ class ClockWeatherCard : CardRenderer {
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF1B343D))
+                    .background(ctx.theme.cardSurface)
                     .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -116,15 +117,15 @@ class ClockWeatherCard : CardRenderer {
                 Column(Modifier.weight(1f)) {
                     Text(
                         timeFmt.format(Date(now)),
-                        color = Color(0xFFF2F5FA),
+                        color = ctx.theme.primaryText,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Light,
                     )
-                    Text(dateFmt.format(Date(now)), color = Color(0xFF9AB0C4), fontSize = 13.sp)
+                    Text(dateFmt.format(Date(now)), color = ctx.theme.mutedText, fontSize = 13.sp)
                     if (todayEvent != null) {
                         Text(
                             todayEvent,
-                            color = Color(0xFF6EA8FE),
+                            color = ctx.theme.accent,
                             fontSize = 11.sp,
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -134,13 +135,13 @@ class ClockWeatherCard : CardRenderer {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         temp?.let { "${trim(it)}°" } ?: "—",
-                        color = Color(0xFFF2F5FA),
+                        color = ctx.theme.primaryText,
                         fontSize = 22.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         HaLabels.weatherCondition(condition),
-                        color = Color(0xFF9AB0C4),
+                        color = ctx.theme.mutedText,
                         fontSize = 11.sp,
                     )
                 }
@@ -155,7 +156,7 @@ class ClockWeatherCard : CardRenderer {
                 val span = (weekMax - weekMin).coerceAtLeast(1.0)
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    shown.forEach { f -> ForecastRow(f, weekMin, span) }
+                    shown.forEach { f -> ForecastRow(f, weekMin, span, ctx.theme) }
                 }
             }
         }
@@ -166,6 +167,7 @@ class ClockWeatherCard : CardRenderer {
         f: Forecast,
         weekMin: Double,
         span: Double,
+        theme: ThemeColors,
     ) {
         val lowFrac = (((f.low ?: weekMin) - weekMin) / span).toFloat().coerceIn(0f, 1f)
         val highFrac = (((f.high ?: (weekMin + span)) - weekMin) / span).toFloat().coerceIn(0f, 1f)
@@ -174,7 +176,7 @@ class ClockWeatherCard : CardRenderer {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(f.day, color = Color(0xFF9AB0C4), fontSize = 13.sp, modifier = Modifier.width(40.dp))
+            Text(f.day, color = theme.mutedText, fontSize = 13.sp, modifier = Modifier.width(40.dp))
             Text(
                 emojiFor(f.condition),
                 fontSize = 18.sp,
@@ -183,7 +185,7 @@ class ClockWeatherCard : CardRenderer {
             )
             Text(
                 f.low?.let { "${trim(it)}°" } ?: "",
-                color = Color(0xFF9AB0C4),
+                color = theme.mutedText,
                 fontSize = 13.sp,
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(40.dp),
@@ -196,7 +198,7 @@ class ClockWeatherCard : CardRenderer {
                         .weight(1f)
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF2C3E4E)),
+                        .background(theme.controlBackground),
             ) {
                 Row(Modifier.matchParentSize()) {
                     Spacer(Modifier.weight(lowFrac.coerceAtLeast(0.001f)))
@@ -208,7 +210,7 @@ class ClockWeatherCard : CardRenderer {
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(
                                     Brush.horizontalGradient(
-                                        listOf(Color(0xFF3DD68C), Color(0xFF9BE7C4)),
+                                        listOf(theme.success, theme.success),
                                     ),
                                 ),
                     )
@@ -218,7 +220,7 @@ class ClockWeatherCard : CardRenderer {
             Spacer(Modifier.width(8.dp))
             Text(
                 f.high?.let { "${trim(it)}°" } ?: "",
-                color = Color(0xFFF2F5FA),
+                color = theme.primaryText,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.End,

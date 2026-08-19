@@ -367,8 +367,8 @@ function renderPreview() {
       const cycleBtnHtml = enabledControls.length > 1 ? `<div class="pc-cycle-btn" title="Cycles through: ${enabledControls.join(', ')}">${mdiSvg(MDI.chevronRight)}</div>` : '';
       const controlsHtml = (full) => {
         let inner;
-        if (activeControl === 'position') inner = sliderHtml(position, '#6FA8DC');
-        else if (activeControl === 'tilt') inner = sliderHtml(tilt, '#8FBF7F');
+        if (activeControl === 'position') inner = sliderHtml(position, 'var(--accent)');
+        else if (activeControl === 'tilt') inner = sliderHtml(tilt, 'var(--success)');
         else if (activeControl === 'buttons') inner = buttonsHtml(full);
         else return '';
         return `<div style="display:flex; align-items:center; gap:8px; width:100%;"><div style="flex:1; min-width:0;">${inner}</div>${cycleBtnHtml}</div>`;
@@ -484,8 +484,8 @@ function renderPreview() {
       const [r, g, b] = LIGHT_MOCK.rgb_color || kelvinToPreviewRgb(LIGHT_MOCK.color_temp_kelvin);
       const lightColorCss = (isOn && useLightColor) ? `rgb(${r},${g},${b})` : null;
       const iconPath = isOn ? MDI.lightbulbOn : MDI.lightbulbOff;
-      const iconBg = !isOn ? '#2A4954' : (lightColorCss ? `rgba(${r},${g},${b},0.22)` : '#FFC24B');
-      const iconTint = !isOn ? '#B6C9CE' : (lightColorCss || '#241A00');
+      const iconBg = !isOn ? 'var(--control)' : (lightColorCss ? `rgba(${r},${g},${b},0.22)` : 'var(--amber)');
+      const iconTint = !isOn ? 'var(--icon)' : (lightColorCss || '#241A00');
       const barColor = lightColorCss || '#FFC24B';
 
       // Mirrors LightCard.kt: if none of the 3 flags are set at all, fall
@@ -611,10 +611,10 @@ function renderPreview() {
             </div>
             <div style="width:100%">
               <div class="pm-progress"><div class="pm-progress-fill" style="width:${fraction * 100}%"></div></div>
-              <div style="display:flex; justify-content:space-between; margin-top:4px;"><small style="color:#93AFB6">${fmtTime(mock.media_position)}</small><small style="color:#93AFB6">${fmtTime(mock.media_duration)}</small></div>
+              <div style="display:flex; justify-content:space-between; margin-top:4px;"><small style="color:var(--muted)">${fmtTime(mock.media_position)}</small><small style="color:var(--muted)">${fmtTime(mock.media_duration)}</small></div>
             </div>
             ${mediaButtons.length ? `<div class="pm-full-controls">${mediaButtons.map(b => btnHtml(b, true, true)).join('')}</div>` : ''}
-            ${(volumeButtons.length || hasVolumeSlider) ? `<div class="pm-full-controls">${hasVolumeSlider ? '<div style="flex:1; height:8px; border-radius:4px; background:#152B33; margin:0 8px;"><div style="width:' + Math.round((mock.volume_level || 0) * 100) + '%; height:100%; border-radius:4px; background:#4C6EF5;"></div></div>' : ''}${volumeButtons.map(b => btnHtml(b, true, false)).join('')}</div>` : ''}
+            ${(volumeButtons.length || hasVolumeSlider) ? `<div class="pm-full-controls">${hasVolumeSlider ? '<div style="flex:1; height:8px; border-radius:4px; background:var(--inset); margin:0 8px;"><div style="width:' + Math.round((mock.volume_level || 0) * 100) + '%; height:100%; border-radius:4px; background:var(--accent2);"></div></div>' : ''}${volumeButtons.map(b => btnHtml(b, true, false)).join('')}</div>` : ''}
           </div>`;
       } else {
         const hasMediaGroup = mediaButtons.length > 0;
@@ -636,7 +636,7 @@ function renderPreview() {
             </div>
             ${(hasMediaGroup || hasVolumeGroup) ? `
             <div class="pm-controls">
-              ${showingVolume && hasVolumeSlider ? '<div style="flex:1; height:36px; border-radius:10px; background:#152B33;"><div style="width:' + Math.round((mock.volume_level || 0) * 100) + '%; height:100%; border-radius:10px; background:#4C6EF5;"></div></div>' : ''}
+              ${showingVolume && hasVolumeSlider ? '<div style="flex:1; height:36px; border-radius:10px; background:var(--inset);"><div style="width:' + Math.round((mock.volume_level || 0) * 100) + '%; height:100%; border-radius:10px; background:var(--accent2);"></div></div>' : ''}
               ${activeButtons.map(b => btnHtml(b, false, true)).join('')}
               ${(hasMediaGroup && hasVolumeGroup) ? `<div class="pm-btn pm-swap">${mdiSvg(showingVolume ? MDI.play : MDI.volumeHigh)}</div>` : ''}
             </div>` : ''}
@@ -665,7 +665,7 @@ function renderPreview() {
         const label = item.name || '?';
         const src = iconUrl(item.icon);
         if (isScene) {
-          const bg = parseHexColorCss(item.color) || '#2A4954';
+          const bg = parseHexColorCss(item.color) || (typeof themeValues === 'function' ? themeValues().controlBackground : '#2C4C58');
           const textColor = textColorForBg(bg);
           const iconCell = hasIconGrid
             ? (src

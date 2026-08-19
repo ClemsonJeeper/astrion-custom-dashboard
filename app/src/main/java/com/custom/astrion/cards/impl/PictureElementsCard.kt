@@ -100,7 +100,7 @@ class PictureElementsCard : CardRenderer {
                     .fillMaxWidth()
                     .aspectRatio(aspect)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF0E1116)),
+                    .background(ctx.theme.background),
         ) {
             if (bitmap != null) {
                 Image(
@@ -128,7 +128,7 @@ class PictureElementsCard : CardRenderer {
                 val x = w * (leftPct / 100f) - iconBox / 2
                 val y = h * (topPct / 100f) - iconBox / 2
 
-                val bg = if (on) Color(0x66FFC24B) else Color(0x33000000)
+                val bg = if (on) ctx.theme.amber.copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.2f)
                 val tint = if (on) Color(0xFFFFD37A) else Color(0xFFE8ECF2)
                 val icon =
                     when {
@@ -185,7 +185,7 @@ class PictureElementsCard : CardRenderer {
                             Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(20.dp))
-                                .background(Color(0xFF1B343D))
+                                .background(ctx.theme.cardSurface)
                                 .padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {

@@ -31,6 +31,11 @@ data class AppConfig(
      * Single-device/single-action Activities don't need an entry here at
      * all — see the NOTE further down for that lighter-weight path. */
     val activities: List<ActivityConfig> = emptyList(),
+    /** Global color theme. Every UI color that was once a hardcoded literal
+     * reads from here (via ThemeColors / LocalTheme in the Compose layer).
+     * Missing fields fall back to the built-in defaults, so an empty `theme`
+     * block renders identically to the original look. */
+    val theme: ThemeConfig = ThemeConfig(),
 )
 
 /**
@@ -232,4 +237,26 @@ data class ActivityDeviceConfig(
      * the last device and on stop (power-off runs with no delays between
      * devices — nothing downstream needs to wait for it). */
     val delayAfterMs: Int = 0,
+)
+
+/**
+ * Global color theme — 12 semantic tokens. Values are ARGB/RGB hex strings
+ * (e.g. "#1B343D"). Each defaults to the app's original hardcoded color, so a
+ * ThemeConfig() with no overrides reproduces the built-in look exactly.
+ * Parsed from the `theme` block of dashboard.json by DashboardLoader.
+ */
+@Suppress("Unused")
+data class ThemeConfig(
+    val background: String = "#0E2229",
+    val cardSurface: String = "#1B343D",
+    val insetSurface: String = "#152B33",
+    val controlBackground: String = "#2C4C58",
+    val primaryText: String = "#E6F0F1",
+    val mutedText: String = "#93AFB6",
+    val iconTint: String = "#CBDCE0",
+    val accent: String = "#6EA8FE",
+    val accentSecondary: String = "#4C6EF5",
+    val amber: String = "#FFC24B",
+    val danger: String = "#E06767",
+    val success: String = "#4CAF50",
 )

@@ -106,7 +106,7 @@ class TitleCard : CardRenderer {
         val divider = remember(config) { config.bool("divider") }
         val titleColor =
             remember(config) {
-                config.string("color")?.let { parseHexColor(it) } ?: Color(0xFFCFCFCF)
+                config.string("color")?.let { parseHexColor(it) } ?: ctx.theme.primaryText
             }
         val iconBitmap =
             remember(iconPath) {
@@ -202,7 +202,7 @@ class TitleCard : CardRenderer {
             if (!subtitle.isNullOrBlank()) {
                 Text(
                     text = subtitle,
-                    color = Color(0xFF93AFB6),
+                    color = ctx.theme.mutedText,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     textAlign =

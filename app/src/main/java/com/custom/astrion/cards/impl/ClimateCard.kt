@@ -34,6 +34,7 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.icons.MdiIcons
 
 /**
@@ -165,7 +166,7 @@ class ClimateCard : CardRenderer {
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF1B343D))
+                    .background(ctx.theme.cardSurface)
                     .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -175,20 +176,20 @@ class ClimateCard : CardRenderer {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(name, color = Color(0xFFE6F0F1), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text(name, color = ctx.theme.primaryText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 Box(
                     modifier =
                         Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(if (isOff) Color(0xFF3A2E2E) else Color(0xFF2C4C58))
+                            .background(if (isOff) ctx.theme.danger.copy(alpha = 0.25f) else ctx.theme.controlBackground)
                             .clickable { turnOff() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Filled.PowerSettingsNew,
                         contentDescription = "Off",
-                        tint = if (isOff) Color(0xFFE06767) else Color(0xFFCBDCE0),
+                        tint = if (isOff) ctx.theme.danger else ctx.theme.iconTint,
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -200,28 +201,28 @@ class ClimateCard : CardRenderer {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Stepper(Icons.Filled.Remove) { target?.let { setTemp(it - step) } }
+                Stepper(Icons.Filled.Remove, ctx.theme) { target?.let { setTemp(it - step) } }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         target?.let { "${trim(it)}°" } ?: "—",
-                        color = Color(0xFFE6F0F1),
+                        color = ctx.theme.primaryText,
                         fontSize = 36.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
                         current?.let { stringResource(R.string.climate_current_temp, trim(it)) } ?: "",
-                        color = Color(0xFF93AFB6),
+                        color = ctx.theme.mutedText,
                         fontSize = 12.sp,
                     )
                 }
 
-                Stepper(Icons.Filled.Add) { target?.let { setTemp(it + step) } }
+                Stepper(Icons.Filled.Add, ctx.theme) { target?.let { setTemp(it + step) } }
             }
 
             // HVAC mode chips (icons by default, matching HA's tile card; "off" excluded, see above).
             if (modes.isNotEmpty()) {
-                ModeSection(caption = if (showCaptions) stringResource(R.string.climate_hvac_caption) else null) {
+                ModeSection(caption = if (showCaptions) stringResource(R.string.climate_hvac_caption) else null, theme = ctx.theme) {
                     balancedRows(modes, maxPerRow = if (hvacModeIcons) 5 else 3).forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -232,6 +233,7 @@ class ClimateCard : CardRenderer {
                                     label = HaLabels.hvacMode(m),
                                     icon = if (hvacModeIcons) hvacModeIcon(m) else null,
                                     selected = m == mode,
+                                    theme = ctx.theme,
                                     modifier = Modifier.weight(1f),
                                 ) { setMode(m) }
                             }
@@ -242,7 +244,7 @@ class ClimateCard : CardRenderer {
 
             // Fan mode chips
             if (fanModes.isNotEmpty()) {
-                ModeSection(caption = if (showCaptions) stringResource(R.string.climate_fan_caption) else null) {
+                ModeSection(caption = if (showCaptions) stringResource(R.string.climate_fan_caption) else null, theme = ctx.theme) {
                     balancedRows(fanModes, maxPerRow = if (fanModeIcons) 5 else 3).forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -253,6 +255,7 @@ class ClimateCard : CardRenderer {
                                     label = HaLabels.fanMode(f),
                                     icon = if (fanModeIcons) fanModeIcon(f) else null,
                                     selected = fanMode?.equals(f, ignoreCase = true) == true,
+                                    theme = ctx.theme,
                                     modifier = Modifier.weight(1f),
                                 ) { setFan(f) }
                             }
@@ -263,7 +266,7 @@ class ClimateCard : CardRenderer {
 
             // Swing mode chips
             if (swingModes.isNotEmpty()) {
-                ModeSection(caption = if (showCaptions) stringResource(R.string.climate_swing_caption) else null) {
+                ModeSection(caption = if (showCaptions) stringResource(R.string.climate_swing_caption) else null, theme = ctx.theme) {
                     balancedRows(swingModes, maxPerRow = if (swingModeIcons) 5 else 3).forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -274,6 +277,7 @@ class ClimateCard : CardRenderer {
                                     label = HaLabels.swingMode(s),
                                     icon = if (swingModeIcons) swingModeIcon(s) else null,
                                     selected = swingMode?.equals(s, ignoreCase = true) == true,
+                                    theme = ctx.theme,
                                     modifier = Modifier.weight(1f),
                                 ) { setSwing(s) }
                             }
@@ -343,6 +347,7 @@ class ClimateCard : CardRenderer {
     @Composable
     private fun Stepper(
         icon: ImageVector,
+        theme: ThemeColors,
         onClick: () -> Unit,
     ) {
         Box(
@@ -350,24 +355,25 @@ class ClimateCard : CardRenderer {
                 Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF2C4C58))
+                    .background(theme.controlBackground)
                     .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = Color(0xFFCBDCE0))
+            Icon(icon, contentDescription = null, tint = theme.iconTint)
         }
     }
 
     @Composable
     private fun ModeSection(
         caption: String?,
+        theme: ThemeColors,
         content: @Composable () -> Unit,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (caption != null) {
                 Text(
                     caption,
-                    color = Color(0xFF6D8891),
+                    color = theme.mutedText,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                 )
@@ -383,6 +389,7 @@ class ClimateCard : CardRenderer {
         label: String,
         selected: Boolean,
         modifier: Modifier,
+        theme: ThemeColors,
         icon: ImageVector? = null,
         onClick: () -> Unit,
     ) {
@@ -391,11 +398,11 @@ class ClimateCard : CardRenderer {
                 modifier
                     .height(34.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) Color(0xFF4C6EF5) else Color(0xFF23414B))
+                    .background(if (selected) theme.accentSecondary else theme.controlBackground)
                     .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            val tint = if (selected) Color.White else Color(0xFF93AFB6)
+            val tint = if (selected) Color.White else theme.mutedText
             if (icon != null) {
                 Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(18.dp))
             } else {

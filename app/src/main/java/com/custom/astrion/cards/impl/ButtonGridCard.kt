@@ -23,6 +23,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ThemeColors
 import java.io.File
 
 /**
@@ -63,7 +64,7 @@ class ButtonGridCard : CardRenderer {
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     row.forEach { b ->
-                        GridButton(b, Modifier.weight(1f)) { fire(ctx, b) }
+                        GridButton(b, Modifier.weight(1f), ctx.theme) { fire(ctx, b) }
                     }
                     repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
@@ -90,6 +91,7 @@ class ButtonGridCard : CardRenderer {
     private fun GridButton(
         b: Map<String, Any?>,
         modifier: Modifier,
+        theme: ThemeColors,
         onClick: () -> Unit,
     ) {
         val name = b["name"] as? String
@@ -110,7 +112,7 @@ class ButtonGridCard : CardRenderer {
                 modifier
                     .height(if (hasIcon) 68.dp else 48.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF2A4954))
+                    .background(theme.controlBackground)
                     .clickable(onClick = onClick)
                     .padding(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -123,7 +125,7 @@ class ButtonGridCard : CardRenderer {
             if (!name.isNullOrBlank()) {
                 Text(
                     name,
-                    color = Color(0xFFE6F0F1),
+                    color = theme.primaryText,
                     fontSize = if (hasIcon) 12.sp else 15.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,

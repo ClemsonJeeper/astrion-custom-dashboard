@@ -27,6 +27,7 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ThemeColors
 
 /**
  * Fan card. Two layouts, auto-picked from what the entity actually reports
@@ -117,7 +118,7 @@ class FanCard : CardRenderer {
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(18.dp))
-                        .background(if (on) Color(0xFF2B3A67) else Color(0xFF1E3841))
+                        .background(if (on) ctx.theme.controlBackground else ctx.theme.controlBackground)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -127,16 +128,16 @@ class FanCard : CardRenderer {
                             .weight(1f)
                             .clickable { ctx.client.toggle(entityId) },
                 ) {
-                    Text(name, color = Color(0xFFE6F0F1), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text(name, color = ctx.theme.primaryText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                     Text(
                         if (on) "$pct%" else stringResource(R.string.astrion_state_off),
-                        color = Color(0xFF93AFB6),
+                        color = ctx.theme.mutedText,
                         fontSize = 13.sp,
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CircleBtn(Icons.Filled.KeyboardArrowDown) { setPercentage(pct - step) }
-                    CircleBtn(Icons.Filled.KeyboardArrowUp) { setPercentage(pct + step) }
+                    CircleBtn(Icons.Filled.KeyboardArrowDown, ctx.theme) { setPercentage(pct - step) }
+                    CircleBtn(Icons.Filled.KeyboardArrowUp, ctx.theme) { setPercentage(pct + step) }
                 }
             }
             return
@@ -147,7 +148,7 @@ class FanCard : CardRenderer {
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF1B343D))
+                    .background(ctx.theme.cardSurface)
                     .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -157,20 +158,20 @@ class FanCard : CardRenderer {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(name, color = Color(0xFFE6F0F1), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text(name, color = ctx.theme.primaryText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 Box(
                     modifier =
                         Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(if (on) Color(0xFF1E3A2E) else Color(0xFF3A2E2E))
+                            .background(if (on) ctx.theme.success.copy(alpha = 0.25f) else ctx.theme.danger.copy(alpha = 0.25f))
                             .clickable { ctx.client.toggle(entityId) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Filled.PowerSettingsNew,
                         contentDescription = "Power",
-                        tint = if (on) Color(0xFF9BE7C4) else Color(0xFFE06767),
+                        tint = if (on) ctx.theme.success else ctx.theme.danger,
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -183,7 +184,7 @@ class FanCard : CardRenderer {
                     if (showCaptions) {
                         Text(
                             stringResource(R.string.fan_preset_caption),
-                            color = Color(0xFF6D8891),
+                            color = ctx.theme.mutedText,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                         )
@@ -198,6 +199,7 @@ class FanCard : CardRenderer {
                                     FanChip(
                                         label = m,
                                         selected = on && presetMode?.equals(m, ignoreCase = true) == true,
+                                        theme = ctx.theme,
                                         modifier = Modifier.weight(1f),
                                     ) { setPreset(m) }
                                 }
@@ -211,14 +213,14 @@ class FanCard : CardRenderer {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CircleBtn(Icons.Filled.KeyboardArrowDown) { setPercentage(percentage - step) }
+                    CircleBtn(Icons.Filled.KeyboardArrowDown, ctx.theme) { setPercentage(percentage - step) }
                     Text(
                         "$percentage%",
-                        color = Color(0xFFE6F0F1),
+                        color = ctx.theme.primaryText,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    CircleBtn(Icons.Filled.KeyboardArrowUp) { setPercentage(percentage + step) }
+                    CircleBtn(Icons.Filled.KeyboardArrowUp, ctx.theme) { setPercentage(percentage + step) }
                 }
             }
 
@@ -228,7 +230,7 @@ class FanCard : CardRenderer {
                     if (showCaptions) {
                         Text(
                             stringResource(R.string.fan_oscillate_caption),
-                            color = Color(0xFF6D8891),
+                            color = ctx.theme.mutedText,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                         )
@@ -238,6 +240,7 @@ class FanCard : CardRenderer {
                         // same concept (oscillation on/off), no need for a second key.
                         label = HaLabels.swingMode(if (oscillating) "on" else "off"),
                         selected = oscillating,
+                        theme = ctx.theme,
                         modifier = Modifier.fillMaxWidth(),
                     ) { setOscillate(!oscillating) }
                 }
@@ -252,6 +255,7 @@ private fun FanChip(
     label: String,
     selected: Boolean,
     modifier: Modifier,
+    theme: ThemeColors,
     onClick: () -> Unit,
 ) {
     Box(
@@ -259,13 +263,13 @@ private fun FanChip(
             modifier
                 .height(34.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(if (selected) Color(0xFF4C6EF5) else Color(0xFF23414B))
+                .background(if (selected) theme.accentSecondary else theme.controlBackground)
                 .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             label,
-            color = if (selected) Color.White else Color(0xFF93AFB6),
+            color = if (selected) Color.White else theme.mutedText,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
         )
@@ -292,6 +296,7 @@ private fun <T> balancedChunks(
 @Composable
 private fun CircleBtn(
     icon: ImageVector,
+    theme: ThemeColors,
     onClick: () -> Unit,
 ) {
     Box(
@@ -299,10 +304,10 @@ private fun CircleBtn(
             Modifier
                 .size(44.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF2C4C58))
+                .background(theme.controlBackground)
                 .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = Color(0xFFCBDCE0))
+        Icon(icon, contentDescription = null, tint = theme.iconTint)
     }
 }

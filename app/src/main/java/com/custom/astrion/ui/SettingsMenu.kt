@@ -64,13 +64,13 @@ fun SettingsMenu(ctx: CardContext) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF161616))
+            .background(LocalTheme.current.cardSurface)
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Text(
             stringResource(R.string.settings_title),
-            color = Color(0xFFE6E6E6),
+            color = LocalTheme.current.primaryText,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
         )
@@ -78,7 +78,7 @@ fun SettingsMenu(ctx: CardContext) {
         localIpAddress()?.let { ip ->
             Text(
                 if (ctx.configServerEnabled) "Local config: http://$ip:8080" else stringResource(R.string.config_server_off_hint),
-                color = if (ctx.configServerEnabled) Color(0xFF6EA8FE) else Color(0xFF9A9A9A),
+                color = if (ctx.configServerEnabled) LocalTheme.current.accent else LocalTheme.current.mutedText,
                 fontSize = 12.sp,
             )
         }
@@ -130,7 +130,7 @@ private fun ConnectionStatusRow(label: String, connected: Boolean, detail: Strin
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF232323))
+            .background(LocalTheme.current.controlBackground)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -139,11 +139,11 @@ private fun ConnectionStatusRow(label: String, connected: Boolean, detail: Strin
             modifier = Modifier
                 .size(10.dp)
                 .clip(CircleShape)
-                .background(if (connected) Color(0xFF4CAF50) else Color(0xFFE53935))
+                .background(if (connected) LocalTheme.current.success else LocalTheme.current.danger)
         )
-        Text(label, color = Color(0xFFCFCFCF), fontSize = 14.sp)
+        Text(label, color = LocalTheme.current.primaryText, fontSize = 14.sp)
         Spacer(Modifier.weight(1f))
-        Text(detail, color = Color(0xFF9A9A9A), fontSize = 13.sp)
+        Text(detail, color = LocalTheme.current.mutedText, fontSize = 13.sp)
     }
 }
 
@@ -161,10 +161,10 @@ private fun BrightnessSlider(activity: Activity?) {
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(Icons.Filled.BrightnessMedium, contentDescription = null, tint = Color(0xFF9A9A9A))
-            Text(stringResource(R.string.brightness), color = Color(0xFFCFCFCF), fontSize = 14.sp)
+            Icon(Icons.Filled.BrightnessMedium, contentDescription = null, tint = LocalTheme.current.mutedText)
+            Text(stringResource(R.string.brightness), color = LocalTheme.current.primaryText, fontSize = 14.sp)
             Spacer(Modifier.weight(1f))
-            Text("${(brightness / 255f * 100).toInt()}%", color = Color(0xFF9A9A9A), fontSize = 13.sp)
+            Text("${(brightness / 255f * 100).toInt()}%", color = LocalTheme.current.mutedText, fontSize = 13.sp)
         }
 
         if (!canWrite) {
@@ -195,9 +195,9 @@ private fun BrightnessSlider(activity: Activity?) {
                     }
                 },
                 colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFF6EA8FE),
-                    activeTrackColor = Color(0xFF6EA8FE),
-                    inactiveTrackColor = Color(0xFF2A2A2A),
+                    thumbColor = LocalTheme.current.accent,
+                    activeTrackColor = LocalTheme.current.accent,
+                    inactiveTrackColor = LocalTheme.current.controlBackground,
                 ),
             )
         }
@@ -211,13 +211,13 @@ private fun WakeOnMotionRow(ctx: CardContext) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(Icons.Filled.Vibration, contentDescription = null, tint = Color(0xFF9A9A9A))
-        Text(stringResource(R.string.wake_on_motion), color = Color(0xFFCFCFCF), fontSize = 14.sp)
+        Icon(Icons.Filled.Vibration, contentDescription = null, tint = LocalTheme.current.mutedText)
+        Text(stringResource(R.string.wake_on_motion), color = LocalTheme.current.primaryText, fontSize = 14.sp)
         Spacer(Modifier.weight(1f))
         Switch(
             checked = ctx.wakeOnMotionEnabled,
             onCheckedChange = { ctx.setWakeOnMotionEnabled(it) },
-            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF6EA8FE)),
+            colors = SwitchDefaults.colors(checkedTrackColor = LocalTheme.current.accent),
         )
     }
 }
@@ -239,18 +239,18 @@ private fun ConfigServerRow(ctx: CardContext) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(Icons.Filled.Wifi, contentDescription = null, tint = Color(0xFF9A9A9A))
-            Text(stringResource(R.string.config_server_toggle), color = Color(0xFFCFCFCF), fontSize = 14.sp)
+            Icon(Icons.Filled.Wifi, contentDescription = null, tint = LocalTheme.current.mutedText)
+            Text(stringResource(R.string.config_server_toggle), color = LocalTheme.current.primaryText, fontSize = 14.sp)
             Spacer(Modifier.weight(1f))
             Switch(
                 checked = ctx.configServerEnabled,
                 onCheckedChange = { ctx.setConfigServerEnabled(it) },
-                colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF6EA8FE)),
+                colors = SwitchDefaults.colors(checkedTrackColor = LocalTheme.current.accent),
             )
         }
         Text(
             stringResource(R.string.config_server_toggle_hint),
-            color = Color(0xFF7A7A7A),
+            color = LocalTheme.current.mutedText,
             fontSize = 11.sp,
         )
     }
@@ -262,14 +262,14 @@ private fun SettingRow(icon: ImageVector?, label: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF232323))
+            .background(LocalTheme.current.controlBackground)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        icon?.let { Icon(it, contentDescription = null, tint = Color(0xFF9A9A9A)) }
-        Text(label, color = Color(0xFFCFCFCF), fontSize = 14.sp)
+        icon?.let { Icon(it, contentDescription = null, tint = LocalTheme.current.mutedText) }
+        Text(label, color = LocalTheme.current.primaryText, fontSize = 14.sp)
     }
 }
 

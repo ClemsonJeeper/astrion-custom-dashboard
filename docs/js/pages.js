@@ -1,4 +1,4 @@
-let dashboardData = { startPage: 0, pages: [ { name: "Home", cards: [], hotkeys: [], longHotkeys: [] } ], hotkeys: [], longHotkeys: [], irDevices: [], activities: [] };
+let dashboardData = { startPage: 0, pages: [ { name: "Home", cards: [], hotkeys: [], longHotkeys: [] } ], hotkeys: [], longHotkeys: [], irDevices: [], activities: [], theme: {} };
 let currentActivePage = 0;
 let editingCard = null;    // index of the card being edited within the current page, or null
 let editingHotkey = null;  // { scope, listType, i } of the hotkey being edited, or null
@@ -25,7 +25,7 @@ function slugify(name, fallbackPrefix) {
 }
 
 function resetAll() {
-  dashboardData = { startPage: 0, pages: [ { name: "Home", cards: [], hotkeys: [], longHotkeys: [] } ], hotkeys: [], longHotkeys: [], irDevices: [], activities: [] };
+  dashboardData = { startPage: 0, pages: [ { name: "Home", cards: [], hotkeys: [], longHotkeys: [] } ], hotkeys: [], longHotkeys: [], irDevices: [], activities: [], theme: {} };
   currentActivePage = 0;
   document.getElementById('importBox').value = '';
   initEditor();
@@ -49,6 +49,7 @@ function importJson() {
       longHotkeys: parsed.longHotkeys || [],
       irDevices: parsed.irDevices || [],
       activities: parsed.activities || [],
+      theme: parsed.theme || {},
     };
     if (dashboardData.pages.length === 0) dashboardData.pages.push({ name: "Home", cards: [], hotkeys: [], longHotkeys: [] });
     currentActivePage = 0;
@@ -68,6 +69,8 @@ function initEditor() {
   renderHotkeysList();
   renderIrDevicesList();
   renderActivitiesList();
+  if (typeof renderThemeForm === 'function') renderThemeForm();
+  if (typeof applyThemeToPreview === 'function') applyThemeToPreview();
   updateJsonOutput();
   updateHotkeyActionInputs();
 }

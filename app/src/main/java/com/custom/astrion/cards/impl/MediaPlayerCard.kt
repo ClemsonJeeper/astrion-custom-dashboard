@@ -41,6 +41,7 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.icons.MdiIcons
 import kotlin.time.Duration.Companion.seconds
 
@@ -150,11 +151,11 @@ class MediaPlayerCard : CardRenderer {
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFF1B343D)),
+                        .background(ctx.theme.cardSurface),
             ) {
                 blurredBg?.let { bg ->
                     Image(bg, null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-                    Box(modifier = Modifier.matchParentSize().background(Color(0xB30D1E24)))
+                    Box(modifier = Modifier.matchParentSize().background(ctx.theme.background.copy(alpha = 0.7f)))
                 }
                 FullContent(ctx, e, entityId, title, subtitle ?: stateLabel, art, ::mp, topButtons, mediaControls, volumeControls)
             }
@@ -168,6 +169,7 @@ class MediaPlayerCard : CardRenderer {
                 art = art,
                 mediaControls = mediaControls,
                 volumeControls = volumeControls,
+                theme = ctx.theme,
                 onTap = { mp("media_play_pause") },
                 onLongPress = { showDetail = true },
                 mp = ::mp,
@@ -178,6 +180,7 @@ class MediaPlayerCard : CardRenderer {
                     name = title,
                     e = e,
                     client = ctx.client,
+                    theme = ctx.theme,
                     onClose = { showDetail = false },
                 )
             }
@@ -210,6 +213,7 @@ class MediaPlayerCard : CardRenderer {
         art: ImageBitmap?,
         mediaControls: List<String>,
         volumeControls: List<String>,
+        theme: ThemeColors,
         onTap: () -> Unit,
         onLongPress: () -> Unit,
         mp: (String, Array<out Pair<String, Any?>>) -> Unit,
@@ -235,7 +239,7 @@ class MediaPlayerCard : CardRenderer {
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF1E3841))
+                    .background(theme.controlBackground)
                     .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -249,13 +253,13 @@ class MediaPlayerCard : CardRenderer {
                 } else {
                     val isOff = e == null || e.state == "off" || e.isUnavailable
                     Box(
-                        avatarMod.background(if (isOff) Color(0xFF2A4954) else Color(0xFF4C6EF5)),
+                        avatarMod.background(if (isOff) theme.controlBackground else theme.accentSecondary),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             if (isOff) MdiIcons.CastOff else MdiIcons.Cast,
                             contentDescription = null,
-                            tint = if (isOff) Color(0xFFB6C9CE) else Color.White,
+                            tint = if (isOff) theme.iconTint else Color.White,
                             modifier = Modifier.size(20.dp),
                         )
                     }
@@ -264,7 +268,7 @@ class MediaPlayerCard : CardRenderer {
                 Column(Modifier.weight(1f)) {
                     Text(
                         title,
-                        color = Color(0xFFE6F0F1),
+                        color = theme.primaryText,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -272,7 +276,7 @@ class MediaPlayerCard : CardRenderer {
                     )
                     Text(
                         state,
-                        color = Color(0xFF93AFB6),
+                        color = theme.mutedText,
                         fontSize = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -288,14 +292,14 @@ class MediaPlayerCard : CardRenderer {
                 ) {
                     if (activeIsVolume) {
                         if (hasVolumeSlider) {
-                            VolumeSlider(entityId, e, Modifier.weight(1f)) { level ->
+                            VolumeSlider(entityId, e, Modifier.weight(1f), theme) { level ->
                                 mp("volume_set", arrayOf("volume_level" to level))
                             }
                         }
-                        volumeButtons.forEach { b -> TileButton(b.icon) { mp(b.action, b.data.toTypedArray()) } }
+                        volumeButtons.forEach { b -> TileButton(b.icon, theme = theme) { mp(b.action, b.data.toTypedArray()) } }
                     } else {
                         mediaButtons.forEach { b ->
-                            TileButton(b.icon, accent = b.active || b.action == "media_play" || b.action == "media_pause") {
+                            TileButton(b.icon, theme = theme, accent = b.active || b.action == "media_play" || b.action == "media_pause") {
                                 mp(b.action, b.data.toTypedArray())
                             }
                         }
@@ -309,7 +313,7 @@ class MediaPlayerCard : CardRenderer {
                         if (!(activeIsVolume && hasVolumeSlider)) {
                             Spacer(Modifier.weight(1f))
                         }
-                        TileButton(if (activeIsVolume) MdiIcons.Play else MdiIcons.VolumeHigh) {
+                        TileButton(if (activeIsVolume) MdiIcons.Play else MdiIcons.VolumeHigh, theme = theme) {
                             showVolume = !showVolume
                         }
                     }
@@ -321,6 +325,7 @@ class MediaPlayerCard : CardRenderer {
     @Composable
     private fun TileButton(
         icon: ImageVector,
+        theme: ThemeColors,
         accent: Boolean = false,
         onClick: () -> Unit,
     ) {
@@ -329,11 +334,11 @@ class MediaPlayerCard : CardRenderer {
                 Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (accent) Color(0xFF4C6EF5) else Color(0xFF23414B))
+                    .background(if (accent) theme.accentSecondary else theme.controlBackground)
                     .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = Color(0xFFE6F0F1), modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = theme.primaryText, modifier = Modifier.size(18.dp))
         }
     }
 
@@ -342,6 +347,7 @@ class MediaPlayerCard : CardRenderer {
         entityId: String,
         e: EntityState?,
         modifier: Modifier,
+        theme: ThemeColors,
         onCommit: (Float) -> Unit,
     ) {
         val level = (e?.attrDouble("volume_level") ?: 0.0).toFloat().coerceIn(0f, 1f)
@@ -352,7 +358,7 @@ class MediaPlayerCard : CardRenderer {
                 modifier
                     .height(36.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF152B33))
+                    .background(theme.insetSurface)
                     .pointerInput(entityId) {
                         detectHorizontalDragGestures(
                             onDragEnd = { dragLevel?.let(onCommit); dragLevel = null },
@@ -376,7 +382,7 @@ class MediaPlayerCard : CardRenderer {
                     .fillMaxHeight()
                     .fillMaxWidth(shown.coerceIn(0.02f, 1f))
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF4C6EF5)),
+                    .background(theme.accentSecondary),
             )
         }
     }
@@ -414,11 +420,11 @@ class MediaPlayerCard : CardRenderer {
                                     .weight(1f)
                                     .height(44.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0x662C4C58))
+                                    .background(ctx.theme.controlBackground.copy(alpha = 0.4f))
                                     .clickable { fireService(ctx, b) },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(b["name"] as? String ?: "", color = Color(0xFFE6F0F1), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                            Text(b["name"] as? String ?: "", color = ctx.theme.primaryText, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -430,13 +436,13 @@ class MediaPlayerCard : CardRenderer {
             } else {
                 val isOff = e == null || e.state == "off" || e.isUnavailable
                 Box(
-                    artMod.background(if (isOff) Color(0xFF3A2E5A) else Color(0xFF4C6EF5)),
+                    artMod.background(if (isOff) ctx.theme.controlBackground else ctx.theme.accentSecondary),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         if (isOff) MdiIcons.CastOff else MdiIcons.Cast,
                         contentDescription = null,
-                        tint = if (isOff) Color(0x99FFFFFF) else Color.White,
+                        tint = if (isOff) Color.White.copy(alpha = 0.6f) else Color.White,
                         modifier = Modifier.size(48.dp),
                     )
                 }
@@ -445,7 +451,7 @@ class MediaPlayerCard : CardRenderer {
             Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     title,
-                    color = Color(0xFFF1F4FA),
+                    color = ctx.theme.primaryText,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
@@ -455,7 +461,7 @@ class MediaPlayerCard : CardRenderer {
                 )
                 Text(
                     artist,
-                    color = Color(0xFFB6BECC),
+                    color = ctx.theme.mutedText,
                     fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -465,7 +471,7 @@ class MediaPlayerCard : CardRenderer {
             }
 
             if (e?.attrDouble("media_duration") != null) {
-                MediaProgressBar(e)
+                MediaProgressBar(e, ctx.theme)
             }
 
             if (mediaButtons.isNotEmpty()) {
@@ -476,7 +482,7 @@ class MediaPlayerCard : CardRenderer {
                 ) {
                     mediaButtons.forEach { b ->
                         val big = b.action == "media_play" || b.action == "media_pause"
-                        FullCircleControl(b.icon, if (big) 64.dp else 50.dp, accent = big || b.active) {
+                        FullCircleControl(b.icon, if (big) 64.dp else 50.dp, ctx.theme, accent = big || b.active) {
                             mp(b.action, b.data.toTypedArray())
                         }
                     }
@@ -490,18 +496,18 @@ class MediaPlayerCard : CardRenderer {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (hasVolumeSlider) {
-                        VolumeSlider(entityId, e, Modifier.weight(1f).height(44.dp)) { level ->
+                        VolumeSlider(entityId, e, Modifier.weight(1f).height(44.dp), ctx.theme) { level ->
                             mp("volume_set", arrayOf("volume_level" to level))
                         }
                     }
-                    volumeButtons.forEach { b -> FullCircleControl(b.icon, 44.dp) { mp(b.action, b.data.toTypedArray()) } }
+                    volumeButtons.forEach { b -> FullCircleControl(b.icon, 44.dp, ctx.theme) { mp(b.action, b.data.toTypedArray()) } }
                 }
             }
         }
     }
 
     @Composable
-    private fun MediaProgressBar(e: EntityState) {
+    private fun MediaProgressBar(e: EntityState, theme: ThemeColors) {
         val duration = e.attrDouble("media_duration") ?: 0.0
         // Keyed on the raw JsonElement's string form, not attrString() —
         // Kodi reports media_content_id as a nested JsonObject
@@ -527,19 +533,19 @@ class MediaPlayerCard : CardRenderer {
                         .fillMaxWidth()
                         .height(4.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(Color(0x33FFFFFF)),
+                        .background(Color.White.copy(alpha = 0.2f)),
             ) {
                 Box(
                     Modifier
                         .fillMaxHeight()
                         .fillMaxWidth(fraction.coerceAtLeast(0.01f))
                         .clip(RoundedCornerShape(2.dp))
-                        .background(Color(0xFF4C6EF5)),
+                        .background(theme.accentSecondary),
                 )
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(formatMediaTime(elapsed), color = Color(0xFF93AFB6), fontSize = 11.sp)
-                Text(formatMediaTime(duration), color = Color(0xFF93AFB6), fontSize = 11.sp)
+                Text(formatMediaTime(elapsed), color = theme.mutedText, fontSize = 11.sp)
+                Text(formatMediaTime(duration), color = theme.mutedText, fontSize = 11.sp)
             }
         }
     }
@@ -548,6 +554,7 @@ class MediaPlayerCard : CardRenderer {
     private fun FullCircleControl(
         icon: ImageVector,
         size: Dp,
+        theme: ThemeColors,
         accent: Boolean = false,
         onClick: () -> Unit,
     ) {
@@ -556,7 +563,7 @@ class MediaPlayerCard : CardRenderer {
                 Modifier
                     .size(size)
                     .clip(CircleShape)
-                    .background(if (accent) Color(0xFF4C6EF5) else Color(0x552C4C58))
+                    .background(if (accent) theme.accentSecondary else theme.controlBackground.copy(alpha = 0.33f))
                     .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
