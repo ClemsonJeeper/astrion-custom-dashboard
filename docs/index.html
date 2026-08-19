@@ -283,6 +283,7 @@
           <option value="fan">Fan (fan)</option>
           <option value="climate">Climate (climate)</option>
           <option value="source_select">Source selector (source_select)</option>
+          <option value="select">Select / dropdown (select)</option>
         </optgroup>
         <optgroup label="Grids">
           <option value="button_grid">Button grid (button_grid)</option>
@@ -321,6 +322,9 @@
     <div class="section-box">
       <label>Page name</label>
       <input type="text" id="pageDialogName" placeholder="e.g., Living Room, Apple TV...">
+      <label style="margin-top:10px">Parent page (optional)</label>
+      <select id="pageDialogParent"></select>
+      <div class="hint" style="margin-top:4px">Makes this a child page — navigate to it via a card's own "Page to open" (e.g. a scene_grid tile), and the hardware BACK key jumps back to the parent automatically.</div>
       <label class="inline-check" style="margin-top:10px"><input type="checkbox" id="pageDialogStart"> Start page (shown on launch)</label>
       <div class="btn-row" style="margin-top:12px">
         <button onclick="savePageDialog()">Save</button>

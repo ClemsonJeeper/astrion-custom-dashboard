@@ -9,7 +9,8 @@ function renderTabs() {
     tab.className = `tab ${isActive ? 'active' : ''}`;
 
     const label = document.createElement('span');
-    label.textContent = page.name + (index === dashboardData.startPage ? ' 🏠' : '');
+    label.textContent = (page.parent ? '↳ ' : '') + page.name + (index === dashboardData.startPage ? ' 🏠' : '');
+    if (page.parent) label.title = `Child of "${page.parent}"`;
     tab.appendChild(label);
     tab.onclick = () => onPageChange(index);
 
@@ -407,6 +408,64 @@ function renderPreview() {
           <div class="card-title"><span>cover</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
           ${bodyHtml}
           <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'cover.entity'} · Layout: ${layout} · Controls: ${enabledControls.join(', ') || 'none'} · example data (${COVER_MOCK.friendly_name}, ${position}% open${ctrlTilt ? `, tilt ${tilt}%` : ''})</div>
+        </div>`;
+    } else if (card.type === 'select') {
+      const o = card.options || {};
+      const name = o.name || o.entity_id || SELECT_MOCK.friendly_name;
+      const options = SELECT_MOCK.options;
+      const current = SELECT_MOCK.state;
+      const stateLabel = current || (options.length ? 'Select…' : 'No options');
+      const layout = (o.layout === 'horizontal' || o.layout === 'vertical') ? o.layout : 'default';
+      const iconColor = parseHexColorCss(o.icon_color);
+      const iconBg = iconColor ? `${iconColor}33` : '#2A4954';
+      const iconTint = iconColor || '#B6C9CE';
+
+      const iconHtml = (big) => `<div class="pc-icon pl-icon${big ? ' pc-icon-lg' : ''}" style="background:${iconBg}; color:${iconTint}">${mdiSvg(MDI.list)}</div>`;
+      const nameStateHtml = (center) => `
+        <div class="pc-namestate${center ? ' pc-center' : ''}">
+          <div class="pc-name">${name}</div>
+          <div class="pc-state">${stateLabel}</div>
+        </div>`;
+      // Mirrors SelectCard.kt's SelectMenuControl: a rounded pill showing
+      // the current option + a dropdown chevron — reuses .pc-slider's
+      // pill shape (no fill bar though, this control has no "amount").
+      const controlHtml = `
+        <div class="pc-slider" style="background:#152B33; justify-content:space-between; padding:0 12px; box-sizing:border-box;">
+          <span class="pc-slider-label" style="position:static;">${current || '—'}</span>
+          <span class="pc-slider-label" style="position:static; opacity:0.7;">▾</span>
+        </div>`;
+
+      let bodyHtml;
+      if (layout === 'horizontal') {
+        bodyHtml = `
+          <div class="preview-cover layout-horizontal">
+            ${iconHtml(false)}
+            <div style="flex:1; min-width:0;">${nameStateHtml(false)}</div>
+            <div style="width:140px;">${controlHtml}</div>
+          </div>`;
+      } else if (layout === 'vertical') {
+        bodyHtml = `
+          <div class="preview-cover layout-vertical">
+            ${iconHtml(true)}
+            ${nameStateHtml(true)}
+            ${controlHtml}
+          </div>`;
+      } else {
+        bodyHtml = `
+          <div class="preview-cover layout-default">
+            <div style="display:flex; align-items:center; gap:12px;">
+              ${iconHtml(false)}
+              ${nameStateHtml(false)}
+            </div>
+            ${controlHtml}
+          </div>`;
+      }
+
+      cardEl.innerHTML = `
+        <div class="card">
+          <div class="card-title"><span>select</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
+          ${bodyHtml}
+          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'input_select.entity'} · Layout: ${layout} · example data (${SELECT_MOCK.friendly_name}: ${options.join(', ')})</div>
         </div>`;
     } else if (card.type === 'light') {
       const o = card.options || {};

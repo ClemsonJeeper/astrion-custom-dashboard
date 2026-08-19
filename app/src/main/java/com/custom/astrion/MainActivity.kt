@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
+import com.custom.astrion.config.ActivityRuntime
 import com.custom.astrion.config.DashboardConfig
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HotkeyConfig
@@ -57,7 +58,7 @@ import kotlin.math.sqrt
 class MainActivity : ComponentActivity() {
 
     private companion object {
-        const val DEBUG_KEYS = true
+        const val DEBUG_KEYS = false
         const val KEY_TAG = "AstrionKeys"
         const val LONG_PRESS_MS = 1500L
         const val MOTION_THRESHOLD = 0.9f
@@ -100,6 +101,21 @@ class MainActivity : ComponentActivity() {
     }
 
     private lateinit var configServer: ConfigServer
+
+    /** Latest [ActivityRuntime] handed up from Dashboard.kt's own
+     * `remember(config) { ActivityRuntime(config) }` (see its
+     * onActivityRuntimeReady doc) — ConfigServer reads this lazily via a
+     * lambda so it always sees the current instance, including across a
+     * dashboard.json reload. Null only for the brief window before the
+     * first composition runs. */
+    private var activityRuntime: ActivityRuntime? = null
+
+    /** Live start/stop-activity functions handed up from Dashboard.kt the
+     * same way — they close over Compose-scoped state (activitiesById,
+     * harmonyRegistry, client) that MainActivity itself doesn't have direct
+     * access to. */
+    private var startActivityFn: ((String) -> Unit)? = null
+    private var stopActivityFn: ((String) -> Unit)? = null
     private val keyRouter = HardwareKeyRouter()
     private var dashboard by mutableStateOf(DashboardLoader.Result(DashboardConfig.default, null))
     private var navTarget by mutableStateOf<Int?>(null)
@@ -177,6 +193,15 @@ class MainActivity : ComponentActivity() {
             harmonyRegistry = harmonyRegistry,
             onConnectionSaved = { runOnUiThread { reconnectWithNewSettings() } },
             onDashboardUpdated = { runOnUiThread { reloadDashboard() } },
+            getPageNames = { dashboard.config.pages.map { it.name } },
+            getCurrentPageIndex = { currentPageIndex },
+            // Reuses the exact mechanism hardware shortcut buttons already use
+            // (see runHotkey's `hk.page` branch): set navTarget, Dashboard's
+            // LaunchedEffect(navTarget) does the scrollToPage + clears it.
+            onSetPage = { index -> runOnUiThread { navTarget = index } },
+            getActivityRuntime = { activityRuntime },
+            onStartActivity = { id -> runOnUiThread { startActivityFn?.invoke(id) } },
+            onStopActivity = { room -> runOnUiThread { stopActivityFn?.invoke(room) } },
         )
     }
 
@@ -219,12 +244,28 @@ class MainActivity : ComponentActivity() {
                 setWakeOnMotionEnabled = { enabled -> setWakeOnMotion(enabled) },
                 configServerEnabled = configServerEnabled,
                 setConfigServerEnabled = { enabled -> updateConfigServerEnabled(enabled) },
+                onActivityRuntimeReady = { activityRuntime = it },
+                onStartActivityReady = { fn -> startActivityFn = fn },
+                onStopActivityReady = { fn -> stopActivityFn = fn },
             )
         }
     }
 
+    /**
+     * Only reached when the current page's own hotkeys don't already claim
+     * BACK — `dispatchKeyEvent` checks `keyRouter` first and consumes the
+     * event there if any hotkey (global or page-specific, AV or otherwise)
+     * is bound to it, so this fallback can never steal BACK from an AV
+     * page. When the current page has a [PageConfig.parent], jump there —
+     * the same navTarget mechanism `runHotkey`'s own page-navigation branch
+     * uses. A root page (no parent) keeps today's behavior: do nothing,
+     * so the launcher itself is never dismissed by BACK.
+     */
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
+        val parentName = dashboard.config.pages.getOrNull(currentPageIndex)?.parent ?: return
+        val idx = dashboard.config.pages.indexOfFirst { it.name.equals(parentName, ignoreCase = true) }
+        if (idx >= 0) navTarget = idx
     }
 
     override fun onResume() {

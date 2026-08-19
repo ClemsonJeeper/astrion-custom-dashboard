@@ -10,6 +10,7 @@ import android.util.Log
 import androidx.core.net.toUri
 import com.custom.astrion.BuildConfig
 import com.custom.astrion.R
+import com.custom.astrion.config.ActivityRuntime
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HarmonyHubConfig
 import com.custom.astrion.config.RemoteSettings
@@ -54,6 +55,43 @@ import java.util.UUID
  *                        device (/builder/)
  *  GET  /check-update     check this project's GitHub Releases for a newer build
  *  POST /install-update   download the newer APK and open the system installer
+ *  GET  /pages            list this device's dashboard pages (id + name), in
+ *                        pager order — lets a remote controller (e.g. the
+ *                        Home Assistant "astrion" integration) discover what
+ *                        it can navigate to without hardcoding page names
+ *  GET  /current-page     the page currently visible on screen, as JSON
+ *                        {"index":N,"name":"..."} — polled by HA to keep a
+ *                        select entity's state in sync with on-device swipes
+ *  POST /set-page         jump the dashboard to a page by name (form field
+ *                        `page`, case-insensitive) — the remote-control
+ *                        counterpart of a hardware shortcut button or a
+ *                        card's navigateToPage(); same instant scrollToPage,
+ *                        no visible scroll through intermediate pages
+ *  GET  /version            `{"version","versionCode"}` — the installed
+ *                        app's own version, static per build.
+ *  GET  /activities        every trackable Activity (`"track": true` tile,
+ *                        hotkey, or composed AppConfig.activities entry),
+ *                        as JSON `[{"id","name","room","icon"},...]` — lets
+ *                        a remote controller build one picker per room
+ *                        without parsing dashboard.json itself
+ *  GET  /activities/active which Activity is active in each room right now,
+ *                        as JSON `{"<room>": {"id","name"} | null, ...}` —
+ *                        polled by HA to keep a per-room select/sensor in
+ *                        sync with taps made on the device itself, another
+ *                        remote, or the physical Harmony remote
+ *  POST /activities/start start an Activity by id (form field `id`) — same
+ *                        effect as tapping its tile, works for both a
+ *                        composed Activity and a lightweight `track: true`
+ *                        one with a Harmony activityId
+ *  POST /activities/stop  stop whichever Activity is active in a room (form
+ *                        field `room`) without starting another. For a
+ *                        Harmony-backed Activity this sends PowerOff to
+ *                        *that Activity's own hub only* — Harmony has no
+ *                        per-Activity stop command, a hub always runs
+ *                        exactly one Activity, so this is the narrowest
+ *                        possible "stop" and never touches a different
+ *                        room's hub. This is the piece a plain hardware
+ *                        "turn everything off" button doesn't give you.
  *
  * Deliberately has no auth — this device is assumed to live on a trusted
  * home LAN, the same assumption Home Assistant itself makes for local
@@ -64,6 +102,27 @@ class ConfigServer(
     private val harmonyRegistry: HarmonyHubRegistry,
     private val onConnectionSaved: () -> Unit,
     private val onDashboardUpdated: () -> Unit,
+    /** Current dashboard's page names, in pager order — read fresh on every
+     * request so /pages and /set-page always reflect whatever dashboard.json
+     * is loaded right now, without ConfigServer holding its own stale copy. */
+    private val getPageNames: () -> List<String>,
+    /** Index of the page currently visible in the pager, or null if unknown
+     * (e.g. before the first frame). Backs GET /current-page. */
+    private val getCurrentPageIndex: () -> Int?,
+    /** Requests a jump to the page at this index — same navTarget mechanism
+     * MainActivity already uses for hardware shortcut buttons. Returns
+     * nothing; the pager applies it on the main thread on its own schedule. */
+    private val onSetPage: (Int) -> Unit,
+    /** Read fresh on every request, same reasoning as [getPageNames] — null
+     * for the brief window before Dashboard.kt's first composition hands
+     * one up (see MainActivity's own doc comment on its `activityRuntime`
+     * field). Backs /activities and /activities/active. */
+    private val getActivityRuntime: () -> ActivityRuntime?,
+    /** Starts an Activity by id — the remote-control counterpart of tapping
+     * its tile. Backs POST /activities/start. */
+    private val onStartActivity: (activityId: String) -> Unit,
+    /** Stops whichever Activity is active in a room. Backs POST /activities/stop. */
+    private val onStopActivity: (room: String) -> Unit,
 ) : NanoHTTPD(8080) {
     @Volatile private var lastResult: UpdateChecker.CheckResult? = null
 
@@ -90,6 +149,14 @@ class ConfigServer(
                 "/save-connection" -> if (method == Method.POST) handleSaveConnection(session) else methodNotAllowed()
                 "/icons" -> if (method == Method.POST) handleIconUpload(session) else methodNotAllowed()
                 "/install-update" -> if (method == Method.POST) handleInstallUpdate() else methodNotAllowed()
+                "/pages" -> if (method == Method.GET) servePages() else methodNotAllowed()
+                "/current-page" -> if (method == Method.GET) serveCurrentPage() else methodNotAllowed()
+                "/version" -> if (method == Method.GET) serveVersion() else methodNotAllowed()
+                "/set-page" -> if (method == Method.POST) handleSetPage(session) else methodNotAllowed()
+                "/activities" -> if (method == Method.GET) serveActivities() else methodNotAllowed()
+                "/activities/active" -> if (method == Method.GET) serveActiveActivities() else methodNotAllowed()
+                "/activities/start" -> if (method == Method.POST) handleStartActivity(session) else methodNotAllowed()
+                "/activities/stop" -> if (method == Method.POST) handleStopActivity(session) else methodNotAllowed()
                 else ->
                     when {
                         uri.startsWith("/builder/") -> if (method == Method.GET) serveBuilderAsset(uri) else methodNotAllowed()
@@ -578,6 +645,169 @@ class ConfigServer(
             runBlocking { HarmonyHubDiscovery.discoverHubId(ip) }
                 ?: return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", """{"error":"could not reach hub at $ip, or unexpected response"}""")
         return newFixedLengthResponse(Response.Status.OK, "application/json", """{"hubId":"$hubId"}""")
+    }
+
+    // ---- remote page control ---------------------------------------------
+
+    /**
+     * Lists the current dashboard's pages (index + name), in pager order —
+     * lets a remote controller (e.g. Home Assistant's "astrion" integration)
+     * build a picker without hardcoding page names, and stay correct across
+     * a dashboard.json reload.
+     */
+    private fun servePages(): Response {
+        val json =
+            JSONArray().apply {
+                getPageNames().forEachIndexed { index, name ->
+                    put(JSONObject().apply { put("index", index); put("name", name) })
+                }
+            }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
+    }
+
+    /** The page currently visible on screen, so a remote select entity can
+     * stay in sync with swipes/hardware nav that happen on the device itself. */
+    private fun serveCurrentPage(): Response {
+        val names = getPageNames()
+        val index = getCurrentPageIndex()
+        val json =
+            JSONObject().apply {
+                put("index", index)
+                put("name", index?.let { names.getOrNull(it) })
+            }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
+    }
+
+    /**
+     * Jumps the dashboard to a page by name (case-insensitive), the same
+     * `PageConfig.name` used by hardware shortcut buttons and a card's
+     * navigateToPage() — POST body/query field `page`. Applied asynchronously
+     * on the main thread via onSetPage(); this only validates the name exists
+     * and returns immediately, it doesn't wait for the pager to finish.
+     */
+    private fun handleSetPage(session: IHTTPSession): Response {
+        val files = HashMap<String, String>()
+        session.parseBody(files) // populates session.parameters for an urlencoded POST, same as handleSaveConnection
+        val requested = session.parameters["page"]?.firstOrNull()?.trim()
+        if (requested.isNullOrBlank()) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", """{"error":"missing 'page'"}""")
+        }
+        val names = getPageNames()
+        val index = names.indexOfFirst { it.equals(requested, ignoreCase = true) }
+        if (index < 0) {
+            return newFixedLengthResponse(
+                Response.Status.NOT_FOUND,
+                "application/json",
+                """{"error":"no page named '$requested'","pages":${JSONArray(names)}}""",
+            )
+        }
+        onSetPage(index)
+        val json = JSONObject().apply { put("status", "ok"); put("index", index); put("name", names[index]) }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
+    }
+
+    /** The installed app version — lets a remote controller (the Home
+     * Assistant integration's `update.*` entity, primarily) know what's
+     * currently running without needing adb/logcat access to the device.
+     * Static per build, no dependency on the dashboard being composed yet
+     * (unlike the /activities* routes), so this always answers. */
+    private fun serveVersion(): Response {
+        val json =
+            JSONObject().apply {
+                put("version", BuildConfig.VERSION_NAME)
+                put("versionCode", BuildConfig.VERSION_CODE)
+            }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
+    }
+
+    // ---- activities -------------------------------------------------------
+
+    private fun activitiesUnavailable(): Response =
+        newFixedLengthResponse(
+            Response.Status.INTERNAL_ERROR,
+            "application/json",
+            """{"error":"dashboard not composed yet, try again shortly"}""",
+        )
+
+    /** Every trackable Activity, in [ActivityRuntime.all] order — same
+     * shape regardless of whether it's a composed Activity or a lightweight
+     * `track: true` tile, so a remote controller doesn't need to know which. */
+    private fun serveActivities(): Response {
+        val runtime = getActivityRuntime() ?: return activitiesUnavailable()
+        val json =
+            JSONArray().apply {
+                runtime.all.forEach { a ->
+                    put(
+                        JSONObject().apply {
+                            put("id", a.id)
+                            put("name", a.name)
+                            put("room", a.room)
+                            put("icon", a.icon)
+                        },
+                    )
+                }
+            }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
+    }
+
+    /** Which Activity is active in each room right now — `null` for a room
+     * with nothing running. Every room that has at least one trackable
+     * Activity gets a key here, even when currently off, so a poller can
+     * discover the full room list from this one endpoint alone. */
+    private fun serveActiveActivities(): Response {
+        val runtime = getActivityRuntime() ?: return activitiesUnavailable()
+        val rooms = runtime.all.map { it.room }.distinct()
+        val json =
+            JSONObject().apply {
+                rooms.forEach { room ->
+                    val active = runtime.activeActivity(room)
+                    put(
+                        room,
+                        if (active == null) {
+                            JSONObject.NULL
+                        } else {
+                            JSONObject().apply { put("id", active.id); put("name", active.name) }
+                        },
+                    )
+                }
+            }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
+    }
+
+    private fun handleStartActivity(session: IHTTPSession): Response {
+        val runtime = getActivityRuntime() ?: return activitiesUnavailable()
+        val files = HashMap<String, String>()
+        session.parseBody(files)
+        val id = session.parameters["id"]?.firstOrNull()?.trim()
+        if (id.isNullOrBlank()) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", """{"error":"missing 'id'"}""")
+        }
+        if (runtime.all.none { it.id == id }) {
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", """{"error":"no activity with id '$id'"}""")
+        }
+        onStartActivity(id)
+        return newFixedLengthResponse(Response.Status.OK, "application/json", """{"status":"ok","id":"$id"}""")
+    }
+
+    /**
+     * Stops whichever Activity is active in `room` (form field `room`).
+     * Unlike /activities/start, this doesn't 404 when the room is already
+     * off — stopping an already-stopped room is a no-op, not an error, so
+     * an HA select entity's "Off" option can be selected idempotently.
+     */
+    private fun handleStopActivity(session: IHTTPSession): Response {
+        val runtime = getActivityRuntime() ?: return activitiesUnavailable()
+        val files = HashMap<String, String>()
+        session.parseBody(files)
+        val room = session.parameters["room"]?.firstOrNull()?.trim()
+        if (room.isNullOrBlank()) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", """{"error":"missing 'room'"}""")
+        }
+        if (runtime.all.none { it.room == room }) {
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", """{"error":"no such room '$room'"}""")
+        }
+        onStopActivity(room)
+        return newFixedLengthResponse(Response.Status.OK, "application/json", """{"status":"ok","room":"$room"}""")
     }
 
     // ---- actions --------------------------------------------------------------
