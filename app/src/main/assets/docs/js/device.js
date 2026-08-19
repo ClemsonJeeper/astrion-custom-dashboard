@@ -7,6 +7,21 @@
 
 let deviceModeAvailable = false; // true once we've confirmed we're being served by the app
 
+// Slide-up toast notification. Replaces the blocking alert() that "Save to
+// device" used to pop — non-modal, auto-dismisses (3s success / 5s error),
+// falls back to alert() if the #toast element isn't present.
+let _toastTimer = null;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  if (!el) { alert(msg); return; }
+  el.textContent = msg;
+  el.className = 'toast' + (type === 'error' ? ' error' : '');
+  void el.offsetWidth; // restart transition if a toast is already showing
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), type === 'error' ? 5000 : 3000);
+}
+
 async function loadDashboardFromDevice() {
   try {
     const res = await fetch('/dashboard.json');
@@ -52,7 +67,7 @@ async function saveDashboardToDevice() {
   try {
     JSON.parse(jsonText); // fail fast with a clear message rather than let the app reject a bad upload silently
   } catch (e) {
-    alert('Invalid JSON: ' + e.message);
+    showToast('Invalid JSON: ' + e.message, 'error');
     return;
   }
   const btn = document.getElementById('saveToDeviceBtn');
@@ -64,9 +79,9 @@ async function saveDashboardToDevice() {
     form.append('file', new Blob([jsonText], { type: 'application/json' }), 'dashboard.json');
     const res = await fetch('/dashboard.json', { method: 'POST', body: form });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    alert('Saved to this device — the dashboard reloads automatically.');
+    showToast('Saved — the dashboard reloads automatically.');
   } catch (e) {
-    alert('Save failed: ' + e);
+    showToast('Save failed: ' + e, 'error');
   } finally {
     btn.textContent = originalText;
     btn.disabled = false;
