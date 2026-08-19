@@ -187,3 +187,25 @@ function deletePageFromDialog() {
   closePageDialog();
   renderTabs(); renderPreview(); renderHotkeysList(); updateJsonOutput();
 }
+
+// Reorder a page from fromIdx to toIdx by dragging its tab. Mirrors
+// reorderCard() but operates on dashboardData.pages and fixes the two
+// positional indices that reference pages by number: startPage (the launch
+// page) and currentActivePage (the tab being viewed in the editor). Both must
+// follow the page they point to across the splice, otherwise a drag would
+// silently change which page launches at boot or which one is shown.
+function reorderPage(fromIdx, toIdx) {
+  const pages = dashboardData.pages;
+  if (fromIdx < 0 || fromIdx >= pages.length || toIdx < 0 || toIdx >= pages.length || fromIdx === toIdx) return;
+  const [moved] = pages.splice(fromIdx, 1);
+  pages.splice(toIdx, 0, moved);
+  const fixIndex = (i) => {
+    if (i === fromIdx) return toIdx;
+    if (fromIdx < toIdx) { if (i > fromIdx && i <= toIdx) return i - 1; }
+    else { if (i >= toIdx && i < fromIdx) return i + 1; }
+    return i;
+  };
+  dashboardData.startPage = fixIndex(dashboardData.startPage);
+  currentActivePage = fixIndex(currentActivePage);
+  renderTabs(); renderPreview(); renderHotkeysList(); updateJsonOutput();
+}
