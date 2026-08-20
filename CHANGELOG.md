@@ -3,6 +3,27 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.0]
+
+### Added
+
+- **Camera card.** New `camera` card type for displaying a Home Assistant `camera.*` feed, in two modes: live stream (MJPEG, with automatic fallback to still snapshots if the stream stalls) or snapshot-only (still frame refreshed at a configurable interval). Aspect ratio and fit (cover/contain) are configurable. Tapping the card opens a fullscreen viewer with pinch-to-zoom (1x–8x) and pan, without interrupting the live stream. ([#8](../../pull/8) by [@ClemsonJeeper](https://github.com/ClemsonJeeper))
+- **Configurable theme colors.** The app's color palette (12 semantic tokens: backgrounds, text, icons, accents, state colors) is now configurable via `dashboard.json`, with a new "Theme & Colors" section in the web editor to adjust it visually (swatch + hex field + per-token reset) without touching the JSON. An empty theme block reproduces the original palette. Existing color fields (`SwitchCard.on_color`, per-scene color in `SceneGridCard`) now use the same color picker. ([#11](../../pull/11) by [@ClemsonJeeper](https://github.com/ClemsonJeeper))
+- **Drag-to-reorder page tabs** in the web editor, alongside the existing card reordering. Editor-only, no native app changes. ([#10](../../pull/10) by [@ClemsonJeeper](https://github.com/ClemsonJeeper))
+- **Toast notifications.** The "Save to device" confirmation in the editor now uses a non-blocking, auto-dismissing toast instead of a modal `alert()`, matching the editor's other inline feedback (icon upload, Harmony discovery, etc.). ([#9](../../pull/9) by [@ClemsonJeeper](https://github.com/ClemsonJeeper))
+
+### Internal
+
+- Migrated all hardcoded `Color(0x...)` literals in Compose UI to the new theme system (`ThemeColors` / `LocalTheme`), across every card and screen (dashboard, settings, status bar, overlays).
+- `HaClient`: new dedicated HTTP client with no timeout for long-lived MJPEG streaming, plus a raw-bytes fetch method.
+- `ConfigServer`: new `GET /camera-snapshot` endpoint proxying a single HA camera frame to the web editor (the browser has no HA token of its own).
+
+### Fixed
+
+- Weather forecast bar (Clock & Weather card) rendered as a flat color instead of a two-tone gradient — restored using `theme.success` at two alpha levels.
+- Compact Fan card layout used the same background color for on/off — on now uses `theme.success` at low alpha, matching the pattern already used elsewhere in the same card and in `ClimateCard`.
+- Connection banner no longer distinguished "connecting" from "disconnected" (both used `controlBackground`) — connecting now uses `theme.accentSecondary`, keeping `danger` for the failure states and `controlBackground` for disconnected.
+
 ## [0.9.0] - 2026-08-19
 
 ### Added

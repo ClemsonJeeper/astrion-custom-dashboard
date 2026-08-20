@@ -804,7 +804,7 @@ private fun ConnectionBanner(connection: ConnectionState) {
     if (connection == ConnectionState.CONNECTED) return
     val (label, color) = when (connection) {
         ConnectionState.CONNECTING,
-        ConnectionState.AUTHENTICATING -> "Connecting…" to LocalTheme.current.controlBackground
+        ConnectionState.AUTHENTICATING -> "Connecting…" to LocalTheme.current.accentSecondary
         ConnectionState.AUTH_FAILED -> "Auth failed — check token" to LocalTheme.current.danger
         ConnectionState.ERROR -> "Connection error — retrying" to LocalTheme.current.danger
         else -> "Disconnected" to LocalTheme.current.controlBackground

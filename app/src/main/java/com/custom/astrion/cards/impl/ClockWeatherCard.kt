@@ -210,7 +210,7 @@ class ClockWeatherCard : CardRenderer {
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(
                                     Brush.horizontalGradient(
-                                        listOf(theme.success, theme.success),
+                                        listOf(theme.success, theme.success.copy(alpha = 0.55f)),
                                     ),
                                 ),
                     )
