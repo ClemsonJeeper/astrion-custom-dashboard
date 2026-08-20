@@ -118,7 +118,7 @@ class FanCard : CardRenderer {
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(18.dp))
-                        .background(if (on) ctx.theme.controlBackground else ctx.theme.controlBackground)
+                        .background(if (on) ctx.theme.success.copy(alpha = 0.25f) else ctx.theme.controlBackground)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
