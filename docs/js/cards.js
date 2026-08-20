@@ -159,9 +159,14 @@ function updateCardFormInputs() {
         <option value="full">Full (presets + oscillate)</option>
       </select>
       <label>Preset modes override (optional, comma-separated, in display order — normally read from the entity)</label><input type="text" id="optFanPresetModes" placeholder="Level 1,Level 2,Level 3,Level 4">
+      <div id="fanStepWrap">
+        <label>Percentage step (simple/full layouts)</label><input type="number" id="optFanStep" value="20" min="1" max="100">
+      </div>
       <label><input type="checkbox" id="optFanShowCaptions" checked> Show captions ("Preset"/"Oscillate") above chip rows</label>
       <div class="hint">"Auto" shows the full layout (power button, presets, oscillate toggle) whenever the entity reports preset_modes or an oscillating attribute; otherwise it falls back to the simple percentage tile. "Step" uses HA's increase/decrease speed services. Force one with Layout above.</div>
     `;
+    document.getElementById('optFanStyle').addEventListener('change', updateFanStepVisibility);
+    updateFanStepVisibility();
   } else if (type === 'climate') {
     container.innerHTML = `
       <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room AC">
@@ -298,6 +303,16 @@ function updateMediaTopButtonsVisibility() {
   const field = document.getElementById('mediaTopButtonsField');
   if (!variantEl || !field) return;
   field.style.display = variantEl.value === 'full' ? '' : 'none';
+}
+
+// fan card: percentage step only applies to simple/full layouts — the
+// "step" style uses HA's increase_speed/decrease_speed services, so there's
+// no numeric step to configure.
+function updateFanStepVisibility() {
+  const styleEl = document.getElementById('optFanStyle');
+  const wrap = document.getElementById('fanStepWrap');
+  if (!styleEl || !wrap) return;
+  wrap.style.display = styleEl.value === 'step' ? 'none' : '';
 }
 
 let editingGridItem = null; // index of the button/scene being edited within _pendingGridItems, or null
@@ -685,6 +700,8 @@ function fillCardForm(card) {
     document.getElementById('optEntityId').value = o.entity_id || '';
     document.getElementById('optFanStyle').value = ['simple', 'step', 'full'].includes(o.style) ? o.style : 'auto';
     document.getElementById('optFanPresetModes').value = (o.preset_modes || []).join(',');
+    document.getElementById('optFanStep').value = o.step ?? 20;
+    updateFanStepVisibility();
     document.getElementById('optFanShowCaptions').checked = o.show_captions !== false;
   } else if (type === 'climate') {
     document.getElementById('optName').value = o.name || '';
@@ -867,6 +884,8 @@ function addCardToPage() {
     if (document.getElementById('optFanStyle').value !== 'auto') newCard.options.style = document.getElementById('optFanStyle').value;
     const presetModes = document.getElementById('optFanPresetModes').value.trim();
     if (presetModes) newCard.options.preset_modes = presetModes.split(',').map(s => s.trim()).filter(Boolean);
+    const step = parseInt(document.getElementById('optFanStep').value, 10);
+    if (!isNaN(step) && step !== 20) newCard.options.step = step;
     if (!document.getElementById('optFanShowCaptions').checked) newCard.options.show_captions = false;
   } else if (type === 'climate') {
     newCard.options.name = document.getElementById('optName').value || 'Climate';
