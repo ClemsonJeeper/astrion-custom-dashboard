@@ -3,7 +3,7 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.0.0]
+## [1.0.0] - 2026-08-XX
 
 ### Added
 
@@ -11,12 +11,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Configurable theme colors.** The app's color palette (12 semantic tokens: backgrounds, text, icons, accents, state colors) is now configurable via `dashboard.json`, with a new "Theme & Colors" section in the web editor to adjust it visually (swatch + hex field + per-token reset) without touching the JSON. An empty theme block reproduces the original palette. Existing color fields (`SwitchCard.on_color`, per-scene color in `SceneGridCard`) now use the same color picker. ([#11](../../pull/11) by [@ClemsonJeeper](https://github.com/ClemsonJeeper))
 - **Drag-to-reorder page tabs** in the web editor, alongside the existing card reordering. Editor-only, no native app changes. ([#10](../../pull/10) by [@ClemsonJeeper](https://github.com/ClemsonJeeper))
 - **Toast notifications.** The "Save to device" confirmation in the editor now uses a non-blocking, auto-dismissing toast instead of a modal `alert()`, matching the editor's other inline feedback (icon upload, Harmony discovery, etc.). ([#9](../../pull/9) by [@ClemsonJeeper](https://github.com/ClemsonJeeper))
+- **Fan card "step" style.** New `"style": "step"` option for fan cards, for fans that report discrete speed levels rather than a continuous percentage: a single row showing the current speed name/percentage with `-`/`+` buttons that call Home Assistant's `fan.increase_speed`/`fan.decrease_speed` services directly, instead of computing and sending a percentage via `fan.set_percentage` like the `simple`/`full` styles do. No power button or name row in this layout — just the stepper. Builder support in the fan card's style dropdown and a matching live preview. Existing `simple`/`full` styles and their own percentage-step config (`options.step`) are unaffected. ([#14](../../pull/14) by [@ClemsonJeeper](https://github.com/ClemsonJeeper))
 
 ### Internal
 
 - Migrated all hardcoded `Color(0x...)` literals in Compose UI to the new theme system (`ThemeColors` / `LocalTheme`), across every card and screen (dashboard, settings, status bar, overlays).
 - `HaClient`: new dedicated HTTP client with no timeout for long-lived MJPEG streaming, plus a raw-bytes fetch method.
 - `ConfigServer`: new `GET /camera-snapshot` endpoint proxying a single HA camera frame to the web editor (the browser has no HA token of its own).
+- `HaClient.onResult()`: no longer assumes every WebSocket `result` payload is an array — service calls (e.g. the fan step buttons' `increase_speed`/`decrease_speed`) can return `result: null`/`{}`, which is now handled safely instead of throwing during response parsing.
 
 ### Fixed
 
