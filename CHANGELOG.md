@@ -18,6 +18,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Migrated all hardcoded `Color(0x...)` literals in Compose UI to the new theme system (`ThemeColors` / `LocalTheme`), across every card and screen (dashboard, settings, status bar, overlays).
 - `HaClient`: new dedicated HTTP client with no timeout for long-lived MJPEG streaming, plus a raw-bytes fetch method.
 - `ConfigServer`: new `GET /camera-snapshot` endpoint proxying a single HA camera frame to the web editor (the browser has no HA token of its own).
+- `ConfigServer`: new `GET /battery` endpoint exposing the wall tablet's own battery level and charging state as JSON (`{ level, charging }`), for the companion Home Assistant integration.
 - `HaClient.onResult()`: no longer assumes every WebSocket `result` payload is an array — service calls (e.g. the fan step buttons' `increase_speed`/`decrease_speed`) can return `result: null`/`{}`, which is now handled safely instead of throwing during response parsing.
 
 ### Fixed

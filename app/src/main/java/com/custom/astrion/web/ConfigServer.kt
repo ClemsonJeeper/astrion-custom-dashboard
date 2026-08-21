@@ -2,6 +2,8 @@ package com.custom.astrion.web
 
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
@@ -76,6 +78,8 @@ import org.json.JSONObject
  *                        no visible scroll through intermediate pages
  *  GET  /version            `{"version","versionCode"}` — the installed
  *                        app's own version, static per build.
+ *  GET  /battery         { level, charging } — this device's own battery
+ *                        status, for the companion HA integration
  *  GET  /activities        every trackable Activity (`"track": true` tile,
  *                        hotkey, or composed AppConfig.activities entry),
  *                        as JSON `[{"id","name","room","icon"},...]` — lets
@@ -161,6 +165,7 @@ class ConfigServer(
             "/pages" -> if (method == Method.GET) servePages() else methodNotAllowed()
             "/current-page" -> if (method == Method.GET) serveCurrentPage() else methodNotAllowed()
             "/version" -> if (method == Method.GET) serveVersion() else methodNotAllowed()
+            "/battery" -> if (method == Method.GET) serveBattery() else methodNotAllowed()
             "/set-page" -> if (method == Method.POST) handleSetPage(session) else methodNotAllowed()
             "/activities" -> if (method == Method.GET) serveActivities() else methodNotAllowed()
             "/activities/active" -> if (method == Method.GET) serveActiveActivities() else methodNotAllowed()
@@ -870,6 +875,8 @@ class ConfigServer(
         return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
     }
 
+    // ---- version & battery --------------------------------------------------
+
     /** The installed app version — lets a remote controller (the Home
      * Assistant integration's `update.*` entity, primarily) know what's
      * currently running without needing adb/logcat access to the device.
@@ -880,6 +887,31 @@ class ConfigServer(
             JSONObject().apply {
                 put("version", BuildConfig.VERSION_NAME)
                 put("versionCode", BuildConfig.VERSION_CODE)
+            }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
+    }
+
+    /**
+     * Battery status of the tablet running Astrion itself (not a
+     * remote-controlled device) — lets the companion Home Assistant
+     * integration surface the wall tablet's own battery level and charging
+     * state, e.g. for an alert if a tablet that isn't permanently wired to
+     * power starts running low.
+     */
+    private fun serveBattery(): Response {
+        val status = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = status?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = status?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        val pct = if (level >= 0 && scale > 0) (level * 100 / scale) else null
+        val batteryStatus = status?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val charging =
+            batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING ||
+                batteryStatus == BatteryManager.BATTERY_STATUS_FULL
+
+        val json =
+            JSONObject().apply {
+                put("level", pct ?: JSONObject.NULL)
+                put("charging", charging)
             }
         return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
     }
