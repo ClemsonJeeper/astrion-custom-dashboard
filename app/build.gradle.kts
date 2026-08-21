@@ -76,7 +76,7 @@ detekt {
     buildUponDefaultConfig = true
     config.setFrom("$rootDir/config/detekt/detekt.yml")
     // Same reasoning as lint{} above — start permissive, tighten later:
-    // baseline = file("$rootDir/config/detekt/baseline.xml")
+    baseline = file("detekt-baseline.xml")
 }
 
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
