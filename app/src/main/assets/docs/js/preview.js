@@ -243,10 +243,22 @@ function renderPreview() {
       const o = card.options || {};
       const presetModes = (o.preset_modes && o.preset_modes.length ? o.preset_modes : FAN_MOCK.preset_modes).filter(m => m.toLowerCase() !== 'off');
       const style = o.style || 'auto';
-      const useFull = style === 'full' || (style !== 'simple' && (presetModes.length > 0 || true)); // mock always reports `oscillating`
+      const useStep = style === 'step';
+      const useFull = !useStep && (style === 'full' || (style !== 'simple' && (presetModes.length > 0 || true))); // mock always reports `oscillating`
       const usingExample = !(o.preset_modes && o.preset_modes.length);
       let bodyHtml;
-      if (!useFull) {
+      if (useStep) {
+        const stepName = o.name ? `<div class="fs-step-name">${o.name}</div>` : '';
+        bodyHtml = `
+          <div class="preview-fan-step">
+            ${stepName}
+            <div class="fs-step-row">
+              <div class="fs-step-btn">−</div>
+              <div class="fs-step-pct">${FAN_MOCK.state === 'on' ? FAN_MOCK.percentage + '%' : 'Off'}</div>
+              <div class="fs-step-btn">+</div>
+            </div>
+          </div>`;
+      } else if (!useFull) {
         bodyHtml = `
           <div class="preview-fan-simple">
             <div>

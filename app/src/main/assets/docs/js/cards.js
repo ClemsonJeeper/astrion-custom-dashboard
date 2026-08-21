@@ -155,13 +155,18 @@ function updateCardFormInputs() {
       <select id="optFanStyle">
         <option value="auto">Auto (detect from entity)</option>
         <option value="simple">Simple (percentage tile)</option>
+        <option value="step">Step (increase/decrease fan speed)</option>
         <option value="full">Full (presets + oscillate)</option>
       </select>
       <label>Preset modes override (optional, comma-separated, in display order — normally read from the entity)</label><input type="text" id="optFanPresetModes" placeholder="Level 1,Level 2,Level 3,Level 4">
-      <label>Percentage step (simple layout / no-preset fallback)</label><input type="number" id="optFanStep" value="20" min="1" max="100">
+      <div id="fanStepWrap">
+        <label>Percentage step (simple/full layouts)</label><input type="number" id="optFanStep" value="20" min="1" max="100">
+      </div>
       <label><input type="checkbox" id="optFanShowCaptions" checked> Show captions ("Preset"/"Oscillate") above chip rows</label>
-      <div class="hint">"Auto" shows the full layout (power button, presets, oscillate toggle) whenever the entity reports preset_modes or an oscillating attribute; otherwise it falls back to the simple percentage tile. Force one or the other with Layout above.</div>
+      <div class="hint">"Auto" shows the full layout (power button, presets, oscillate toggle) whenever the entity reports preset_modes or an oscillating attribute; otherwise it falls back to the simple percentage tile. "Step" uses HA's increase/decrease speed services. Force one with Layout above.</div>
     `;
+    document.getElementById('optFanStyle').addEventListener('change', updateFanStepVisibility);
+    updateFanStepVisibility();
   } else if (type === 'climate') {
     container.innerHTML = `
       <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room AC">
@@ -298,6 +303,16 @@ function updateMediaTopButtonsVisibility() {
   const field = document.getElementById('mediaTopButtonsField');
   if (!variantEl || !field) return;
   field.style.display = variantEl.value === 'full' ? '' : 'none';
+}
+
+// fan card: percentage step only applies to simple/full layouts — the
+// "step" style uses HA's increase_speed/decrease_speed services, so there's
+// no numeric step to configure.
+function updateFanStepVisibility() {
+  const styleEl = document.getElementById('optFanStyle');
+  const wrap = document.getElementById('fanStepWrap');
+  if (!styleEl || !wrap) return;
+  wrap.style.display = styleEl.value === 'step' ? 'none' : '';
 }
 
 let editingGridItem = null; // index of the button/scene being edited within _pendingGridItems, or null
@@ -683,9 +698,10 @@ function fillCardForm(card) {
   } else if (type === 'fan') {
     document.getElementById('optName').value = o.name || '';
     document.getElementById('optEntityId').value = o.entity_id || '';
-    document.getElementById('optFanStyle').value = ['simple', 'full'].includes(o.style) ? o.style : 'auto';
+    document.getElementById('optFanStyle').value = ['simple', 'step', 'full'].includes(o.style) ? o.style : 'auto';
     document.getElementById('optFanPresetModes').value = (o.preset_modes || []).join(',');
     document.getElementById('optFanStep').value = o.step ?? 20;
+    updateFanStepVisibility();
     document.getElementById('optFanShowCaptions').checked = o.show_captions !== false;
   } else if (type === 'climate') {
     document.getElementById('optName').value = o.name || '';
