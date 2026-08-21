@@ -30,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -79,7 +78,10 @@ class SelectCard : CardRenderer {
     override val type = "select"
 
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
+    override fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    ) {
         val entityId = config.string("entity_id") ?: return
         val domain = entityId.substringBefore('.')
         val e = ctx.entities[entityId]
@@ -128,12 +130,16 @@ class SelectCard : CardRenderer {
 // ---- shared pieces ---------------------------------------------------------
 
 @Composable
-private fun SelectIcon(color: Color?, size: Dp = 42.dp) {
+private fun SelectIcon(
+    color: Color?,
+    size: Dp = 42.dp,
+) {
     Box(
-        modifier = Modifier
-            .size(size)
-            .clip(RoundedCornerShape(size / 2))
-            .background(color?.copy(alpha = 0.2f) ?: Color(0xFF2A4954)),
+        modifier =
+            Modifier
+                .size(size)
+                .clip(RoundedCornerShape(size / 2))
+                .background(color?.copy(alpha = 0.2f) ?: Color(0xFF2A4954)),
         contentAlignment = Alignment.Center,
     ) {
         Icon(Icons.Filled.List, contentDescription = null, tint = color ?: Color(0xFFB6C9CE))
@@ -186,13 +192,14 @@ private fun SelectMenuControl(
 
     Box(modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier.width(140.dp)) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(36.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF152B33))
-                .clickable(enabled = options.isNotEmpty()) { expanded = true }
-                .padding(horizontal = 12.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF152B33))
+                    .clickable(enabled = options.isNotEmpty()) { expanded = true }
+                    .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -248,11 +255,12 @@ private fun DefaultLayout(
     control: @Composable (fillWidth: Boolean) -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF1E3841))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF1E3841))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -274,11 +282,12 @@ private fun HorizontalLayout(
     control: @Composable (fillWidth: Boolean) -> Unit,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF1E3841))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF1E3841))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SelectIcon(iconColor)
@@ -299,11 +308,12 @@ private fun VerticalLayout(
     control: @Composable (fillWidth: Boolean) -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF1E3841))
-            .padding(16.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF1E3841))
+                .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         SelectIcon(iconColor, size = 48.dp)

@@ -61,8 +61,8 @@ object UpdateChecker {
             if (!resp.isSuccessful) {
                 return CheckResult.Failed(
                     "GitHub API returned HTTP ${resp.code} for $REPO — check the REPO constant " +
-                            "in UpdateChecker.kt, and that the release isn't a draft or pre-release " +
-                            "(the /latest endpoint ignores both).",
+                        "in UpdateChecker.kt, and that the release isn't a draft or pre-release " +
+                        "(the /latest endpoint ignores both).",
                 )
             }
             val bodyText = resp.body?.string() ?: return CheckResult.Failed("Empty response from GitHub")

@@ -190,8 +190,9 @@ object DashboardLoader {
     private fun parseActivity(obj: JsonObject): ActivityConfig {
         val id = obj["id"]?.jsonPrimitive?.content ?: error("activity missing \"id\"")
         val name = obj["name"]?.jsonPrimitive?.content ?: id
-        val room = obj["room"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
-            ?: error("activity \"$id\" missing \"room\"")
+        val room =
+            obj["room"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+                ?: error("activity \"$id\" missing \"room\"")
         val icon = obj["icon"]?.jsonPrimitive?.content
         val page = obj["page"]?.jsonPrimitive?.content
         val devicesArr = obj["devices"]?.jsonArray ?: error("activity \"$id\" missing \"devices\"")
@@ -210,7 +211,11 @@ object DashboardLoader {
     ): ActivityDeviceConfig {
         val deviceId = obj["deviceId"]?.jsonPrimitive?.content ?: error("a device in activity \"$activityId\" is missing \"deviceId\"")
         val source = obj["source"]?.jsonPrimitive?.content ?: error("device \"$deviceId\" in activity \"$activityId\" is missing \"source\"")
-        if (source !in setOf("ir", "harmony", "ha")) error("device \"$deviceId\" in activity \"$activityId\" has unknown source \"$source\"")
+        if (source !in setOf("ir", "harmony", "ha")) {
+            error(
+                "device \"$deviceId\" in activity \"$activityId\" has unknown source \"$source\"",
+            )
+        }
         val hub = obj["hub"]?.jsonPrimitive?.content
         val powerOnCommand = obj["powerOnCommand"]?.jsonPrimitive?.content
         val powerOffCommand = obj["powerOffCommand"]?.jsonPrimitive?.content
@@ -225,8 +230,10 @@ object DashboardLoader {
     }
 
     private fun parseTheme(obj: JsonObject): ThemeConfig {
-        fun s(key: String, default: String) =
-            obj[key]?.jsonPrimitive?.takeIf { it.isString }?.content?.ifBlank { default } ?: default
+        fun s(
+            key: String,
+            default: String,
+        ) = obj[key]?.jsonPrimitive?.takeIf { it.isString }?.content?.ifBlank { default } ?: default
         return ThemeConfig(
             background = s("background", ThemeConfig().background),
             cardSurface = s("cardSurface", ThemeConfig().cardSurface),

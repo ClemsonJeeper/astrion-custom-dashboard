@@ -15,7 +15,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,7 +58,6 @@ fun CoverDetailDialog(
 
     fun commit(fraction: Float) {
         when (val pct = (fraction.coerceIn(0f, 1f) * 100).roundToInt()) {
-
             0 -> client.callService(ServiceCall(domain = "cover", service = "close_cover", entityId = entityId))
             100 -> client.callService(ServiceCall(domain = "cover", service = "open_cover", entityId = entityId))
             else -> client.callService(ServiceCall.of("cover", "set_cover_position", entityId, "position" to pct))

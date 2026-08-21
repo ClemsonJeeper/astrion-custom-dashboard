@@ -1,6 +1,5 @@
 package com.custom.astrion.cards.impl
 
-import androidx.core.graphics.scale
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.scale
 import com.custom.astrion.R
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
@@ -254,7 +254,7 @@ class MediaPlayerCard : CardRenderer {
                     val isOff = e == null || e.state == "off" || e.isUnavailable
                     Box(
                         avatarMod.background(if (isOff) theme.controlBackground else theme.accentSecondary),
-                        contentAlignment = Alignment.Center
+                        contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             if (isOff) MdiIcons.CastOff else MdiIcons.Cast,
@@ -361,7 +361,10 @@ class MediaPlayerCard : CardRenderer {
                     .background(theme.insetSurface)
                     .pointerInput(entityId) {
                         detectHorizontalDragGestures(
-                            onDragEnd = { dragLevel?.let(onCommit); dragLevel = null },
+                            onDragEnd = {
+                                dragLevel?.let(onCommit)
+                                dragLevel = null
+                            },
                             onDragCancel = { dragLevel = null },
                         ) { change, _ ->
                             change.consume()
@@ -424,7 +427,12 @@ class MediaPlayerCard : CardRenderer {
                                     .clickable { fireService(ctx, b) },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(b["name"] as? String ?: "", color = ctx.theme.primaryText, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                b["name"] as? String ?: "",
+                                color = ctx.theme.primaryText,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
                         }
                     }
                 }
@@ -437,7 +445,7 @@ class MediaPlayerCard : CardRenderer {
                 val isOff = e == null || e.state == "off" || e.isUnavailable
                 Box(
                     artMod.background(if (isOff) ctx.theme.controlBackground else ctx.theme.accentSecondary),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         if (isOff) MdiIcons.CastOff else MdiIcons.Cast,
@@ -507,7 +515,10 @@ class MediaPlayerCard : CardRenderer {
     }
 
     @Composable
-    private fun MediaProgressBar(e: EntityState, theme: ThemeColors) {
+    private fun MediaProgressBar(
+        e: EntityState,
+        theme: ThemeColors,
+    ) {
         val duration = e.attrDouble("media_duration") ?: 0.0
         // Keyed on the raw JsonElement's string form, not attrString() —
         // Kodi reports media_content_id as a nested JsonObject
@@ -698,7 +709,12 @@ internal fun computeMediaButtons(
 
     if (isActiveState && "repeat" in controls && e.supports(Feature.REPEAT_SET)) {
         val current = e.attrString("repeat") ?: "off"
-        val next = when (current) { "off" -> "all"; "all" -> "one"; else -> "off" }
+        val next =
+            when (current) {
+                "off" -> "all"
+                "all" -> "one"
+                else -> "off"
+            }
         out += MpButton(MdiIcons.Repeat, "repeat_set", listOf("repeat" to next), active = current != "off")
     }
 

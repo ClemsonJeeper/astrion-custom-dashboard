@@ -46,7 +46,9 @@ data class HarmonyConfig(val devices: List<HarmonyDevice>, val activities: List<
  */
 sealed class HarmonyActivityState {
     abstract val activityId: String
+
     data class Starting(override val activityId: String) : HarmonyActivityState()
+
     data class Active(override val activityId: String) : HarmonyActivityState()
 }
 
@@ -451,11 +453,12 @@ class HarmonyHubClient(
         Log.d(TAG, "getConfig(): $envelope")
         socket.send(envelope.toString())
 
-        val reply = try {
-            withTimeoutOrNull(CONFIG_TIMEOUT) { deferred.await() }
-        } finally {
-            pending.remove(id)
-        }
+        val reply =
+            try {
+                withTimeoutOrNull(CONFIG_TIMEOUT) { deferred.await() }
+            } finally {
+                pending.remove(id)
+            }
 
         if (reply == null) {
             Log.w(TAG, "getConfig() timed out")

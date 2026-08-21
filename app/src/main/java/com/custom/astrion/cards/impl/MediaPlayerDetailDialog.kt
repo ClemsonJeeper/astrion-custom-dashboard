@@ -184,7 +184,10 @@ fun MediaPlayerDetailDialog(
 }
 
 @Composable
-private fun DialogProgressBar(e: EntityState, theme: ThemeColors) {
+private fun DialogProgressBar(
+    e: EntityState,
+    theme: ThemeColors,
+) {
     val duration = e.attrDouble("media_duration") ?: 0.0
     // See MediaPlayerCard.MediaProgressBar's identical comment — Kodi's
     // media_content_id is a nested JsonObject, not a plain string, so this
@@ -243,7 +246,10 @@ private fun DialogVolumeSlider(
                 .background(theme.insetSurface)
                 .pointerInput(entityId) {
                     detectHorizontalDragGestures(
-                        onDragEnd = { dragLevel?.let(onCommit); dragLevel = null },
+                        onDragEnd = {
+                            dragLevel?.let(onCommit)
+                            dragLevel = null
+                        },
                         onDragCancel = { dragLevel = null },
                     ) { change, _ -> dragLevel = (change.position.x / size.width).coerceIn(0f, 1f) }
                 }

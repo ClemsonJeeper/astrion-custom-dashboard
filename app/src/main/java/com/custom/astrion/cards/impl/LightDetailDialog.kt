@@ -60,6 +60,7 @@ fun LightDetailDialog(
     var dragLevel by remember(level) { mutableFloatStateOf(level) }
 
     val colorModes = e?.attrStringList("supported_color_modes") ?: emptyList()
+
     @Suppress("SpellCheckingInspection")
     val hasColor = colorModes.any { it in listOf("hs", "rgb", "rgbw", "rgbww", "xy") }
     val hasTemp = colorModes.contains("color_temp") || hasColor

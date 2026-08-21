@@ -41,7 +41,10 @@ data class ThemeColors(
 /** Parses a hex color string ("#RRGGBB" or "#AARRGGBB" or "RRGGBB") into a
  * Compose [Color]. Falls back to [fallback] on any parse failure so a bad
  * value in dashboard.json never crashes the UI. */
-fun parseHexColor(hex: String?, fallback: Color): Color {
+fun parseHexColor(
+    hex: String?,
+    fallback: Color,
+): Color {
     if (hex.isNullOrBlank()) return fallback
     var s = hex.trim()
     if (s.startsWith("#")) s = s.substring(1)
@@ -86,6 +89,9 @@ val LocalTheme = staticCompositionLocalOf { ThemeColors.Default }
 
 /** Provides [theme] to descendants via [LocalTheme]. */
 @Composable
-fun ProvideTheme(theme: ThemeColors, content: @Composable () -> Unit) {
+fun ProvideTheme(
+    theme: ThemeColors,
+    content: @Composable () -> Unit,
+) {
     androidx.compose.runtime.CompositionLocalProvider(LocalTheme provides theme) { content() }
 }

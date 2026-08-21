@@ -8,7 +8,6 @@ import com.custom.astrion.cards.impl.CameraCard
 import com.custom.astrion.cards.impl.ClimateCard
 import com.custom.astrion.cards.impl.ClockWeatherCard
 import com.custom.astrion.cards.impl.CoverCard
-import com.custom.astrion.cards.impl.SelectCard
 import com.custom.astrion.cards.impl.FanCard
 import com.custom.astrion.cards.impl.LightCard
 import com.custom.astrion.cards.impl.MediaPlayerCard
@@ -17,6 +16,7 @@ import com.custom.astrion.cards.impl.PictureElementsCard
 import com.custom.astrion.cards.impl.PlexCard
 import com.custom.astrion.cards.impl.RowCard
 import com.custom.astrion.cards.impl.SceneGridCard
+import com.custom.astrion.cards.impl.SelectCard
 import com.custom.astrion.cards.impl.SourceSelectCard
 import com.custom.astrion.cards.impl.SpeakerGroupCard
 import com.custom.astrion.cards.impl.SwitchCard

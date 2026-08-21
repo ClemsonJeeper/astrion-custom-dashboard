@@ -168,11 +168,13 @@ class LightCard : CardRenderer {
         // historical default (brightness control only) so existing
         // dashboards keep rendering exactly as before.
         val opts = config.options
-        val hasExplicitControls = opts.containsKey("show_brightness_control") ||
-            opts.containsKey("show_color_temp_control") ||
-            opts.containsKey("show_color_control")
+        val hasExplicitControls =
+            opts.containsKey("show_brightness_control") ||
+                opts.containsKey("show_color_temp_control") ||
+                opts.containsKey("show_color_control")
         val showBrightnessControl = config.bool("show_brightness_control", !hasExplicitControls)
         val colorModes = e?.attrStringList("supported_color_modes") ?: emptyList()
+
         @Suppress("SpellCheckingInspection")
         val supportsColor = colorModes.any { it in listOf("hs", "rgb", "rgbw", "rgbww", "xy") }
         val supportsColorTemp = colorModes.contains("color_temp")
@@ -180,11 +182,12 @@ class LightCard : CardRenderer {
         val showColorControl = config.bool("show_color_control", false) && supportsColor
         val collapsibleControls = config.bool("collapsible_controls", false)
 
-        val controls = buildList {
-            if (showBrightnessControl) add(LightControl.BRIGHTNESS)
-            if (showColorTempControl) add(LightControl.COLOR_TEMP)
-            if (showColorControl) add(LightControl.COLOR)
-        }
+        val controls =
+            buildList {
+                if (showBrightnessControl) add(LightControl.BRIGHTNESS)
+                if (showColorTempControl) add(LightControl.COLOR_TEMP)
+                if (showColorControl) add(LightControl.COLOR)
+            }
         val controlsVisible = controls.isNotEmpty() && (!collapsibleControls || isOn)
 
         val minKelvin = e?.attrInt("min_color_temp_kelvin") ?: 2000
@@ -215,7 +218,11 @@ class LightCard : CardRenderer {
             ctx.client.callService(ServiceCall.of("light", "turn_on", entityId, "color_temp_kelvin" to kelvin))
         }
 
-        fun commitRgb(r: Int, g: Int, b: Int) {
+        fun commitRgb(
+            r: Int,
+            g: Int,
+            b: Int,
+        ) {
             ctx.client.callService(
                 ServiceCall(
                     "light",
@@ -240,20 +247,22 @@ class LightCard : CardRenderer {
                 ) {
                     Box(Modifier.weight(1f, fill = fillWidth)) {
                         when (resolvedActive) {
-                            LightControl.BRIGHTNESS -> PercentSlider(
-                                entityId = "$entityId-brightness",
-                                value = brightnessPct ?: 0,
-                                color = barColor,
-                                theme = ctx.theme,
-                                onCommit = { pct -> commitBrightness(pct / 100f) },
-                            )
-                            LightControl.COLOR_TEMP -> ColorTempSlider(
-                                entityId = "$entityId-ctemp",
-                                minKelvin = minKelvin,
-                                maxKelvin = maxKelvin,
-                                kelvin = currentKelvin,
-                                onCommit = ::commitKelvin,
-                            )
+                            LightControl.BRIGHTNESS ->
+                                PercentSlider(
+                                    entityId = "$entityId-brightness",
+                                    value = brightnessPct ?: 0,
+                                    color = barColor,
+                                    theme = ctx.theme,
+                                    onCommit = { pct -> commitBrightness(pct / 100f) },
+                                )
+                            LightControl.COLOR_TEMP ->
+                                ColorTempSlider(
+                                    entityId = "$entityId-ctemp",
+                                    minKelvin = minKelvin,
+                                    maxKelvin = maxKelvin,
+                                    kelvin = currentKelvin,
+                                    onCommit = ::commitKelvin,
+                                )
                             LightControl.COLOR -> ColorSwatchRow(onPick = ::commitRgb)
                             null -> {}
                         }
@@ -269,7 +278,17 @@ class LightCard : CardRenderer {
         }
 
         when (config.string("layout")) {
-            "horizontal" -> HorizontalLayout(name, stateLabel, icon, iconBg, iconTint, controlsSlot, ctx.theme, modifier = tileGestureModifier)
+            "horizontal" ->
+                HorizontalLayout(
+                    name,
+                    stateLabel,
+                    icon,
+                    iconBg,
+                    iconTint,
+                    controlsSlot,
+                    ctx.theme,
+                    modifier = tileGestureModifier,
+                )
             "vertical" -> VerticalLayout(name, stateLabel, icon, iconBg, iconTint, controlsSlot, ctx.theme, modifier = tileGestureModifier)
             else -> DefaultLayout(name, stateLabel, icon, iconBg, iconTint, controlsSlot, ctx.theme, modifier = tileGestureModifier)
         }
@@ -333,13 +352,17 @@ private fun NameState(
 
 /** Small round "next control" button — cycles through the enabled controls, Mushroom-style. */
 @Composable
-private fun CycleControlButton(theme: ThemeColors, onClick: () -> Unit) {
+private fun CycleControlButton(
+    theme: ThemeColors,
+    onClick: () -> Unit,
+) {
     Box(
-        modifier = Modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .background(theme.controlBackground)
-            .clickable(onClick = onClick),
+        modifier =
+            Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(theme.controlBackground)
+                .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = theme.iconTint)
@@ -429,6 +452,7 @@ private fun ColorTempSlider(
     var dragFraction by remember(entityId) { mutableFloatStateOf(-1f) }
     val liveFraction = ((kelvin - minKelvin).toFloat() / range).coerceIn(0f, 1f)
     val shownFraction = if (dragFraction >= 0f) dragFraction else liveFraction
+
     fun fractionToKelvin(f: Float) = (minKelvin + f * range).roundToInt()
 
     Box(
@@ -477,9 +501,14 @@ private fun ColorTempSlider(
 private fun ColorSwatchRow(onPick: (Int, Int, Int) -> Unit) {
     val swatches =
         listOf(
-            Triple(244, 67, 54), Triple(255, 152, 0), Triple(255, 235, 59),
-            Triple(76, 175, 80), Triple(0, 188, 212), Triple(33, 150, 243),
-            Triple(156, 39, 176), Triple(255, 255, 255),
+            Triple(244, 67, 54),
+            Triple(255, 152, 0),
+            Triple(255, 235, 59),
+            Triple(76, 175, 80),
+            Triple(0, 188, 212),
+            Triple(33, 150, 243),
+            Triple(156, 39, 176),
+            Triple(255, 255, 255),
         )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         swatches.forEach { (r, g, b) ->

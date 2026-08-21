@@ -35,11 +35,11 @@ class HarmonyHubRegistry(
     private val clients: Map<String, HarmonyHubClient> =
         hubs.associate { hub ->
             hub.localId to
-                    HarmonyHubClient(
-                        hubIp = hub.ip,
-                        hubId = hub.hubId,
-                        onError = { msg -> onError(hub.name, msg) },
-                    )
+                HarmonyHubClient(
+                    hubIp = hub.ip,
+                    hubId = hub.hubId,
+                    onError = { msg -> onError(hub.name, msg) },
+                )
         }
 
     /** Same order as the configured hubs — first() is the implicit default hub. */

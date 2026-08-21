@@ -5,7 +5,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -171,8 +170,9 @@ class CameraCard : CardRenderer {
 
                 val streamed =
                     runCatching {
-                        val resp = withContext(Dispatchers.IO) { ctx.client.openStream(streamPath) }
-                            ?: return@runCatching false
+                        val resp =
+                            withContext(Dispatchers.IO) { ctx.client.openStream(streamPath) }
+                                ?: return@runCatching false
                         liveResponse[0] = resp
                         try {
                             resp.use { r ->

@@ -23,12 +23,18 @@ data class CardConfig(
     val options: Map<String, Any?> = emptyMap(),
 ) {
     fun string(key: String): String? = options[key] as? String
-    fun stringList(key: String): List<String> =
-        (options[key] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
-    fun bool(key: String, default: Boolean = false): Boolean =
-        options[key] as? Boolean ?: default
-    fun int(key: String, default: Int = 0): Int =
-        (options[key] as? Number)?.toInt() ?: default
+
+    fun stringList(key: String): List<String> = (options[key] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+
+    fun bool(
+        key: String,
+        default: Boolean = false,
+    ): Boolean = options[key] as? Boolean ?: default
+
+    fun int(
+        key: String,
+        default: Int = 0,
+    ): Int = (options[key] as? Number)?.toInt() ?: default
 }
 
 /**
@@ -99,7 +105,10 @@ interface CardRenderer {
     val type: String
 
     @Composable
-    fun Render(config: CardConfig, ctx: CardContext)
+    fun Render(
+        config: CardConfig,
+        ctx: CardContext,
+    )
 }
 
 /**

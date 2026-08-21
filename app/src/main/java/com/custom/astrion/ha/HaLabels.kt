@@ -70,10 +70,8 @@ object HaLabels {
     private fun lookup(
         category: String,
         raw: String,
-    ): String =
-        categories[category]?.get(raw) ?: fallback(raw)
+    ): String = categories[category]?.get(raw) ?: fallback(raw)
 
     /** Best-effort display for a key with no translation entry. */
-    private fun fallback(raw: String): String =
-        raw.split('_', '-').joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+    private fun fallback(raw: String): String = raw.split('_', '-').joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
 }

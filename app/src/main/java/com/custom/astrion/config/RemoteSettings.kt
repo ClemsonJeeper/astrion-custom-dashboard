@@ -95,16 +95,17 @@ object RemoteSettings {
         context: Context,
         hubs: List<HarmonyHubConfig>,
     ) {
-        val array = buildJsonArray {
-            hubs.forEach { hub ->
-                addJsonObject {
-                    put("localId", hub.localId)
-                    put("name", hub.name)
-                    put("ip", hub.ip)
-                    put("hubId", hub.hubId)
+        val array =
+            buildJsonArray {
+                hubs.forEach { hub ->
+                    addJsonObject {
+                        put("localId", hub.localId)
+                        put("name", hub.name)
+                        put("ip", hub.ip)
+                        put("hubId", hub.hubId)
+                    }
                 }
             }
-        }
 
         prefs(context).edit {
             putString(KEY_HARMONY_HUBS, array.toString())

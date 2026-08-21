@@ -142,8 +142,8 @@ class ActivityRuntime(config: AppConfig) {
     ) {
         hub.currentActivityId.collect { activityId ->
             if (activityId == null) return@collect
-            fun targetsThisHub(a: TrackedActivity) =
-                a.harmonyHub == hubLocalId || (a.harmonyHub.isNullOrBlank() && isDefaultHub)
+
+            fun targetsThisHub(a: TrackedActivity) = a.harmonyHub == hubLocalId || (a.harmonyHub.isNullOrBlank() && isDefaultHub)
             val matches = all.filter { targetsThisHub(it) && it.harmonyActivityId == activityId }
             matches.forEach { markActive(it) }
             if (activityId == "-1") {
@@ -167,6 +167,7 @@ class ActivityRuntime(config: AppConfig) {
         val entityId = scene["entity_id"] as? String
         val harmonyActivityId = scene["activityId"] as? String
         val id = entityId ?: harmonyActivityId ?: name.lowercase().replace(Regex("[^a-z0-9]+"), "_")
+
         @Suppress("UNCHECKED_CAST")
         val devices = (scene["devices"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
         return TrackedActivity(
@@ -221,14 +222,15 @@ class ActivityRuntime(config: AppConfig) {
         // need themselves — no tile/hotkey to derive them from, no implicit
         // tracking flag: defining one is inherently tracked.
         config.activities.forEach { act ->
-            found += TrackedActivity(
-                id = act.id,
-                name = act.name,
-                room = act.room,
-                icon = act.icon,
-                page = act.page,
-                devices = act.devices.map { it.deviceId },
-            )
+            found +=
+                TrackedActivity(
+                    id = act.id,
+                    name = act.name,
+                    room = act.room,
+                    icon = act.icon,
+                    page = act.page,
+                    devices = act.devices.map { it.deviceId },
+                )
         }
         return found
     }

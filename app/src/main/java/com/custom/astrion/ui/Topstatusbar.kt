@@ -36,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -109,7 +108,7 @@ fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
                 modifier = Modifier.align(Alignment.CenterEnd),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                BatteryGlyph(percent = batteryPct, charging = charging)
+                batteryGlyph(percent = batteryPct, charging = charging)
                 Spacer(Modifier.padding(end = 2.dp))
                 Text("$batteryPct%", color = LocalTheme.current.mutedText, fontSize = 12.sp)
             }
@@ -120,7 +119,7 @@ fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
 /** Simple hand-drawn battery glyph (outline + fill + nub) — avoids depending
  * on the extended Material icon pack, which may not be on the classpath. */
 @Composable
-private fun BatteryGlyph(
+private fun batteryGlyph(
     percent: Int,
     charging: Boolean,
 ) {

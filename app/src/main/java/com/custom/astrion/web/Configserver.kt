@@ -2,9 +2,9 @@ package com.custom.astrion.web
 
 import android.content.Context
 import android.content.Intent
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
-import android.os.Environment
 import android.provider.Settings
 import android.util.Log
 import androidx.core.net.toUri
@@ -194,14 +194,18 @@ class ConfigServer(
             if (update != null) {
                 """
                 <form method="post" action="/install-update" class="status-right">
-                  <button type="submit" class="badge badge-warn" title="${escape(context.getString(R.string.web_config_install_update_button))}">
+                  <button type="submit" class="badge badge-warn" title="${escape(
+                    context.getString(R.string.web_config_install_update_button),
+                )}">
                     <span class="dot dot-warn"></span>${context.getString(R.string.web_config_update_found, update.version)}
                   </button>
                 </form>
                 """.trimIndent()
             } else {
                 """
-                <a class="badge status-right" href="/check-update" title="${escape(context.getString(R.string.web_config_check_update_link))}">
+                <a class="badge status-right" href="/check-update" title="${escape(
+                    context.getString(R.string.web_config_check_update_link),
+                )}">
                   <span class="dot dot-off"></span>v${BuildConfig.VERSION_NAME}
                 </a>
                 """.trimIndent()
@@ -298,8 +302,12 @@ class ConfigServer(
             <h1>${context.getString(R.string.web_config_title)}</h1>
             <div class="status-strip">
               <div class="status-left">
-                <span class="badge"><span class="dot ${if (haConfigured) "dot-ok" else "dot-off"}"></span>${context.getString(R.string.web_config_ha_heading)}${if (haConfigured) "" else " — " + context.getString(R.string.web_config_status_not_set)}</span>
-                <span class="badge"><span class="dot ${if (hubs.isNotEmpty()) "dot-ok" else "dot-off"}"></span>${hubs.size} ${context.getString(if (hubs.size == 1) R.string.web_config_status_hub_singular else R.string.web_config_status_hub_plural)}</span>
+                <span class="badge"><span class="dot ${if (haConfigured) "dot-ok" else "dot-off"}"></span>${context.getString(
+                R.string.web_config_ha_heading,
+            )}${if (haConfigured) "" else " — " + context.getString(R.string.web_config_status_not_set)}</span>
+                <span class="badge"><span class="dot ${if (hubs.isNotEmpty()) "dot-ok" else "dot-off"}"></span>${hubs.size} ${context.getString(
+                if (hubs.size == 1) R.string.web_config_status_hub_singular else R.string.web_config_status_hub_plural,
+            )}</span>
               </div>
               $updateBadgeHtml
             </div>
@@ -319,7 +327,9 @@ class ConfigServer(
                 <div id="harmony-hubs">
                   ${hubs.joinToString("") { hubRowHtml(it) }}
                 </div>
-                <button type="button" class="btn hub-add" onclick="addHubRow()">${context.getString(R.string.web_config_harmony_add_button)}</button>
+                <button type="button" class="btn hub-add" onclick="addHubRow()">${context.getString(
+                R.string.web_config_harmony_add_button,
+            )}</button>
 
                 <button type="submit" class="btn btn-cyan">${context.getString(R.string.web_config_save_button)}</button>
                 <div class="note">${context.getString(R.string.web_config_save_note)}</div>
@@ -333,7 +343,9 @@ class ConfigServer(
 
               <div class="divider"></div>
 
-              <a class="btn btn-ghost" href="/dashboard.json">${svgDownload()} ${context.getString(R.string.web_config_dashboard_download)}</a>
+              <a class="btn btn-ghost" href="/dashboard.json">${svgDownload()} ${context.getString(
+                R.string.web_config_dashboard_download,
+            )}</a>
 
               <label>${svgUpload()} ${context.getString(R.string.web_config_dashboard_upload_button)}</label>
               <form method="post" action="/dashboard.json" enctype="multipart/form-data">
@@ -391,7 +403,9 @@ class ConfigServer(
                   .then(r => r.json())
                   .then(data => {
                     if (data.hubId) { idInput.value = data.hubId; }
-                    else if (!silent) { alert(data.error || '${jsEscape(context.getString(R.string.web_config_harmony_discover_failed))}'); }
+                    else if (!silent) { alert(data.error || '${jsEscape(
+                context.getString(R.string.web_config_harmony_discover_failed),
+            )}'); }
                   })
                   .catch(e => { if (!silent) alert('${jsEscape(context.getString(R.string.web_config_harmony_discover_failed))}: ' + e); })
                   .finally(() => { btn.textContent = originalText; btn.disabled = false; });
@@ -421,44 +435,58 @@ class ConfigServer(
     // ---- inline icons (no external requests — this page must work with zero
     // internet access beyond the optional Google Fonts, which degrade gracefully) --
 
-    private fun svgWifi() = """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.5a17 17 0 0 1 20 0"/><path d="M5.5 12.5a12 12 0 0 1 13 0"/><path d="M9 16.5a7 7 0 0 1 6 0"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/></svg>"""
+    private fun svgWifi() =
+        """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.5a17 17 0 0 1 20 0"/><path d="M5.5 12.5a12 12 0 0 1 13 0"/><path d="M9 16.5a7 7 0 0 1 6 0"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/></svg>"""
 
-    private fun svgRemote() = """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="7" r="1.4" fill="currentColor" stroke="none"/><path d="M9.5 12h5M9.5 15.5h5M9.5 19h2"/></svg>"""
+    private fun svgRemote() =
+        """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="7" r="1.4" fill="currentColor" stroke="none"/><path d="M9.5 12h5M9.5 15.5h5M9.5 19h2"/></svg>"""
 
-    private fun svgWand() = """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 16 8"/><path d="M14.5 9.5 18 6"/><path d="M19 4v2M22 5h-2M4 3v2M3 4h2M19.5 15v2M20.5 16h-2"/></svg>"""
+    private fun svgWand() =
+        """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 16 8"/><path d="M14.5 9.5 18 6"/><path d="M19 4v2M22 5h-2M4 3v2M3 4h2M19.5 15v2M20.5 16h-2"/></svg>"""
 
-    private fun svgDownload() = """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>"""
+    private fun svgDownload() =
+        """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>"""
 
-    private fun svgUpload() = """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V8M7 13l5-5 5 5M4 4h16"/></svg>"""
+    private fun svgUpload() =
+        """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V8M7 13l5-5 5 5M4 4h16"/></svg>"""
 
-    private fun svgImage() = """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.4" fill="currentColor" stroke="none"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg>"""
+    private fun svgImage() =
+        """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.4" fill="currentColor" stroke="none"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg>"""
 
     /** One repeatable hub row — also used (with blank values) as the JS `+` template. */
     private fun hubRowHtml(hub: HarmonyHubConfig): String {
         val fetchLink =
             if (hub.localId.isNotBlank()) {
-                """<a href="#" onclick="fetchHubConfig(this, '${escape(hub.localId)}'); return false;">${context.getString(R.string.web_config_harmony_fetch_link)}</a>"""
+                """<a href="#" onclick="fetchHubConfig(this, '${escape(
+                    hub.localId,
+                )}'); return false;">${context.getString(R.string.web_config_harmony_fetch_link)}</a>"""
             } else {
                 "" // unsaved row — nothing to fetch yet, hub doesn't exist on the backend until Save is pressed
             }
         return """
-            <div class="hub-row">
-              <input type="hidden" name="hub_localid[]" value="${escape(hub.localId)}">
-              <label>${context.getString(R.string.web_config_harmony_name_label)}</label>
-              <input type="text" name="hub_name[]" value="${escape(hub.name)}" placeholder="Salon">
-              <label>${context.getString(R.string.web_config_harmony_ip_label)}</label>
-              <input type="text" name="hub_ip[]" value="${escape(hub.ip)}" placeholder="192.168.1.50" onblur="onHubIpBlur(this)">
-              <label>${context.getString(R.string.web_config_harmony_id_label)}</label>
-              <div style="display:flex;gap:6px;align-items:center">
-                <input type="text" name="hub_hubid[]" value="${escape(hub.hubId)}" style="flex:1">
-                <button type="button" class="hub-discover-btn" style="margin-top:0;padding:8px 10px;white-space:nowrap;border-radius:7px;font-family:inherit;font-size:12px;cursor:pointer" onclick="discoverHubId(this)">${context.getString(R.string.web_config_harmony_discover_button)}</button>
-              </div>
-              <div class="hub-actions">
-                $fetchLink
-                <button type="button" class="hub-remove" onclick="removeHubRow(this)">${context.getString(R.string.web_config_harmony_remove_button)}</button>
-              </div>
-              <div class="hub-config-result"></div>
-            </div>
+                                                <div class="hub-row">
+                                                  <input type="hidden" name="hub_localid[]" value="${escape(hub.localId)}">
+                                                  <label>${context.getString(R.string.web_config_harmony_name_label)}</label>
+                                                  <input type="text" name="hub_name[]" value="${escape(hub.name)}" placeholder="Salon">
+                                                  <label>${context.getString(R.string.web_config_harmony_ip_label)}</label>
+                                                  <input type="text" name="hub_ip[]" value="${escape(
+            hub.ip,
+        )}" placeholder="192.168.1.50" onblur="onHubIpBlur(this)">
+                                                  <label>${context.getString(R.string.web_config_harmony_id_label)}</label>
+                                                  <div style="display:flex;gap:6px;align-items:center">
+                                                    <input type="text" name="hub_hubid[]" value="${escape(hub.hubId)}" style="flex:1">
+                                                    <button type="button" class="hub-discover-btn" style="margin-top:0;padding:8px 10px;white-space:nowrap;border-radius:7px;font-family:inherit;font-size:12px;cursor:pointer" onclick="discoverHubId(this)">${context.getString(
+            R.string.web_config_harmony_discover_button,
+        )}</button>
+                                                  </div>
+                                                  <div class="hub-actions">
+                                                    $fetchLink
+                                                    <button type="button" class="hub-remove" onclick="removeHubRow(this)">${context.getString(
+            R.string.web_config_harmony_remove_button,
+        )}</button>
+                                                  </div>
+                                                  <div class="hub-config-result"></div>
+                                                </div>
             """.trimIndent()
     }
 
@@ -561,7 +589,11 @@ class ConfigServer(
                 Log.w("ConfigServer", "Harmony hub '${hubConfig.name}' unreachable — serving last cached config")
                 newFixedLengthResponse(Response.Status.OK, "application/json", cached.toString())
             } else {
-                newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", """{"error":"could not reach hub (not connected, or request timed out), and no cached config on disk yet"}""")
+                newFixedLengthResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    "application/json",
+                    """{"error":"could not reach hub (not connected, or request timed out), and no cached config on disk yet"}""",
+                )
             }
         }
 
@@ -667,7 +699,12 @@ class ConfigServer(
         val json =
             JSONArray().apply {
                 getPageNames().forEachIndexed { index, name ->
-                    put(JSONObject().apply { put("index", index); put("name", name) })
+                    put(
+                        JSONObject().apply {
+                            put("index", index)
+                            put("name", name)
+                        },
+                    )
                 }
             }
         return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
@@ -710,7 +747,12 @@ class ConfigServer(
             )
         }
         onSetPage(index)
-        val json = JSONObject().apply { put("status", "ok"); put("index", index); put("name", names[index]) }
+        val json =
+            JSONObject().apply {
+                put("status", "ok")
+                put("index", index)
+                put("name", names[index])
+            }
         return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
     }
 
@@ -774,7 +816,10 @@ class ConfigServer(
                         if (active == null) {
                             JSONObject.NULL
                         } else {
-                            JSONObject().apply { put("id", active.id); put("name", active.name) }
+                            JSONObject().apply {
+                                put("id", active.id)
+                                put("name", active.name)
+                            }
                         },
                     )
                 }
@@ -850,7 +895,13 @@ class ConfigServer(
         val bytes =
             try {
                 OkHttpClient().newCall(req).execute().use { resp ->
-                    if (!resp.isSuccessful) return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "HA returned ${resp.code}")
+                    if (!resp.isSuccessful) {
+                        return newFixedLengthResponse(
+                            Response.Status.INTERNAL_ERROR,
+                            "text/plain",
+                            "HA returned ${resp.code}",
+                        )
+                    }
                     resp.body?.bytes()
                 }
             } catch (e: Exception) {
@@ -1026,15 +1077,12 @@ class ConfigServer(
         return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
     }
 
-    private fun sanitize(name: String) =
-        name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
+    private fun sanitize(name: String) = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
 
-    private fun escape(s: String) =
-        s.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;")
+    private fun escape(s: String) = s.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;")
 
     /** Escapes a string for safe embedding inside a single-quoted JS string literal
      * in the generated <script> block — needed for any translated string (which may
      * contain apostrophes, e.g. French "d'abord") interpolated into inline JS. */
-    private fun jsEscape(s: String) =
-        s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
+    private fun jsEscape(s: String) = s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
 }

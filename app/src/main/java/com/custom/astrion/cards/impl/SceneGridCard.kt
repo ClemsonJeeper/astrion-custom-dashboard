@@ -137,9 +137,10 @@ class SceneGridCard : CardRenderer {
 
         if (row) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 scenes.forEach { scene ->
@@ -194,14 +195,15 @@ class SceneGridCard : CardRenderer {
         onClick: () -> Unit,
     ) {
         val textColor = if (luminance(color) > 0.75f) Color(0xFF141414) else Color(0xFFF0F2F6)
-        val bitmap = remember(iconPath) {
-            iconPath?.let {
-                runCatching {
-                    val f = File(it)
-                    if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
-                }.getOrNull()
+        val bitmap =
+            remember(iconPath) {
+                iconPath?.let {
+                    runCatching {
+                        val f = File(it)
+                        if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
+                    }.getOrNull()
+                }
             }
-        }
 
         if (hasIcon) {
             // Every tile in the grid uses this branch once any one of them has
@@ -209,12 +211,13 @@ class SceneGridCard : CardRenderer {
             // spacer keeps their label lined up with the others instead of
             // sitting lower.
             Column(
-                modifier = modifier
-                    .height(74.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(color)
-                    .clickable(onClick = onClick)
-                    .padding(6.dp),
+                modifier =
+                    modifier
+                        .height(74.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(color)
+                        .clickable(onClick = onClick)
+                        .padding(6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -237,12 +240,13 @@ class SceneGridCard : CardRenderer {
             }
         } else {
             Box(
-                modifier = modifier
-                    .height(58.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(color)
-                    .clickable(onClick = onClick)
-                    .padding(horizontal = 8.dp),
+                modifier =
+                    modifier
+                        .height(58.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(color)
+                        .clickable(onClick = onClick)
+                        .padding(horizontal = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

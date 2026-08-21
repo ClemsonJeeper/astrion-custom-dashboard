@@ -56,7 +56,6 @@ import kotlin.math.sqrt
  */
 @Suppress("SpellCheckingInspection")
 class MainActivity : ComponentActivity() {
-
     private companion object {
         const val DEBUG_KEYS = false
         const val KEY_TAG = "AstrionKeys"
@@ -74,17 +73,22 @@ class MainActivity : ComponentActivity() {
     private var motionSensor: Sensor? = null
     private var lastMagnitude = 0f
     private var lastWakeMs = 0L
-    private val motionListener = object : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent) {
-            val (x, y, z) = event.values
-            val mag = sqrt(x * x + y * y + z * z)
-            if (lastMagnitude != 0f && abs(mag - lastMagnitude) > MOTION_THRESHOLD) {
-                wakeScreen()
+    private val motionListener =
+        object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                val (x, y, z) = event.values
+                val mag = sqrt(x * x + y * y + z * z)
+                if (lastMagnitude != 0f && abs(mag - lastMagnitude) > MOTION_THRESHOLD) {
+                    wakeScreen()
+                }
+                lastMagnitude = mag
             }
-            lastMagnitude = mag
+
+            override fun onAccuracyChanged(
+                sensor: Sensor?,
+                accuracy: Int,
+            ) {}
         }
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-    }
 
     private lateinit var client: HaClient
 
@@ -137,9 +141,10 @@ class MainActivity : ComponentActivity() {
      * :8080 admin surface. */
     private var configServerEnabled by mutableStateOf(true)
 
-    private val storagePermission = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { reloadDashboard() }
+    private val storagePermission =
+        registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions(),
+        ) { reloadDashboard() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -148,17 +153,17 @@ class MainActivity : ComponentActivity() {
         // Enable full-screen immersive sticky mode for dedicated wall/remote tablet mode
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_FULLSCREEN
-                        or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                )
+            View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        )
 
         if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             storagePermission.launch(
                 arrayOf(
                     Manifest.permission.READ_EXTERNAL_STORAGE,
                     Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                )
+                ),
             )
         }
 
@@ -183,26 +188,28 @@ class MainActivity : ComponentActivity() {
      *  unreliable on Android 8.1 HOME launcher activities. */
     private fun initClientsAndServer() {
         client = HaClient(baseUrl = RemoteSettings.haUrl(this), token = RemoteSettings.haToken(this))
-        harmonyRegistry = HarmonyHubRegistry(
-            hubs = RemoteSettings.harmonyHubs(this),
-            onError = { hubName, msg -> Log.e("HarmonyHubClient", "[$hubName] $msg") },
-            onHubIdDiscovered = { updatedHubs -> RemoteSettings.saveHarmonyHubs(this, updatedHubs) },
-        )
-        configServer = ConfigServer(
-            context = this,
-            harmonyRegistry = harmonyRegistry,
-            onConnectionSaved = { runOnUiThread { reconnectWithNewSettings() } },
-            onDashboardUpdated = { runOnUiThread { reloadDashboard() } },
-            getPageNames = { dashboard.config.pages.map { it.name } },
-            getCurrentPageIndex = { currentPageIndex },
-            // Reuses the exact mechanism hardware shortcut buttons already use
-            // (see runHotkey's `hk.page` branch): set navTarget, Dashboard's
-            // LaunchedEffect(navTarget) does the scrollToPage + clears it.
-            onSetPage = { index -> runOnUiThread { navTarget = index } },
-            getActivityRuntime = { activityRuntime },
-            onStartActivity = { id -> runOnUiThread { startActivityFn?.invoke(id) } },
-            onStopActivity = { room -> runOnUiThread { stopActivityFn?.invoke(room) } },
-        )
+        harmonyRegistry =
+            HarmonyHubRegistry(
+                hubs = RemoteSettings.harmonyHubs(this),
+                onError = { hubName, msg -> Log.e("HarmonyHubClient", "[$hubName] $msg") },
+                onHubIdDiscovered = { updatedHubs -> RemoteSettings.saveHarmonyHubs(this, updatedHubs) },
+            )
+        configServer =
+            ConfigServer(
+                context = this,
+                harmonyRegistry = harmonyRegistry,
+                onConnectionSaved = { runOnUiThread { reconnectWithNewSettings() } },
+                onDashboardUpdated = { runOnUiThread { reloadDashboard() } },
+                getPageNames = { dashboard.config.pages.map { it.name } },
+                getCurrentPageIndex = { currentPageIndex },
+                // Reuses the exact mechanism hardware shortcut buttons already use
+                // (see runHotkey's `hk.page` branch): set navTarget, Dashboard's
+                // LaunchedEffect(navTarget) does the scrollToPage + clears it.
+                onSetPage = { index -> runOnUiThread { navTarget = index } },
+                getActivityRuntime = { activityRuntime },
+                onStartActivity = { id -> runOnUiThread { startActivityFn?.invoke(id) } },
+                onStopActivity = { room -> runOnUiThread { stopActivityFn?.invoke(room) } },
+            )
     }
 
     /** Called when the user saves new HA/Harmony connection settings via the
@@ -262,6 +269,8 @@ class MainActivity : ComponentActivity() {
      * so the launcher itself is never dismissed by BACK.
      */
     @Suppress("DEPRECATION")
+    @SuppressLint("MissingSuperCall") // intentional: BACK is fully intercepted on root pages
+    // to keep this a kiosk-mode launcher — see class doc above.
     override fun onBackPressed() {
         val parentName = dashboard.config.pages.getOrNull(currentPageIndex)?.parent ?: return
         val idx = dashboard.config.pages.indexOfFirst { it.name.equals(parentName, ignoreCase = true) }
@@ -291,7 +300,10 @@ class MainActivity : ComponentActivity() {
         bindHotkeys(mergedShort, mergedLong)
     }
 
-    private fun mergeHotkeys(global: List<HotkeyConfig>, pageSpecific: List<HotkeyConfig>): List<HotkeyConfig> {
+    private fun mergeHotkeys(
+        global: List<HotkeyConfig>,
+        pageSpecific: List<HotkeyConfig>,
+    ): List<HotkeyConfig> {
         val byKey = LinkedHashMap<String, HotkeyConfig>()
         global.forEach { byKey[it.key.uppercase()] = it }
         pageSpecific.forEach { byKey[it.key.uppercase()] = it } // Page overrides global for the same key
@@ -300,16 +312,21 @@ class MainActivity : ComponentActivity() {
 
     // ---- Hotkeys ------------------------------------------------------------
 
-    private fun bindHotkeys(short: List<HotkeyConfig>, long: List<HotkeyConfig>) {
+    private fun bindHotkeys(
+        short: List<HotkeyConfig>,
+        long: List<HotkeyConfig>,
+    ) {
         keyRouter.clear()
         short.forEach { hk ->
-            val key = runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
-                ?: return@forEach
+            val key =
+                runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
+                    ?: return@forEach
             keyRouter.on(key) { runHotkey(hk) }
         }
         long.forEach { hk ->
-            val key = runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
-                ?: return@forEach
+            val key =
+                runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
+                    ?: return@forEach
             keyRouter.onLong(key) { runHotkey(hk) }
         }
     }
@@ -386,10 +403,11 @@ class MainActivity : ComponentActivity() {
                         cancelPendingLong()
                         longFired = false
                         activeLongKey = code
-                        val r = Runnable {
-                            longFired = true
-                            longH.invoke()
-                        }
+                        val r =
+                            Runnable {
+                                longFired = true
+                                longH.invoke()
+                            }
                         pendingLong = r
                         keyHandler.postDelayed(r, LONG_PRESS_MS)
                     }
@@ -485,7 +503,8 @@ class MainActivity : ComponentActivity() {
         lastWakeMs = now
 
         // Suppressed deprecation for older Android 8.1 (HA100 remote) compatibility
-        val flags = PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
+        val flags =
+            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
                 PowerManager.ACQUIRE_CAUSES_WAKEUP or
                 PowerManager.ON_AFTER_RELEASE
 

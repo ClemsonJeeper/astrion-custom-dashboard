@@ -119,6 +119,7 @@ class FanCard : CardRenderer {
         if (useStep) {
             val pct = percentage ?: 0
             val explicitName = config.string("name")
+
             fun changeSpeed(direction: String) =
                 ctx.client.callService(
                     ServiceCall.of("fan", direction, entityId),

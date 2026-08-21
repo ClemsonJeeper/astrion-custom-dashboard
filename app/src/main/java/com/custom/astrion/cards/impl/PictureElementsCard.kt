@@ -1,6 +1,7 @@
 package com.custom.astrion.cards.impl
 
 import android.graphics.BitmapFactory
+import android.os.Environment
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -75,7 +76,8 @@ class PictureElementsCard : CardRenderer {
         config: CardConfig,
         ctx: CardContext,
     ) {
-        val imagePath = config.string("image") ?: "/sdcard/astrion/floorplan.png"
+        val imagePath = config.string("image")
+            ?: "${Environment.getExternalStorageDirectory().path}/astrion/floorplan.png"
         val elements = (config.options["elements"] as? List<Map<String, Any?>>) ?: emptyList()
         var showVacuumDialog by remember { mutableStateOf(false) }
 

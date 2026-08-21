@@ -22,14 +22,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -61,11 +60,12 @@ fun SettingsMenu(ctx: CardContext) {
     val activity = context as? Activity
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(LocalTheme.current.cardSurface)
-            .padding(18.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(LocalTheme.current.cardSurface)
+                .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Text(
@@ -89,13 +89,13 @@ fun SettingsMenu(ctx: CardContext) {
 
         SettingRow(icon = Icons.Filled.Wifi, label = stringResource(R.string.wifi_network)) {
             context.startActivity(
-                Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }
 
         SettingRow(icon = Icons.Filled.SettingsSuggest, label = stringResource(R.string.android_system)) {
             context.startActivity(
-                Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }
 
@@ -113,8 +113,12 @@ private fun ConnectionStatusSection(ctx: CardContext) {
         ConnectionStatusRow(
             label = "Home Assistant",
             connected = haConnected,
-            detail = if (haConnected) stringResource(R.string.connected)
-            else haConnection.name.lowercase().replaceFirstChar { it.uppercase() },
+            detail =
+                if (haConnected) {
+                    stringResource(R.string.connected)
+                } else {
+                    haConnection.name.lowercase().replaceFirstChar { it.uppercase() }
+                },
         )
         ConnectionStatusRow(
             label = "Harmony Hub",
@@ -125,21 +129,27 @@ private fun ConnectionStatusSection(ctx: CardContext) {
 }
 
 @Composable
-private fun ConnectionStatusRow(label: String, connected: Boolean, detail: String) {
+private fun ConnectionStatusRow(
+    label: String,
+    connected: Boolean,
+    detail: String,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(LocalTheme.current.controlBackground)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(LocalTheme.current.controlBackground)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Box(
-            modifier = Modifier
-                .size(10.dp)
-                .clip(CircleShape)
-                .background(if (connected) LocalTheme.current.success else LocalTheme.current.danger)
+            modifier =
+                Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(if (connected) LocalTheme.current.success else LocalTheme.current.danger),
         )
         Text(label, color = LocalTheme.current.primaryText, fontSize = 14.sp)
         Spacer(Modifier.weight(1f))
@@ -155,7 +165,7 @@ private fun BrightnessSlider(activity: Activity?) {
         mutableIntStateOf(
             runCatching {
                 Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS)
-            }.getOrDefault(128)
+            }.getOrDefault(128),
         )
     }
 
@@ -171,7 +181,7 @@ private fun BrightnessSlider(activity: Activity?) {
             SettingRow(icon = null, label = stringResource(R.string.allow_brightness_write)) {
                 context.startActivity(
                     Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 )
                 canWrite = Settings.System.canWrite(context)
             }
@@ -194,11 +204,12 @@ private fun BrightnessSlider(activity: Activity?) {
                         )
                     }
                 },
-                colors = SliderDefaults.colors(
-                    thumbColor = LocalTheme.current.accent,
-                    activeTrackColor = LocalTheme.current.accent,
-                    inactiveTrackColor = LocalTheme.current.controlBackground,
-                ),
+                colors =
+                    SliderDefaults.colors(
+                        thumbColor = LocalTheme.current.accent,
+                        activeTrackColor = LocalTheme.current.accent,
+                        inactiveTrackColor = LocalTheme.current.controlBackground,
+                    ),
             )
         }
     }
@@ -257,14 +268,19 @@ private fun ConfigServerRow(ctx: CardContext) {
 }
 
 @Composable
-private fun SettingRow(icon: ImageVector?, label: String, onClick: () -> Unit) {
+private fun SettingRow(
+    icon: ImageVector?,
+    label: String,
+    onClick: () -> Unit,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(LocalTheme.current.controlBackground)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(LocalTheme.current.controlBackground)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
