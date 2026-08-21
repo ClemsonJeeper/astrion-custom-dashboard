@@ -5,7 +5,14 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -61,25 +68,25 @@ fun SettingsMenu(ctx: CardContext) {
 
     Column(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(LocalTheme.current.cardSurface)
-                .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(LocalTheme.current.cardSurface)
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Text(
             stringResource(R.string.settings_title),
             color = LocalTheme.current.primaryText,
             fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.SemiBold
         )
 
         localIpAddress()?.let { ip ->
             Text(
                 if (ctx.configServerEnabled) "Local config: http://$ip:8080" else stringResource(R.string.config_server_off_hint),
                 color = if (ctx.configServerEnabled) LocalTheme.current.accent else LocalTheme.current.mutedText,
-                fontSize = 12.sp,
+                fontSize = 12.sp
             )
         }
 
@@ -89,13 +96,13 @@ fun SettingsMenu(ctx: CardContext) {
 
         SettingRow(icon = Icons.Filled.Wifi, label = stringResource(R.string.wifi_network)) {
             context.startActivity(
-                Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         }
 
         SettingRow(icon = Icons.Filled.SettingsSuggest, label = stringResource(R.string.android_system)) {
             context.startActivity(
-                Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         }
 
@@ -114,42 +121,38 @@ private fun ConnectionStatusSection(ctx: CardContext) {
             label = "Home Assistant",
             connected = haConnected,
             detail =
-                if (haConnected) {
-                    stringResource(R.string.connected)
-                } else {
-                    haConnection.name.lowercase().replaceFirstChar { it.uppercase() }
-                },
+            if (haConnected) {
+                stringResource(R.string.connected)
+            } else {
+                haConnection.name.lowercase().replaceFirstChar { it.uppercase() }
+            }
         )
         ConnectionStatusRow(
             label = "Harmony Hub",
             connected = ctx.harmonyConnected,
-            detail = stringResource(if (ctx.harmonyConnected) R.string.connected else R.string.disconnected),
+            detail = stringResource(if (ctx.harmonyConnected) R.string.connected else R.string.disconnected)
         )
     }
 }
 
 @Composable
-private fun ConnectionStatusRow(
-    label: String,
-    connected: Boolean,
-    detail: String,
-) {
+private fun ConnectionStatusRow(label: String, connected: Boolean, detail: String) {
     Row(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(LocalTheme.current.controlBackground)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(LocalTheme.current.controlBackground)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Box(
             modifier =
-                Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(if (connected) LocalTheme.current.success else LocalTheme.current.danger),
+            Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(if (connected) LocalTheme.current.success else LocalTheme.current.danger)
         )
         Text(label, color = LocalTheme.current.primaryText, fontSize = 14.sp)
         Spacer(Modifier.weight(1f))
@@ -165,7 +168,7 @@ private fun BrightnessSlider(activity: Activity?) {
         mutableIntStateOf(
             runCatching {
                 Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS)
-            }.getOrDefault(128),
+            }.getOrDefault(128)
         )
     }
 
@@ -181,7 +184,7 @@ private fun BrightnessSlider(activity: Activity?) {
             SettingRow(icon = null, label = stringResource(R.string.allow_brightness_write)) {
                 context.startActivity(
                     Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 )
                 canWrite = Settings.System.canWrite(context)
             }
@@ -200,16 +203,16 @@ private fun BrightnessSlider(activity: Activity?) {
                         Settings.System.putInt(
                             context.contentResolver,
                             Settings.System.SCREEN_BRIGHTNESS,
-                            brightness,
+                            brightness
                         )
                     }
                 },
                 colors =
-                    SliderDefaults.colors(
-                        thumbColor = LocalTheme.current.accent,
-                        activeTrackColor = LocalTheme.current.accent,
-                        inactiveTrackColor = LocalTheme.current.controlBackground,
-                    ),
+                SliderDefaults.colors(
+                    thumbColor = LocalTheme.current.accent,
+                    activeTrackColor = LocalTheme.current.accent,
+                    inactiveTrackColor = LocalTheme.current.controlBackground
+                )
             )
         }
     }
@@ -220,7 +223,7 @@ private fun WakeOnMotionRow(ctx: CardContext) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Icon(Icons.Filled.Vibration, contentDescription = null, tint = LocalTheme.current.mutedText)
         Text(stringResource(R.string.wake_on_motion), color = LocalTheme.current.primaryText, fontSize = 14.sp)
@@ -228,7 +231,7 @@ private fun WakeOnMotionRow(ctx: CardContext) {
         Switch(
             checked = ctx.wakeOnMotionEnabled,
             onCheckedChange = { ctx.setWakeOnMotionEnabled(it) },
-            colors = SwitchDefaults.colors(checkedTrackColor = LocalTheme.current.accent),
+            colors = SwitchDefaults.colors(checkedTrackColor = LocalTheme.current.accent)
         )
     }
 }
@@ -248,7 +251,7 @@ private fun ConfigServerRow(ctx: CardContext) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Icon(Icons.Filled.Wifi, contentDescription = null, tint = LocalTheme.current.mutedText)
             Text(stringResource(R.string.config_server_toggle), color = LocalTheme.current.primaryText, fontSize = 14.sp)
@@ -256,43 +259,40 @@ private fun ConfigServerRow(ctx: CardContext) {
             Switch(
                 checked = ctx.configServerEnabled,
                 onCheckedChange = { ctx.setConfigServerEnabled(it) },
-                colors = SwitchDefaults.colors(checkedTrackColor = LocalTheme.current.accent),
+                colors = SwitchDefaults.colors(checkedTrackColor = LocalTheme.current.accent)
             )
         }
         Text(
             stringResource(R.string.config_server_toggle_hint),
             color = LocalTheme.current.mutedText,
-            fontSize = 11.sp,
+            fontSize = 11.sp
         )
     }
 }
 
 @Composable
-private fun SettingRow(
-    icon: ImageVector?,
-    label: String,
-    onClick: () -> Unit,
-) {
+private fun SettingRow(icon: ImageVector?, label: String, onClick: () -> Unit) {
     Row(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(LocalTheme.current.controlBackground)
-                .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(LocalTheme.current.controlBackground)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         icon?.let { Icon(it, contentDescription = null, tint = LocalTheme.current.mutedText) }
         Text(label, color = LocalTheme.current.primaryText, fontSize = 14.sp)
     }
 }
 
-private fun localIpAddress(): String? =
-    runCatching {
-        NetworkInterface.getNetworkInterfaces().asSequence()
-            .flatMap { it.inetAddresses.asSequence() }
-            .firstOrNull { !it.isLoopbackAddress && it is Inet4Address }
-            ?.hostAddress
-    }.getOrNull()
+private fun localIpAddress(): String? = runCatching {
+    NetworkInterface
+        .getNetworkInterfaces()
+        .asSequence()
+        .flatMap { it.inetAddresses.asSequence() }
+        .firstOrNull { !it.isLoopbackAddress && it is Inet4Address }
+        ?.hostAddress
+}.getOrNull()

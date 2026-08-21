@@ -1,7 +1,11 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,28 +41,25 @@ class MonitorCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val title = config.string("title")
         val entities = (config.options["entities"] as? List<Map<String, Any?>>) ?: emptyList()
 
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(ctx.theme.cardSurface)
-                    .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(ctx.theme.cardSurface)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             if (!title.isNullOrBlank()) {
                 Text(
                     title,
                     color = ctx.theme.primaryText,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
             entities.forEach { row ->
@@ -70,14 +71,14 @@ class MonitorCard : CardRenderer {
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(name, color = ctx.theme.mutedText, fontSize = 14.sp, modifier = Modifier.weight(1f))
                     Text(
                         if (unit.isBlank()) value else "$value $unit",
                         color = ctx.theme.primaryText,
                         fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }

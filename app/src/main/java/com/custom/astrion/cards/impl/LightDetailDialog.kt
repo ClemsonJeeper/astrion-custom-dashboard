@@ -4,7 +4,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,9 +38,9 @@ import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ThemeColors
+import kotlin.math.roundToInt
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
-import kotlin.math.roundToInt
 
 /**
  * Long-press detail popup for a light (bubble-card style): a big vertical
@@ -47,7 +56,7 @@ fun LightDetailDialog(
     e: EntityState?,
     client: HaClient,
     theme: ThemeColors = ThemeColors.Default,
-    onClose: () -> Unit,
+    onClose: () -> Unit
 ) {
     val on = e?.isOn == true
     val brightness = e?.attrInt("brightness")
@@ -84,18 +93,14 @@ fun LightDetailDialog(
         }
     }
 
-    fun setRgb(
-        r: Int,
-        g: Int,
-        b: Int,
-    ) {
+    fun setRgb(r: Int, g: Int, b: Int) {
         client.callService(
             ServiceCall(
                 "light",
                 "turn_on",
                 entityId,
-                mapOf("rgb_color" to JsonArray(listOf(JsonPrimitive(r), JsonPrimitive(g), JsonPrimitive(b)))),
-            ),
+                mapOf("rgb_color" to JsonArray(listOf(JsonPrimitive(r), JsonPrimitive(g), JsonPrimitive(b))))
+            )
         )
     }
 
@@ -106,68 +111,67 @@ fun LightDetailDialog(
     Dialog(onDismissRequest = onClose) {
         Column(
             modifier =
-                Modifier
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(theme.cardSurface)
-                    .padding(20.dp),
+            Modifier
+                .clip(RoundedCornerShape(24.dp))
+                .background(theme.cardSurface)
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
                 "${(dragLevel * 100).roundToInt()}%",
                 color = theme.primaryText,
                 fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.Bold
             )
             Text(name, color = theme.mutedText, fontSize = 13.sp)
 
             // Vertical brightness pill: drag or tap to set; fill rises from the bottom.
             Box(
                 modifier =
-                    Modifier
-                        .width(120.dp)
-                        .height(230.dp)
-                        .clip(RoundedCornerShape(30.dp))
-                        .background(theme.insetSurface)
-                        .pointerInput(entityId) {
-                            detectVerticalDragGestures(
-                                onDragEnd = { commit(dragLevel) },
-                            ) { change, _ ->
-                                dragLevel = (1f - change.position.y / size.height).coerceIn(0f, 1f)
-                            }
+                Modifier
+                    .width(120.dp)
+                    .height(230.dp)
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(theme.insetSurface)
+                    .pointerInput(entityId) {
+                        detectVerticalDragGestures(
+                            onDragEnd = { commit(dragLevel) }
+                        ) { change, _ ->
+                            dragLevel = (1f - change.position.y / size.height).coerceIn(0f, 1f)
                         }
-                        .pointerInput(entityId) {
-                            detectTapGestures { offset ->
-                                val f = (1f - offset.y / size.height).coerceIn(0f, 1f)
-                                dragLevel = f
-                                commit(f)
-                            }
-                        },
+                    }.pointerInput(entityId) {
+                        detectTapGestures { offset ->
+                            val f = (1f - offset.y / size.height).coerceIn(0f, 1f)
+                            dragLevel = f
+                            commit(f)
+                        }
+                    }
             ) {
                 Box(
                     modifier =
-                        Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .fillMaxHeight(dragLevel.coerceIn(0.02f, 1f))
-                            .background(fillColor.copy(alpha = if (on) 0.9f else 0.35f)),
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .fillMaxHeight(dragLevel.coerceIn(0.02f, 1f))
+                        .background(fillColor.copy(alpha = if (on) 0.9f else 0.35f))
                 )
             }
 
             // Power toggle.
             Box(
                 modifier =
-                    Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(if (on) theme.amber else theme.controlBackground)
-                        .clickable { client.toggle(entityId) },
-                contentAlignment = Alignment.Center,
+                Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(if (on) theme.amber else theme.controlBackground)
+                    .clickable { client.toggle(entityId) },
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Filled.PowerSettingsNew,
                     contentDescription = "Toggle",
-                    tint = if (on) Color(0xFF241A00) else theme.iconTint,
+                    tint = if (on) Color(0xFF241A00) else theme.iconTint
                 )
             }
 
@@ -175,21 +179,27 @@ fun LightDetailDialog(
             if (hasColor) {
                 val swatches =
                     listOf(
-                        Triple(244, 67, 54), Triple(255, 152, 0), Triple(255, 235, 59),
-                        Triple(76, 175, 80), Triple(0, 188, 212),
-                        Triple(33, 150, 243), Triple(156, 39, 176), Triple(233, 30, 99),
-                        Triple(255, 182, 193), Triple(255, 255, 255),
+                        Triple(244, 67, 54),
+                        Triple(255, 152, 0),
+                        Triple(255, 235, 59),
+                        Triple(76, 175, 80),
+                        Triple(0, 188, 212),
+                        Triple(33, 150, 243),
+                        Triple(156, 39, 176),
+                        Triple(233, 30, 99),
+                        Triple(255, 182, 193),
+                        Triple(255, 255, 255)
                     )
                 swatches.chunked(5).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         row.forEach { (r, g, b) ->
                             Box(
                                 modifier =
-                                    Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(r, g, b))
-                                        .clickable { setRgb(r, g, b) },
+                                Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(r, g, b))
+                                    .clickable { setRgb(r, g, b) }
                             )
                         }
                     }
@@ -202,11 +212,11 @@ fun LightDetailDialog(
                     listOf("Candle" to 2200, "Warm" to 2700, "Neutral" to 4000, "Cool" to 5500).forEach { (label, k) ->
                         Box(
                             modifier =
-                                Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(theme.controlBackground)
-                                    .clickable { setKelvin(k) }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(theme.controlBackground)
+                                .clickable { setKelvin(k) }
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
                             Text(label, color = theme.iconTint, fontSize = 12.sp)
                         }

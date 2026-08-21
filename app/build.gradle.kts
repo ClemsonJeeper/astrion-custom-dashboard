@@ -63,6 +63,7 @@ ktlint {
     // Matches Android's 4-space/no-wildcard-import conventions instead of
     // ktlint's plain-Kotlin defaults.
     android.set(true)
+    version.set("1.3.1")
     verbose.set(true)
     outputToConsole.set(true)
     reporters {

@@ -25,7 +25,7 @@ class HarmonyHubRegistry(
      * RemoteSettings.saveHarmonyHubs(context, it) so the ID sticks and the
      * web config page shows it filled in, instead of re-discovering on every
      * app launch. */
-    private val onHubIdDiscovered: (List<HarmonyHubConfig>) -> Unit = {},
+    private val onHubIdDiscovered: (List<HarmonyHubConfig>) -> Unit = {}
 ) {
     private companion object {
         const val TAG = "HarmonyHubRegistry"
@@ -38,7 +38,7 @@ class HarmonyHubRegistry(
                 HarmonyHubClient(
                     hubIp = hub.ip,
                     hubId = hub.hubId,
-                    onError = { msg -> onError(hub.name, msg) },
+                    onError = { msg -> onError(hub.name, msg) }
                 )
         }
 
@@ -58,38 +58,37 @@ class HarmonyHubRegistry(
      * alone (leaving [HarmonyHubConfig.hubId] empty), this method will automatically
      * discover its network `hubId` asynchronously before establishing the WebSocket connection.
      */
-    suspend fun connectAll() =
-        withContext(Dispatchers.IO) {
-            if (clients.isEmpty()) {
-                Log.i(TAG, "No Harmony hubs configured — nothing to connect")
-                return@withContext
-            }
-
-            configs.forEach { hub ->
-                val client = clients[hub.localId] ?: return@forEach
-
-                // Resolve the missing hubId dynamically if it's blank from the UI page entry
-                if (hub.hubId.isBlank()) {
-                    Log.d(TAG, "hubId is blank for IP ${hub.ip}. Attempting auto-discovery...")
-                    val discoveredId = HarmonyHubDiscovery.discoverHubId(hub.ip)
-
-                    if (!discoveredId.isNullOrBlank()) {
-                        hub.hubId = discoveredId
-                        // Inject the newly discovered ID directly into the client instance
-                        client.updateHubId(discoveredId)
-                        Log.d(TAG, "Successfully discovered hubId ($discoveredId) for hub: ${hub.name}")
-                        onHubIdDiscovered(configs) // persist, so this hub isn't re-discovered next launch
-                    } else {
-                        Log.e(TAG, "Failed to resolve hubId for ${hub.name} at ${hub.ip}")
-                        onError(hub.name, "Could not discover hub unique ID from the provided IP address.")
-                        return@forEach // Skip connecting this specific hub
-                    }
-                }
-
-                // Safe to connect now, hubId is fully resolved
-                client.connect()
-            }
+    suspend fun connectAll() = withContext(Dispatchers.IO) {
+        if (clients.isEmpty()) {
+            Log.i(TAG, "No Harmony hubs configured — nothing to connect")
+            return@withContext
         }
+
+        configs.forEach { hub ->
+            val client = clients[hub.localId] ?: return@forEach
+
+            // Resolve the missing hubId dynamically if it's blank from the UI page entry
+            if (hub.hubId.isBlank()) {
+                Log.d(TAG, "hubId is blank for IP ${hub.ip}. Attempting auto-discovery...")
+                val discoveredId = HarmonyHubDiscovery.discoverHubId(hub.ip)
+
+                if (!discoveredId.isNullOrBlank()) {
+                    hub.hubId = discoveredId
+                    // Inject the newly discovered ID directly into the client instance
+                    client.updateHubId(discoveredId)
+                    Log.d(TAG, "Successfully discovered hubId ($discoveredId) for hub: ${hub.name}")
+                    onHubIdDiscovered(configs) // persist, so this hub isn't re-discovered next launch
+                } else {
+                    Log.e(TAG, "Failed to resolve hubId for ${hub.name} at ${hub.ip}")
+                    onError(hub.name, "Could not discover hub unique ID from the provided IP address.")
+                    return@forEach // Skip connecting this specific hub
+                }
+            }
+
+            // Safe to connect now, hubId is fully resolved
+            client.connect()
+        }
+    }
 
     fun disconnectAll() {
         clients.values.forEach { it.disconnect() }

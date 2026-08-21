@@ -40,9 +40,9 @@ import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.ui.Dashboard
 import com.custom.astrion.web.ConfigServer
 import fi.iki.elonen.NanoHTTPD
-import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sqrt
+import kotlinx.coroutines.launch
 
 /**
  * Single-activity host. Owns the HA client, the direct Harmony hub client,
@@ -84,10 +84,7 @@ class MainActivity : ComponentActivity() {
                 lastMagnitude = mag
             }
 
-            override fun onAccuracyChanged(
-                sensor: Sensor?,
-                accuracy: Int,
-            ) {}
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
 
     private lateinit var client: HaClient
@@ -143,7 +140,7 @@ class MainActivity : ComponentActivity() {
 
     private val storagePermission =
         registerForActivityResult(
-            ActivityResultContracts.RequestMultiplePermissions(),
+            ActivityResultContracts.RequestMultiplePermissions()
         ) { reloadDashboard() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -156,14 +153,14 @@ class MainActivity : ComponentActivity() {
             View.SYSTEM_UI_FLAG_FULLSCREEN
                 or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-        )
+            )
 
         if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             storagePermission.launch(
                 arrayOf(
                     Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                ),
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                )
             )
         }
 
@@ -192,7 +189,7 @@ class MainActivity : ComponentActivity() {
             HarmonyHubRegistry(
                 hubs = RemoteSettings.harmonyHubs(this),
                 onError = { hubName, msg -> Log.e("HarmonyHubClient", "[$hubName] $msg") },
-                onHubIdDiscovered = { updatedHubs -> RemoteSettings.saveHarmonyHubs(this, updatedHubs) },
+                onHubIdDiscovered = { updatedHubs -> RemoteSettings.saveHarmonyHubs(this, updatedHubs) }
             )
         configServer =
             ConfigServer(
@@ -208,7 +205,7 @@ class MainActivity : ComponentActivity() {
                 onSetPage = { index -> runOnUiThread { navTarget = index } },
                 getActivityRuntime = { activityRuntime },
                 onStartActivity = { id -> runOnUiThread { startActivityFn?.invoke(id) } },
-                onStopActivity = { room -> runOnUiThread { stopActivityFn?.invoke(room) } },
+                onStopActivity = { room -> runOnUiThread { stopActivityFn?.invoke(room) } }
             )
     }
 
@@ -253,7 +250,7 @@ class MainActivity : ComponentActivity() {
                 setConfigServerEnabled = { enabled -> updateConfigServerEnabled(enabled) },
                 onActivityRuntimeReady = { activityRuntime = it },
                 onStartActivityReady = { fn -> startActivityFn = fn },
-                onStopActivityReady = { fn -> stopActivityFn = fn },
+                onStopActivityReady = { fn -> stopActivityFn = fn }
             )
         }
     }
@@ -272,7 +269,10 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("MissingSuperCall") // intentional: BACK is fully intercepted on root pages
     // to keep this a kiosk-mode launcher — see class doc above.
     override fun onBackPressed() {
-        val parentName = dashboard.config.pages.getOrNull(currentPageIndex)?.parent ?: return
+        val parentName =
+            dashboard.config.pages
+                .getOrNull(currentPageIndex)
+                ?.parent ?: return
         val idx = dashboard.config.pages.indexOfFirst { it.name.equals(parentName, ignoreCase = true) }
         if (idx >= 0) navTarget = idx
     }
@@ -300,10 +300,7 @@ class MainActivity : ComponentActivity() {
         bindHotkeys(mergedShort, mergedLong)
     }
 
-    private fun mergeHotkeys(
-        global: List<HotkeyConfig>,
-        pageSpecific: List<HotkeyConfig>,
-    ): List<HotkeyConfig> {
+    private fun mergeHotkeys(global: List<HotkeyConfig>, pageSpecific: List<HotkeyConfig>): List<HotkeyConfig> {
         val byKey = LinkedHashMap<String, HotkeyConfig>()
         global.forEach { byKey[it.key.uppercase()] = it }
         pageSpecific.forEach { byKey[it.key.uppercase()] = it } // Page overrides global for the same key
@@ -312,10 +309,7 @@ class MainActivity : ComponentActivity() {
 
     // ---- Hotkeys ------------------------------------------------------------
 
-    private fun bindHotkeys(
-        short: List<HotkeyConfig>,
-        long: List<HotkeyConfig>,
-    ) {
+    private fun bindHotkeys(short: List<HotkeyConfig>, long: List<HotkeyConfig>) {
         keyRouter.clear()
         short.forEach { hk ->
             val key =
@@ -364,7 +358,11 @@ class MainActivity : ComponentActivity() {
         val irDevice = hk.irDevice
         val irCommand = hk.irCommand
         if (irDevice != null && irCommand != null) {
-            val irStep = dashboard.config.irDevices.firstOrNull { it.id == irDevice }?.commands?.get(irCommand)
+            val irStep =
+                dashboard.config.irDevices
+                    .firstOrNull { it.id == irDevice }
+                    ?.commands
+                    ?.get(irCommand)
             if (irStep != null) {
                 runCatching { irManager?.transmit(irStep.freq, irStep.pattern.toIntArray()) }
                     .onFailure { Log.e("MainActivity", "hotkey IR send failed: $irDevice/$irCommand", it) }
@@ -439,7 +437,8 @@ class MainActivity : ComponentActivity() {
         val sm = getSystemService(SENSOR_SERVICE) as? SensorManager ?: return
         sensorManager = sm
 
-        motionSensor = sm.getSensorList(Sensor.TYPE_ACCELEROMETER)
+        motionSensor = sm
+            .getSensorList(Sensor.TYPE_ACCELEROMETER)
             .firstOrNull { it.isWakeUpSensor }
             ?: sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 

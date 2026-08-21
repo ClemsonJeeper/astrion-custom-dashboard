@@ -58,7 +58,7 @@ object DashboardConfig {
                     mapOf("name" to "Kitchen", "id" to 18),
                     mapOf("name" to "Bedroom", "id" to 22),
                     mapOf("name" to "Bathroom", "id" to 16),
-                    mapOf("name" to "Office", "id" to 21),
+                    mapOf("name" to "Office", "id" to 21)
                 ),
             // Coarse room-based position on the (non-scale) floorplan — reuses the
             // same % spots as that room's light icon. The vacuum has no live X/Y
@@ -71,10 +71,10 @@ object DashboardConfig {
                     "Kitchen" to listOf(69, 57),
                     "Bedroom" to listOf(29, 90),
                     "Bathroom" to listOf(57, 90),
-                    "Office" to listOf(88, 82),
+                    "Office" to listOf(88, 82)
                 ),
             // Left wall of the bedroom, near the window/plant, above the bed.
-            "dock_position" to listOf(6, 63),
+            "dock_position" to listOf(6, 63)
         )
 
     /** Big "turn everything off" target list, from the original dashboard. */
@@ -102,7 +102,7 @@ object DashboardConfig {
             "light.play_tv",
             "light.tv_art_light",
             "light.couch",
-            "light.wardrobe",
+            "light.wardrobe"
         )
 
     // ---- Page 0: Lights -----------------------------------------------------
@@ -110,54 +110,51 @@ object DashboardConfig {
         PageConfig(
             name = "Lights",
             cards =
-                listOf(
-                    lightTile("light.downlights", "Downlights"),
-                    lightTile("light.club_led_group", "Club LED"),
-                    lightTile("light.art_group", "Art"),
-                    lightTile("light.club_accent_lights", "Accent"),
-                    lightTile("light.bar_lights", "Bar"),
-                    lightTile("light.kitchen_group", "Kitchen"),
-                    lightTile("light.kitchen_console_candles", "Candles"),
-                    lightTile("light.bedroom_lights", "Bedroom"),
-                    lightTile("light.bedlamps", "Bed Lamps"),
-                    lightTile("light.bathroom_all", "Bathroom"),
-                    lightTile("light.wardrobes", "Wardrobes"),
-                    lightTile("light.office_only", "Office"),
-                    lightTile("light.mood_1", "Mood 1"),
-                    lightTile("light.mood_2", "Mood 2"),
-                    // Scenes pinned to the bottom as a swipeable, color-coded row.
-                    CardConfig(
-                        type = "scene_grid",
-                        options =
-                            mapOf(
-                                "layout" to "row",
-                                "pin" to "bottom",
-                                "scenes" to
-                                    listOf(
-                                        mapOf("entity_id" to "script.mood_scene", "name" to "Mood", "color" to "#66E91E63"),
-                                        mapOf("entity_id" to "scene.night", "name" to "Night", "color" to "#663F51B5"),
-                                        mapOf("entity_id" to "scene.white", "name" to "White", "color" to "#66FFFFFF"),
-                                        mapOf("entity_id" to "script.day", "name" to "Day", "color" to "#66FFB300"),
-                                        mapOf("entity_id" to "script.club", "name" to "Club", "color" to "#669C27B0"),
-                                        mapOf("entity_id" to "script.off", "name" to "Off", "color" to "#66000000"),
-                                    ),
-                            ),
-                    ),
-                ),
+            listOf(
+                lightTile("light.downlights", "Downlights"),
+                lightTile("light.club_led_group", "Club LED"),
+                lightTile("light.art_group", "Art"),
+                lightTile("light.club_accent_lights", "Accent"),
+                lightTile("light.bar_lights", "Bar"),
+                lightTile("light.kitchen_group", "Kitchen"),
+                lightTile("light.kitchen_console_candles", "Candles"),
+                lightTile("light.bedroom_lights", "Bedroom"),
+                lightTile("light.bedlamps", "Bed Lamps"),
+                lightTile("light.bathroom_all", "Bathroom"),
+                lightTile("light.wardrobes", "Wardrobes"),
+                lightTile("light.office_only", "Office"),
+                lightTile("light.mood_1", "Mood 1"),
+                lightTile("light.mood_2", "Mood 2"),
+                // Scenes pinned to the bottom as a swipeable, color-coded row.
+                CardConfig(
+                    type = "scene_grid",
+                    options =
+                    mapOf(
+                        "layout" to "row",
+                        "pin" to "bottom",
+                        "scenes" to
+                            listOf(
+                                mapOf("entity_id" to "script.mood_scene", "name" to "Mood", "color" to "#66E91E63"),
+                                mapOf("entity_id" to "scene.night", "name" to "Night", "color" to "#663F51B5"),
+                                mapOf("entity_id" to "scene.white", "name" to "White", "color" to "#66FFFFFF"),
+                                mapOf("entity_id" to "script.day", "name" to "Day", "color" to "#66FFB300"),
+                                mapOf("entity_id" to "script.club", "name" to "Club", "color" to "#669C27B0"),
+                                mapOf("entity_id" to "script.off", "name" to "Off", "color" to "#66000000")
+                            )
+                    )
+                )
+            )
         )
 
-    private fun lightTile(
-        entityId: String,
-        name: String,
-    ) = CardConfig(
+    private fun lightTile(entityId: String, name: String) = CardConfig(
         type = "light",
         options =
-            mapOf(
-                "entity_id" to entityId,
-                "name" to name,
-                "use_light_color" to true,
-                "show_brightness" to true,
-            ),
+        mapOf(
+            "entity_id" to entityId,
+            "name" to name,
+            "use_light_color" to true,
+            "show_brightness" to true
+        )
     )
 
     // ---- Page 1: Main -------------------------------------------------------
@@ -166,74 +163,71 @@ object DashboardConfig {
             PageConfig(
                 name = "Main",
                 cards =
-                    listOf(
-                        CardConfig(
-                            type = "clock_weather",
-                            options =
-                                mapOf(
-                                    "entity_id" to WEATHER,
-                                    "time_format" to 12,
-                                    "forecast_rows" to 2,
-                                    "calendar_entity" to CALENDAR,
-                                ),
-                        ),
-                        CardConfig(
-                            type = "picture_elements",
-                            options =
-                                mapOf(
-                                    "image" to floorplanImg,
-                                    "aspect" to 1.3,
-                                    "elements" to
-                                        listOf(
-                                            // Positions are % of the border-cropped floorplan image.
-                                            elem("light.hue_play", 16, 9),
-                                            elem("light.club_led_group", 12, 46),
-                                            elem("light.couch", 27, 30),
-                                            elem("light.downlights", 65, 28),
-                                            elem("light.art_group", 45, 11),
-                                            elem("light.bar_spotlights", 85, 13),
-                                            elem("light.kitchen_group", 69, 54),
-                                            elem("light.office_lights", 88, 78),
-                                            elem("light.bathroom_downlights", 57, 90),
-                                            elem("light.bedroom_lights", 29, 90),
-                                            // Console candles on the new sideboard (right wall).
-                                            elem("light.kitchen_console_candles", 93, 33),
-                                        ),
-                                    // mmWave presence dots (Apollo LD2450). Tune origin/scale/
-                                    // rotation until a real person lands in the right spot.
-                                    "radar" to
-                                        mapOf(
-                                            "prefix" to "sensor.club_apollo_r_pro_1_ld2450_target",
-                                            "targets" to 3,
-                                            "origin_left" to 53,
-                                            "origin_top" to 10,
-                                            "scale_x" to 8.66,
-                                            // right half stretched wider
-                                            "scale_x_right" to 17.32,
-                                            "scale_y" to 9.01,
-                                            // nudge left-side dots down
-                                            "top_offset_left" to 7.88,
-                                            "rotation" to 0,
-                                            "flip_x" to false,
-                                            "flip_y" to false,
-                                            // pop over light icons
-                                            "blend" to "overlay",
-                                        ),
-                                    // Robot-vacuum icon overlaid on the same floorplan — tap it
-                                    // to open the full vacuum controls in a popup.
-                                    "vacuum" to VACUUM_OPTIONS,
-                                ),
-                        ),
-                        // Compact player stays on Main.
-                        CardConfig(type = "media_player", options = mapOf("entity_id" to CLUB_MEDIA)),
+                listOf(
+                    CardConfig(
+                        type = "clock_weather",
+                        options =
+                        mapOf(
+                            "entity_id" to WEATHER,
+                            "time_format" to 12,
+                            "forecast_rows" to 2,
+                            "calendar_entity" to CALENDAR
+                        )
                     ),
+                    CardConfig(
+                        type = "picture_elements",
+                        options =
+                        mapOf(
+                            "image" to floorplanImg,
+                            "aspect" to 1.3,
+                            "elements" to
+                                listOf(
+                                    // Positions are % of the border-cropped floorplan image.
+                                    elem("light.hue_play", 16, 9),
+                                    elem("light.club_led_group", 12, 46),
+                                    elem("light.couch", 27, 30),
+                                    elem("light.downlights", 65, 28),
+                                    elem("light.art_group", 45, 11),
+                                    elem("light.bar_spotlights", 85, 13),
+                                    elem("light.kitchen_group", 69, 54),
+                                    elem("light.office_lights", 88, 78),
+                                    elem("light.bathroom_downlights", 57, 90),
+                                    elem("light.bedroom_lights", 29, 90),
+                                    // Console candles on the new sideboard (right wall).
+                                    elem("light.kitchen_console_candles", 93, 33)
+                                ),
+                            // mmWave presence dots (Apollo LD2450). Tune origin/scale/
+                            // rotation until a real person lands in the right spot.
+                            "radar" to
+                                mapOf(
+                                    "prefix" to "sensor.club_apollo_r_pro_1_ld2450_target",
+                                    "targets" to 3,
+                                    "origin_left" to 53,
+                                    "origin_top" to 10,
+                                    "scale_x" to 8.66,
+                                    // right half stretched wider
+                                    "scale_x_right" to 17.32,
+                                    "scale_y" to 9.01,
+                                    // nudge left-side dots down
+                                    "top_offset_left" to 7.88,
+                                    "rotation" to 0,
+                                    "flip_x" to false,
+                                    "flip_y" to false,
+                                    // pop over light icons
+                                    "blend" to "overlay"
+                                ),
+                            // Robot-vacuum icon overlaid on the same floorplan — tap it
+                            // to open the full vacuum controls in a popup.
+                            "vacuum" to VACUUM_OPTIONS
+                        )
+                    ),
+                    // Compact player stays on Main.
+                    CardConfig(type = "media_player", options = mapOf("entity_id" to CLUB_MEDIA))
+                )
             )
 
-    private fun elem(
-        entityId: String,
-        left: Int,
-        top: Int,
-    ): Map<String, Any?> = mapOf("entity_id" to entityId, "left" to left, "top" to top)
+    private fun elem(entityId: String, left: Int, top: Int): Map<String, Any?> =
+        mapOf("entity_id" to entityId, "left" to left, "top" to top)
 
     // ---- Page 2: Media ------------------------------------------------------
     private val mediaPage: PageConfig
@@ -241,97 +235,94 @@ object DashboardConfig {
             PageConfig(
                 name = "Media",
                 cards =
-                    listOf(
-                        CardConfig(
-                            type = "media_player",
-                            options =
-                                mapOf(
-                                    "entity_id" to CLUB_MEDIA,
-                                    "variant" to "full",
-                                ),
-                        ),
-                        // Playlist buttons — EDIT the service names to your real scripts.
-                        CardConfig(
-                            type = "button_grid",
-                            options =
-                                mapOf(
-                                    "columns" to 3,
-                                    "buttons" to
-                                        listOf(
-                                            playlist("Disco", "disco.png", "script.play_disco"),
-                                            playlist("House", "house.png", "script.play_house"),
-                                            playlist("MoS", "mos.png", "script.play_mos"),
-                                            playlist("Purple Disco", "turntable.png", "script.play_pdm"),
-                                            playlist("Dimitri From", "paris.png", "script.play_dfp"),
-                                            playlist("Trap", "trap.png", "script.play_trap"),
-                                        ),
-                                ),
-                        ),
-                        // Sonos speakers: tick = joined to the club (join/unjoin fires
-                        // immediately), with a live volume bar + mute/vol buttons each.
-                        CardConfig(
-                            type = "speaker_group",
-                            options =
-                                mapOf(
-                                    "master" to CLUB_MEDIA,
-                                    "name" to "Club",
-                                    "speakers" to
-                                        listOf(
-                                            mapOf("entity_id" to "media_player.living_room_sonos", "name" to "Living Room"),
-                                            mapOf("entity_id" to "media_player.bathroom_sonos", "name" to "Bathroom"),
-                                            mapOf("entity_id" to "media_player.bedroom_sonos", "name" to "Bedroom"),
-                                            mapOf("entity_id" to "media_player.office_sonos", "name" to "Office"),
-                                        ),
-                                ),
-                        ),
-                        // Source pickers at the very bottom.
-                        CardConfig(
-                            type = "source_select",
-                            options = mapOf("entity_id" to CLUB_MEDIA, "name" to "Club source"),
-                        ),
-                        CardConfig(
-                            type = "source_select",
-                            options = mapOf("entity_id" to "media_player.android_tv_10_0_1_248", "name" to "Android TV source"),
-                        ),
-                        CardConfig(
-                            type = "source_select",
-                            options = mapOf("entity_id" to "media_player.the_serif_qa55ls01dawxxy", "name" to "Serif TV source"),
-                        ),
+                listOf(
+                    CardConfig(
+                        type = "media_player",
+                        options =
+                        mapOf(
+                            "entity_id" to CLUB_MEDIA,
+                            "variant" to "full"
+                        )
                     ),
+                    // Playlist buttons — EDIT the service names to your real scripts.
+                    CardConfig(
+                        type = "button_grid",
+                        options =
+                        mapOf(
+                            "columns" to 3,
+                            "buttons" to
+                                listOf(
+                                    playlist("Disco", "disco.png", "script.play_disco"),
+                                    playlist("House", "house.png", "script.play_house"),
+                                    playlist("MoS", "mos.png", "script.play_mos"),
+                                    playlist("Purple Disco", "turntable.png", "script.play_pdm"),
+                                    playlist("Dimitri From", "paris.png", "script.play_dfp"),
+                                    playlist("Trap", "trap.png", "script.play_trap")
+                                )
+                        )
+                    ),
+                    // Sonos speakers: tick = joined to the club (join/unjoin fires
+                    // immediately), with a live volume bar + mute/vol buttons each.
+                    CardConfig(
+                        type = "speaker_group",
+                        options =
+                        mapOf(
+                            "master" to CLUB_MEDIA,
+                            "name" to "Club",
+                            "speakers" to
+                                listOf(
+                                    mapOf("entity_id" to "media_player.living_room_sonos", "name" to "Living Room"),
+                                    mapOf("entity_id" to "media_player.bathroom_sonos", "name" to "Bathroom"),
+                                    mapOf("entity_id" to "media_player.bedroom_sonos", "name" to "Bedroom"),
+                                    mapOf("entity_id" to "media_player.office_sonos", "name" to "Office")
+                                )
+                        )
+                    ),
+                    // Source pickers at the very bottom.
+                    CardConfig(
+                        type = "source_select",
+                        options = mapOf("entity_id" to CLUB_MEDIA, "name" to "Club source")
+                    ),
+                    CardConfig(
+                        type = "source_select",
+                        options = mapOf("entity_id" to "media_player.android_tv_10_0_1_248", "name" to "Android TV source")
+                    ),
+                    CardConfig(
+                        type = "source_select",
+                        options = mapOf("entity_id" to "media_player.the_serif_qa55ls01dawxxy", "name" to "Serif TV source")
+                    )
+                )
             )
 
-    private fun playlist(
-        name: String,
-        iconFile: String,
-        service: String,
-    ): Map<String, Any?> = mapOf("name" to name, "icon" to "$iconsDir/$iconFile", "service" to service)
+    private fun playlist(name: String, iconFile: String, service: String): Map<String, Any?> =
+        mapOf("name" to name, "icon" to "$iconsDir/$iconFile", "service" to service)
 
     // ---- Page 3: Climate ----------------------------------------------------
     private val climatePage =
         PageConfig(
             name = "Climate",
             cards =
-                listOf(
-                    CardConfig(
-                        type = "climate",
-                        options = mapOf("entity_id" to CLIMATE, "name" to "Aircon", "step" to 0.5),
-                    ),
-                    // On/off switch between aircon and covers.
-                    CardConfig(
-                        type = "switch",
-                        options =
-                            mapOf(
-                                "entity_id" to "switch.bedroom_heater",
-                                "name" to "Bedroom Heater",
-                                "icon" to "heater",
-                                // semi-transparent dark red
-                                "on_color" to "#B3902828",
-                            ),
-                    ),
-                    // Two covers stacked (not side by side).
-                    CardConfig(type = "cover", options = mapOf("entity_id" to COVER, "name" to "Sofa")),
-                    CardConfig(type = "cover", options = mapOf("entity_id" to "cover.smart_blinds_curtain", "name" to "Bed")),
+            listOf(
+                CardConfig(
+                    type = "climate",
+                    options = mapOf("entity_id" to CLIMATE, "name" to "Aircon", "step" to 0.5)
                 ),
+                // On/off switch between aircon and covers.
+                CardConfig(
+                    type = "switch",
+                    options =
+                    mapOf(
+                        "entity_id" to "switch.bedroom_heater",
+                        "name" to "Bedroom Heater",
+                        "icon" to "heater",
+                        // semi-transparent dark red
+                        "on_color" to "#B3902828"
+                    )
+                ),
+                // Two covers stacked (not side by side).
+                CardConfig(type = "cover", options = mapOf("entity_id" to COVER, "name" to "Sofa")),
+                CardConfig(type = "cover", options = mapOf("entity_id" to "cover.smart_blinds_curtain", "name" to "Bed"))
+            )
         )
 
     // ---- Hotkeys (physical buttons → actions) -------------------------------
@@ -370,27 +361,21 @@ object DashboardConfig {
             // blue  → ABC iView
             appKey("CUSTOM_3", "au.net.abc.iview"),
             // yellow → VLC
-            appKey("CUSTOM_4", "org.videolan.vlc"),
+            appKey("CUSTOM_4", "org.videolan.vlc")
         )
 
-    private fun tvKey(
-        key: String,
-        command: String,
-    ) = HotkeyConfig(
+    private fun tvKey(key: String, command: String) = HotkeyConfig(
         key = key,
         service = "remote.send_command",
         entityId = TV_REMOTE,
-        data = mapOf("command" to command),
+        data = mapOf("command" to command)
     )
 
-    private fun appKey(
-        key: String,
-        appId: String,
-    ) = HotkeyConfig(
+    private fun appKey(key: String, appId: String) = HotkeyConfig(
         key = key,
         service = "media_player.play_media",
         entityId = TV_MEDIA,
-        data = mapOf("media_content_type" to "app", "media_content_id" to appId),
+        data = mapOf("media_content_type" to "app", "media_content_id" to appId)
     )
 
     // ---- Long-press bindings (~500ms hold) → scripts ------------------------
@@ -416,13 +401,10 @@ object DashboardConfig {
             longKey("CUSTOM_1", "script.long_red"),
             longKey("CUSTOM_2", "script.long_green"),
             longKey("CUSTOM_3", "script.long_blue"),
-            longKey("CUSTOM_4", "script.long_yellow"),
+            longKey("CUSTOM_4", "script.long_yellow")
         )
 
-    private fun longKey(
-        key: String,
-        script: String,
-    ) = HotkeyConfig(key = key, service = script)
+    private fun longKey(key: String, script: String) = HotkeyConfig(key = key, service = script)
 
     val default: AppConfig
         get() =
@@ -431,6 +413,6 @@ object DashboardConfig {
                 // open on Main
                 startPage = 1,
                 hotkeys = hotkeys,
-                longHotkeys = longHotkeys,
+                longHotkeys = longHotkeys
             )
 }

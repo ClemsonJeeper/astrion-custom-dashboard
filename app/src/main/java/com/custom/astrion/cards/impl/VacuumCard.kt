@@ -5,7 +5,16 @@ import android.graphics.Matrix
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -81,18 +90,15 @@ class VacuumCard : CardRenderer {
     override val type = "vacuum"
 
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(ctx.theme.cardSurface)
-                    .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(ctx.theme.cardSurface)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             VacuumPanelContent(config.options, ctx)
         }
@@ -106,10 +112,7 @@ class VacuumCard : CardRenderer {
  */
 @Suppress("UNCHECKED_CAST")
 @Composable
-fun VacuumPanelContent(
-    options: Map<String, Any?>,
-    ctx: CardContext,
-) {
+fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
     val entityId = options["entity_id"] as? String ?: return
     val e = ctx.entities[entityId]
     val state = e?.state ?: "unknown"
@@ -144,9 +147,9 @@ fun VacuumPanelContent(
                 entityId,
                 mapOf(
                     "command" to JsonPrimitive("app_segment_clean"),
-                    "params" to JsonArray(listOf(JsonArray(listOf(JsonPrimitive(id))))),
-                ),
-            ),
+                    "params" to JsonArray(listOf(JsonArray(listOf(JsonPrimitive(id)))))
+                )
+            )
         )
     }
 
@@ -156,7 +159,7 @@ fun VacuumPanelContent(
             color = ctx.theme.primaryText,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f)
         )
         Text(HaLabels.vacuumState(state), color = ctx.theme.mutedText, fontSize = 13.sp)
     }
@@ -166,18 +169,18 @@ fun VacuumPanelContent(
     mapBmp?.let { bmp ->
         Box(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(mapHeight.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(ctx.theme.background),
-            contentAlignment = Alignment.Center,
+            Modifier
+                .fillMaxWidth()
+                .height(mapHeight.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(ctx.theme.background),
+            contentAlignment = Alignment.Center
         ) {
             Image(
                 bitmap = bmp,
                 contentDescription = "Vacuum map",
                 modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = 1.9f, scaleY = 1.9f),
-                contentScale = ContentScale.Fit,
+                contentScale = ContentScale.Fit
             )
         }
     }
@@ -185,7 +188,7 @@ fun VacuumPanelContent(
     // Controls.
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
     ) {
         VacuumCtrlBtn(Icons.Filled.PlayArrow, ctx.theme, accent = true) { vac("start") }
         VacuumCtrlBtn(Icons.Filled.Pause, ctx.theme) { vac("pause") }
@@ -198,13 +201,13 @@ fun VacuumPanelContent(
         Box {
             Row(
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(ctx.theme.controlBackground)
-                        .clickable { fanExpanded = true }
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(ctx.theme.controlBackground)
+                    .clickable { fanExpanded = true }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(R.string.vacuum_fan_speed_caption), color = ctx.theme.mutedText, fontSize = 11.sp)
@@ -215,7 +218,7 @@ fun VacuumPanelContent(
             DropdownMenu(
                 expanded = fanExpanded,
                 onDismissRequest = { fanExpanded = false },
-                modifier = Modifier.background(ctx.theme.controlBackground),
+                modifier = Modifier.background(ctx.theme.controlBackground)
             ) {
                 fanList.forEach { f ->
                     DropdownMenuItem(
@@ -223,15 +226,15 @@ fun VacuumPanelContent(
                             Text(
                                 HaLabels.vacuumFanSpeed(f),
                                 color = if (f == fanSpeed) ctx.theme.accent else ctx.theme.primaryText,
-                                fontSize = 14.sp,
+                                fontSize = 14.sp
                             )
                         },
                         onClick = {
                             fanExpanded = false
                             ctx.client.callService(
-                                ServiceCall.of("vacuum", "set_fan_speed", entityId, "fan_speed" to f),
+                                ServiceCall.of("vacuum", "set_fan_speed", entityId, "fan_speed" to f)
                             )
-                        },
+                        }
                     )
                 }
             }
@@ -243,20 +246,20 @@ fun VacuumPanelContent(
         rooms.chunked(3).forEach { chunk ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 chunk.forEach { room ->
                     val label = room["name"] as? String ?: "?"
                     val id = (room["id"] as? Number)?.toInt()
                     Box(
                         modifier =
-                            Modifier
-                                .weight(1f)
-                                .height(44.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(ctx.theme.controlBackground)
-                                .clickable(enabled = id != null) { id?.let { cleanSegment(it) } },
-                        contentAlignment = Alignment.Center,
+                        Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(ctx.theme.controlBackground)
+                            .clickable(enabled = id != null) { id?.let { cleanSegment(it) } },
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(label, color = ctx.theme.primaryText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     }
@@ -268,30 +271,22 @@ fun VacuumPanelContent(
 }
 
 @Composable
-private fun VacuumCtrlBtn(
-    icon: ImageVector,
-    theme: ThemeColors,
-    accent: Boolean = false,
-    onClick: () -> Unit,
-) {
+private fun VacuumCtrlBtn(icon: ImageVector, theme: ThemeColors, accent: Boolean = false, onClick: () -> Unit) {
     Box(
         modifier =
-            Modifier
-                .size(52.dp)
-                .clip(CircleShape)
-                .background(if (accent) theme.accentSecondary else theme.controlBackground)
-                .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+        Modifier
+            .size(52.dp)
+            .clip(CircleShape)
+            .background(if (accent) theme.accentSecondary else theme.controlBackground)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = Color.White)
     }
 }
 
 /** Rotate a bitmap by whole-degree steps (clockwise), swapping width/height as needed. */
-private fun rotateVacuumBitmap(
-    src: ImageBitmap,
-    degrees: Int,
-): ImageBitmap {
+private fun rotateVacuumBitmap(src: ImageBitmap, degrees: Int): ImageBitmap {
     val android = src.asAndroidBitmap()
     val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
     return Bitmap.createBitmap(android, 0, 0, android.width, android.height, matrix, true).asImageBitmap()

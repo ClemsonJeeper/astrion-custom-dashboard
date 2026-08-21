@@ -30,7 +30,7 @@ data class TrackedActivity(
      * useful for a Harmony-backed one, since the hub's own devices are
      * otherwise invisible to Astrion). Used purely for [Dashboard.kt]'s
      * switchActivity diff — never dispatched to directly. */
-    val devices: List<String> = emptyList(),
+    val devices: List<String> = emptyList()
 )
 
 /**
@@ -68,10 +68,9 @@ class ActivityRuntime(config: AppConfig) {
 
     /** Every room that has at least one active Activity — backs an "active
      * activities" card without it needing to know about rooms with none. */
-    fun activeActivities(): List<TrackedActivity> =
-        _activeByRoom.value.entries.mapNotNull { (room, id) ->
-            id?.let { activeId -> byRoom[room]?.firstOrNull { it.id == activeId } }
-        }
+    fun activeActivities(): List<TrackedActivity> = _activeByRoom.value.entries.mapNotNull { (room, id) ->
+        id?.let { activeId -> byRoom[room]?.firstOrNull { it.id == activeId } }
+    }
 
     /** Call right after firing a tracked item's own action (HA/Harmony/IR). */
     fun markActive(activity: TrackedActivity) {
@@ -108,14 +107,12 @@ class ActivityRuntime(config: AppConfig) {
      * `track: true` or has no `room` — safe to call unconditionally after
      * every tap, cards don't need to pre-check.
      */
-    fun trackTap(
-        scene: Map<String, Any?>,
-        fallbackPage: String? = null,
-    ) {
+    fun trackTap(scene: Map<String, Any?>, fallbackPage: String? = null) {
         activityFrom(scene, fallbackPage)?.let { candidate ->
             // Re-resolve against `all` (not the freshly-built `candidate`) so
             // markActive uses the canonical instance already in byRoom.
-            all.firstOrNull { it.id == candidate.id && it.room == candidate.room }
+            all
+                .firstOrNull { it.id == candidate.id && it.room == candidate.room }
                 ?.let(::markActive)
         }
     }
@@ -135,11 +132,7 @@ class ActivityRuntime(config: AppConfig) {
      * Confirmed against a real hub capture (2026-08-14) — see
      * HarmonyHubClient.currentActivityId.
      */
-    suspend fun bind(
-        hub: HarmonyHubClient,
-        hubLocalId: String,
-        isDefaultHub: Boolean = false,
-    ) {
+    suspend fun bind(hub: HarmonyHubClient, hubLocalId: String, isDefaultHub: Boolean = false) {
         hub.currentActivityId.collect { activityId ->
             if (activityId == null) return@collect
 
@@ -157,10 +150,7 @@ class ActivityRuntime(config: AppConfig) {
     /** Shared id/name derivation for a scene_grid item — used by both [scan]
      * (at config-load time) and [trackTap] (at tap time), so the two never
      * disagree on what a given item's id is. Returns null if not trackable. */
-    private fun activityFrom(
-        scene: Map<String, Any?>,
-        fallbackPage: String?,
-    ): TrackedActivity? {
+    private fun activityFrom(scene: Map<String, Any?>, fallbackPage: String?): TrackedActivity? {
         if (scene["track"] != true) return null
         val room = (scene["room"] as? String)?.takeIf { it.isNotBlank() } ?: return null
         val name = (scene["name"] as? String) ?: (scene["entity_id"] as? String) ?: "Activity"
@@ -178,17 +168,14 @@ class ActivityRuntime(config: AppConfig) {
             page = (scene["page"] as? String) ?: fallbackPage,
             harmonyActivityId = harmonyActivityId,
             harmonyHub = scene["hub"] as? String,
-            devices = devices,
+            devices = devices
         )
     }
 
     private fun scan(config: AppConfig): List<TrackedActivity> {
         val found = mutableListOf<TrackedActivity>()
 
-        fun fromHotkey(
-            hk: HotkeyConfig,
-            fallbackPage: String?,
-        ) {
+        fun fromHotkey(hk: HotkeyConfig, fallbackPage: String?) {
             if (!hk.track) return
             val room = hk.room?.takeIf { it.isNotBlank() } ?: return
             val name = hk.harmonyActivity ?: hk.page ?: hk.key
@@ -201,7 +188,7 @@ class ActivityRuntime(config: AppConfig) {
                     page = hk.page ?: fallbackPage,
                     harmonyActivityId = hk.harmonyActivity,
                     harmonyHub = hk.hub,
-                    devices = hk.devices,
+                    devices = hk.devices
                 )
         }
 
@@ -229,7 +216,7 @@ class ActivityRuntime(config: AppConfig) {
                     room = act.room,
                     icon = act.icon,
                     page = act.page,
-                    devices = act.devices.map { it.deviceId },
+                    devices = act.devices.map { it.deviceId }
                 )
         }
         return found

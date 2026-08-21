@@ -2,7 +2,18 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,7 +52,7 @@ private data class MediaItem(
     val contentId: String,
     val contentType: String,
     val canExpand: Boolean,
-    val canPlay: Boolean,
+    val canPlay: Boolean
 )
 
 /**
@@ -50,12 +61,7 @@ private data class MediaItem(
  * Kept to a plain list — no thumbnails — to stay light on the MT6580.
  */
 @Composable
-fun MediaBrowser(
-    entityId: String,
-    client: HaClient,
-    theme: ThemeColors = ThemeColors.Default,
-    onClose: () -> Unit,
-) {
+fun MediaBrowser(entityId: String, client: HaClient, theme: ThemeColors = ThemeColors.Default, onClose: () -> Unit) {
     // Navigation stack of (contentId, contentType); root is (null, null).
     val stack = remember { mutableStateListOf<Pair<String?, String?>>(null to null) }
     var title by remember { mutableStateOf("Media") }
@@ -80,12 +86,12 @@ fun MediaBrowser(
     Dialog(onDismissRequest = onClose) {
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.85f)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(theme.cardSurface)
-                    .padding(12.dp),
+            Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.85f)
+                .clip(RoundedCornerShape(18.dp))
+                .background(theme.cardSurface)
+                .padding(12.dp)
         ) {
             // Header: back (when nested), title, close.
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -100,7 +106,7 @@ fun MediaBrowser(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 )
                 IconBtn(Icons.Filled.Close, theme, onClick = onClose)
             }
@@ -139,19 +145,15 @@ fun MediaBrowser(
 }
 
 @Composable
-private fun MediaRow(
-    item: MediaItem,
-    theme: ThemeColors,
-    onClick: () -> Unit,
-) {
+private fun MediaRow(item: MediaItem, theme: ThemeColors, onClick: () -> Unit) {
     Row(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 10.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             item.title,
@@ -159,7 +161,7 @@ private fun MediaRow(
             fontSize = 15.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f)
         )
         if (item.canExpand) {
             Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = theme.mutedText)
@@ -170,17 +172,13 @@ private fun MediaRow(
 }
 
 @Composable
-private fun IconBtn(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    theme: ThemeColors,
-    onClick: () -> Unit,
-) {
+private fun IconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, theme: ThemeColors, onClick: () -> Unit) {
     Box(
         modifier =
-            Modifier
-                .size(40.dp)
-                .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+        Modifier
+            .size(40.dp)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = theme.iconTint)
     }

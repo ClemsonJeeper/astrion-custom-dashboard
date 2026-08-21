@@ -63,11 +63,11 @@ import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.harmony.HarmonyHubRegistry
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Swipeable, paginated dashboard. Each config page is a horizontally-swipeable
@@ -113,7 +113,7 @@ fun Dashboard(
      * exist in this Composable's scope, so ConfigServer gets a fresh
      * function reference instead of duplicating the dispatch logic. */
     onStartActivityReady: ((String) -> Unit) -> Unit = {},
-    onStopActivityReady: ((String) -> Unit) -> Unit = {},
+    onStopActivityReady: ((String) -> Unit) -> Unit = {}
 ) {
     val entities by entitiesState
     val context = LocalContext.current
@@ -132,7 +132,7 @@ fun Dashboard(
         val pagerState =
             rememberPagerState(
                 initialPage = config.startPage.coerceIn(0, pageCount - 1),
-                pageCount = { pageCount },
+                pageCount = { pageCount }
             )
 
         // Scans pages/hotkeys once per config load for every `"track": true`
@@ -178,10 +178,7 @@ fun Dashboard(
         val irDevicesById = remember(config.irDevices) { config.irDevices.associateBy { it.id } }
         val activitiesById = activityRuntime.activityConfigs
 
-        fun sendIrCommand(
-            deviceId: String,
-            command: String,
-        ) {
+        fun sendIrCommand(deviceId: String, command: String) {
             val device = irDevicesById[deviceId]
             val step = device?.commands?.get(command)
             val manager = irManager
@@ -199,10 +196,7 @@ fun Dashboard(
         // configured for — the one place that knows how to talk to all three
         // (ir/harmony/ha), shared by both the start and stop side of
         // switchActivity below.
-        fun dispatchActivityCommand(
-            d: ActivityDeviceConfig,
-            command: String?,
-        ) {
+        fun dispatchActivityCommand(d: ActivityDeviceConfig, command: String?) {
             if (command == null) return
             when (d.source) {
                 "ir" -> sendIrCommand(d.deviceId, command)
@@ -216,10 +210,7 @@ fun Dashboard(
             }
         }
 
-        fun dispatchActivityPower(
-            d: ActivityDeviceConfig,
-            on: Boolean,
-        ) {
+        fun dispatchActivityPower(d: ActivityDeviceConfig, on: Boolean) {
             if (d.source == "ha") {
                 val domain = d.deviceId.substringBefore('.')
                 client.callService(ServiceCall(domain = domain, service = if (on) "turn_on" else "turn_off", entityId = d.deviceId))
@@ -343,7 +334,7 @@ fun Dashboard(
                 activities = activitiesById,
                 startActivity = startActivity,
                 activityRuntime = activityRuntime,
-                theme = theme,
+                theme = theme
             )
 
         // Hardware-button navigation: jump straight to the requested page, then
@@ -371,9 +362,9 @@ fun Dashboard(
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .background(LocalTheme.current.background),
+                Modifier
+                    .fillMaxSize()
+                    .background(LocalTheme.current.background)
             ) {
                 TopStatusBar(onSwipeDownToSettings = { showSettings = true })
                 ConnectionBanner(connection)
@@ -382,9 +373,9 @@ fun Dashboard(
                 HorizontalPager(
                     state = pagerState,
                     modifier =
-                        Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
                 ) { pageIndex ->
                     PageContent(config.pages[pageIndex], ctx)
                 }
@@ -404,7 +395,7 @@ fun Dashboard(
                             }
                         if (idx != null && idx >= 0) scope.launch { pagerState.scrollToPage(idx) }
                     },
-                    onSwipeUpToActivities = { showActivities = true },
+                    onSwipeUpToActivities = { showActivities = true }
                 )
             }
 
@@ -416,7 +407,7 @@ fun Dashboard(
                     activityRuntime = activityRuntime,
                     ctx = ctx,
                     onStop = ::stopActivity,
-                    onClose = { showActivities = false },
+                    onClose = { showActivities = false }
                 )
             }
         }
@@ -437,18 +428,15 @@ fun Dashboard(
  * detector ever fires.
  */
 @Composable
-private fun SettingsOverlay(
-    ctx: CardContext,
-    onClose: () -> Unit,
-) {
+private fun SettingsOverlay(ctx: CardContext, onClose: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(LocalTheme.current.background)) {
         Column(
             modifier =
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Text(
@@ -456,10 +444,10 @@ private fun SettingsOverlay(
                     color = LocalTheme.current.mutedText,
                     fontSize = 13.sp,
                     modifier =
-                        Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { onClose() }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onClose() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
             SettingsMenu(ctx)
@@ -469,24 +457,24 @@ private fun SettingsOverlay(
         // A visual handle bar cues the user where to swipe.
         Box(
             modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .pointerInput(Unit) {
-                        detectVerticalDragGestures { change, dragAmount ->
-                            if (dragAmount < -15f) onClose()
-                        }
-                    },
-            contentAlignment = Alignment.Center,
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(50.dp)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures { change, dragAmount ->
+                        if (dragAmount < -15f) onClose()
+                    }
+                },
+            contentAlignment = Alignment.Center
         ) {
             Box(
                 modifier =
-                    Modifier
-                        .width(40.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(LocalTheme.current.controlBackground),
+                Modifier
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(LocalTheme.current.controlBackground)
             )
         }
     }
@@ -511,7 +499,7 @@ private fun ActivitiesOverlay(
      * `stopActivity`. Separate from `onClose`: stopping doesn't dismiss the
      * overlay, so more than one room can be stopped in a row. */
     onStop: (room: String) -> Unit,
-    onClose: () -> Unit,
+    onClose: () -> Unit
 ) {
     val activeByRoom by activityRuntime.activeByRoom.collectAsState()
     val active = remember(activeByRoom) { activityRuntime.activeActivities() }
@@ -519,11 +507,11 @@ private fun ActivitiesOverlay(
     Box(modifier = Modifier.fillMaxSize().background(LocalTheme.current.background)) {
         Column(
             modifier =
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // Leaves room at the top for the gesture strip below so the
             // first list item doesn't render underneath it.
@@ -534,10 +522,10 @@ private fun ActivitiesOverlay(
                     color = LocalTheme.current.mutedText,
                     fontSize = 13.sp,
                     modifier =
-                        Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { onClose() }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onClose() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
             Text(
@@ -545,14 +533,14 @@ private fun ActivitiesOverlay(
                 color = LocalTheme.current.primaryText,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 10.dp),
+                modifier = Modifier.padding(horizontal = 10.dp)
             )
             if (active.isEmpty()) {
                 Text(
                     stringResource(R.string.no_active_activities),
                     color = LocalTheme.current.mutedText,
                     fontSize = 13.sp,
-                    modifier = Modifier.padding(10.dp),
+                    modifier = Modifier.padding(10.dp)
                 )
             }
             active.groupBy { it.room }.forEach { (room, activities) ->
@@ -561,24 +549,23 @@ private fun ActivitiesOverlay(
                     color = LocalTheme.current.accent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                 )
                 activities.forEach { activity ->
                     Row(
                         modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(LocalTheme.current.insetSurface)
-                                .clickable(enabled = activity.page != null) {
-                                    activity.page?.let {
-                                        ctx.navigateToPage(it)
-                                        onClose()
-                                    }
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(LocalTheme.current.insetSurface)
+                            .clickable(enabled = activity.page != null) {
+                                activity.page?.let {
+                                    ctx.navigateToPage(it)
+                                    onClose()
                                 }
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            }.padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(activity.name, color = LocalTheme.current.primaryText, fontSize = 15.sp)
                         // Dedicated per-room stop — the missing piece this
@@ -593,10 +580,10 @@ private fun ActivitiesOverlay(
                             color = LocalTheme.current.danger,
                             fontSize = 13.sp,
                             modifier =
-                                Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { onStop(room) }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                            Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onStop(room) }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
                 }
@@ -607,57 +594,54 @@ private fun ActivitiesOverlay(
         // scrollable node so it doesn't lose the gesture to verticalScroll).
         Box(
             modifier =
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .pointerInput(Unit) {
-                        detectVerticalDragGestures { change, dragAmount ->
-                            if (dragAmount > 15f) onClose()
-                        }
-                    },
-            contentAlignment = Alignment.Center,
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(50.dp)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures { change, dragAmount ->
+                        if (dragAmount > 15f) onClose()
+                    }
+                },
+            contentAlignment = Alignment.Center
         ) {
             Box(
                 modifier =
-                    Modifier
-                        .width(40.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(LocalTheme.current.controlBackground),
+                Modifier
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(LocalTheme.current.controlBackground)
             )
         }
     }
 }
 
 @Composable
-private fun PageContent(
-    page: PageConfig,
-    ctx: CardContext,
-) {
+private fun PageContent(page: PageConfig, ctx: CardContext) {
     val pinned = page.cards.filter { it.options["pin"] == "bottom" }
     val scrolling = page.cards.filter { it.options["pin"] != "bottom" }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier =
-                Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             scrolling.forEach { RenderCard(it, ctx) }
         }
         if (pinned.isNotEmpty()) {
             Column(
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .background(LocalTheme.current.insetSurface)
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .background(LocalTheme.current.insetSurface)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 pinned.forEach { RenderCard(it, ctx) }
             }
@@ -666,10 +650,7 @@ private fun PageContent(
 }
 
 @Composable
-private fun RenderCard(
-    cardConfig: CardConfig,
-    ctx: CardContext,
-) {
+private fun RenderCard(cardConfig: CardConfig, ctx: CardContext) {
     val renderer = CardRegistry.get(cardConfig.type)
     if (renderer != null) {
         renderer.Render(cardConfig, ctx)
@@ -709,7 +690,7 @@ private fun PageIndicator(
     current: Int,
     onDotClick: (Int) -> Unit,
     onNavigateToParent: () -> Unit,
-    onSwipeUpToActivities: () -> Unit,
+    onSwipeUpToActivities: () -> Unit
 ) {
     val density = LocalDensity.current
     val triggerPx = with(density) { 40.dp.toPx() }
@@ -737,24 +718,24 @@ private fun PageIndicator(
 
     Row(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(vertical = 5.dp, horizontal = 10.dp)
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragStart = { dragAccumulated = 0f },
-                        onDragEnd = { dragAccumulated = 0f },
-                        onVerticalDrag = { change, dragAmount ->
-                            change.consume()
-                            dragAccumulated += dragAmount
-                            if (dragAccumulated < -triggerPx) {
-                                onSwipeUpToActivities()
-                                dragAccumulated = 0f
-                            }
-                        },
-                    )
-                },
-        verticalAlignment = Alignment.CenterVertically,
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp, horizontal = 10.dp)
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragStart = { dragAccumulated = 0f },
+                    onDragEnd = { dragAccumulated = 0f },
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        dragAccumulated += dragAmount
+                        if (dragAccumulated < -triggerPx) {
+                            onSwipeUpToActivities()
+                            dragAccumulated = 0f
+                        }
+                    }
+                )
+            },
+        verticalAlignment = Alignment.CenterVertically
     ) {
         // Left zone: only a child page shows this — jump to its parent.
         // A fixed-width spacer on other pages keeps the dots visually
@@ -763,12 +744,12 @@ private fun PageIndicator(
         if (currentPage?.parent != null) {
             Row(
                 modifier =
-                    Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { onNavigateToParent() }
-                        .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
-                        .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { onNavigateToParent() }
+                    .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("‹", color = LocalTheme.current.accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(4.dp))
@@ -778,7 +759,7 @@ private fun PageIndicator(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         } else if (hasHierarchy) {
@@ -789,7 +770,7 @@ private fun PageIndicator(
         Row(
             modifier = Modifier.weight(1f),
             horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             if (windowStart > 0) EdgeEllipsis()
             for (i in windowStart..windowEnd) {
@@ -797,12 +778,12 @@ private fun PageIndicator(
                 val active = i == currentSiblingPos
                 Box(
                     modifier =
-                        Modifier
-                            .padding(horizontal = 5.dp)
-                            .size(if (active) 10.dp else 8.dp)
-                            .clip(CircleShape)
-                            .background(if (active) LocalTheme.current.accent else LocalTheme.current.controlBackground)
-                            .clickable { onDotClick(sibling.index) },
+                    Modifier
+                        .padding(horizontal = 5.dp)
+                        .size(if (active) 10.dp else 8.dp)
+                        .clip(CircleShape)
+                        .background(if (active) LocalTheme.current.accent else LocalTheme.current.controlBackground)
+                        .clickable { onDotClick(sibling.index) }
                 )
             }
             if (windowEnd < siblings.lastIndex) EdgeEllipsis()
@@ -817,7 +798,7 @@ private fun PageIndicator(
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -837,7 +818,7 @@ private fun ConnectionBanner(connection: ConnectionState) {
     val (label, color) =
         when (connection) {
             ConnectionState.CONNECTING,
-            ConnectionState.AUTHENTICATING,
+            ConnectionState.AUTHENTICATING
             -> "Connecting…" to LocalTheme.current.accentSecondary
             ConnectionState.AUTH_FAILED -> "Auth failed — check token" to LocalTheme.current.danger
             ConnectionState.ERROR -> "Connection error — retrying" to LocalTheme.current.danger
@@ -845,11 +826,11 @@ private fun ConnectionBanner(connection: ConnectionState) {
         }
     Box(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .background(color)
-                .padding(12.dp),
-        contentAlignment = Alignment.Center,
+        Modifier
+            .fillMaxWidth()
+            .background(color)
+            .padding(12.dp),
+        contentAlignment = Alignment.Center
     ) {
         Text(text = label, color = Color.White, fontSize = 14.sp)
     }
@@ -859,10 +840,10 @@ private fun ConnectionBanner(connection: ConnectionState) {
 private fun ConfigNoticeBanner(text: String) {
     Box(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .background(LocalTheme.current.amber.copy(alpha = 0.25f))
-                .padding(10.dp),
+        Modifier
+            .fillMaxWidth()
+            .background(LocalTheme.current.amber.copy(alpha = 0.25f))
+            .padding(10.dp)
     ) {
         Text(text = text, color = LocalTheme.current.amber, fontSize = 12.sp)
     }
@@ -872,10 +853,10 @@ private fun ConfigNoticeBanner(text: String) {
 private fun UnknownCard(type: String) {
     Box(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .background(LocalTheme.current.cardSurface)
-                .padding(14.dp),
+        Modifier
+            .fillMaxWidth()
+            .background(LocalTheme.current.cardSurface)
+            .padding(14.dp)
     ) {
         Text(text = "Unknown card type: \"$type\"", color = LocalTheme.current.danger, fontSize = 13.sp)
     }

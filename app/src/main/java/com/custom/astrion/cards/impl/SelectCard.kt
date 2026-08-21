@@ -78,10 +78,7 @@ class SelectCard : CardRenderer {
     override val type = "select"
 
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id") ?: return
         val domain = entityId.substringBefore('.')
         val e = ctx.entities[entityId]
@@ -105,10 +102,10 @@ class SelectCard : CardRenderer {
                 onSelect = { option ->
                     if (option != current) {
                         ctx.client.callService(
-                            ServiceCall.of(domain, "select_option", entityId, "option" to option),
+                            ServiceCall.of(domain, "select_option", entityId, "option" to option)
                         )
                     }
-                },
+                }
             )
         }
 
@@ -119,28 +116,23 @@ class SelectCard : CardRenderer {
         }
     }
 
-    private fun parseHexColor(s: String): Color? {
-        return runCatching {
-            val hex = if (s.startsWith("#")) s else "#$s"
-            Color(hex.toColorInt())
-        }.getOrNull()
-    }
+    private fun parseHexColor(s: String): Color? = runCatching {
+        val hex = if (s.startsWith("#")) s else "#$s"
+        Color(hex.toColorInt())
+    }.getOrNull()
 }
 
 // ---- shared pieces ---------------------------------------------------------
 
 @Composable
-private fun SelectIcon(
-    color: Color?,
-    size: Dp = 42.dp,
-) {
+private fun SelectIcon(color: Color?, size: Dp = 42.dp) {
     Box(
         modifier =
-            Modifier
-                .size(size)
-                .clip(RoundedCornerShape(size / 2))
-                .background(color?.copy(alpha = 0.2f) ?: Color(0xFF2A4954)),
-        contentAlignment = Alignment.Center,
+        Modifier
+            .size(size)
+            .clip(RoundedCornerShape(size / 2))
+            .background(color?.copy(alpha = 0.2f) ?: Color(0xFF2A4954)),
+        contentAlignment = Alignment.Center
     ) {
         Icon(Icons.Filled.List, contentDescription = null, tint = color ?: Color(0xFFB6C9CE))
     }
@@ -151,7 +143,7 @@ private fun NameState(
     name: String,
     stateLabel: String,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
-    textAlign: TextAlign = TextAlign.Start,
+    textAlign: TextAlign = TextAlign.Start
 ) {
     Column(horizontalAlignment = horizontalAlignment) {
         Text(
@@ -161,7 +153,7 @@ private fun NameState(
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            textAlign = textAlign,
+            textAlign = textAlign
         )
         Text(
             stateLabel,
@@ -169,7 +161,7 @@ private fun NameState(
             fontSize = 13.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            textAlign = textAlign,
+            textAlign = textAlign
         )
     }
 }
@@ -182,26 +174,21 @@ private fun NameState(
  * type), standing in for Mushroom's own `ha-control-select-menu`.
  */
 @Composable
-private fun SelectMenuControl(
-    current: String?,
-    options: List<String>,
-    fillWidth: Boolean,
-    onSelect: (String) -> Unit,
-) {
+private fun SelectMenuControl(current: String?, options: List<String>, fillWidth: Boolean, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
 
     Box(modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier.width(140.dp)) {
         Row(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF152B33))
-                    .clickable(enabled = options.isNotEmpty()) { expanded = true }
-                    .padding(horizontal = 12.dp),
+            Modifier
+                .fillMaxWidth()
+                .height(36.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF152B33))
+                .clickable(enabled = options.isNotEmpty()) { expanded = true }
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
                 current ?: "—",
@@ -210,19 +197,19 @@ private fun SelectMenuControl(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.weight(1f, fill = false)
             )
             Icon(
                 Icons.Filled.ArrowDropDown,
                 contentDescription = null,
-                tint = if (options.isEmpty()) Color(0xFF5A7783) else Color(0xFFCBDCE0),
+                tint = if (options.isEmpty()) Color(0xFF5A7783) else Color(0xFFCBDCE0)
             )
         }
 
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.background(Color(0xFF1E3841)).widthIn(max = 400.dp),
+            modifier = Modifier.background(Color(0xFF1E3841)).widthIn(max = 400.dp)
         ) {
             options.forEach { option ->
                 DropdownMenuItem(
@@ -232,13 +219,13 @@ private fun SelectMenuControl(
                             color = if (option == current) Color(0xFF6EA8FE) else Color(0xFFE6F0F1),
                             fontSize = 14.sp,
                             maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
+                            overflow = TextOverflow.Ellipsis
                         )
                     },
                     onClick = {
                         expanded = false
                         onSelect(option)
-                    },
+                    }
                 )
             }
         }
@@ -248,20 +235,15 @@ private fun SelectMenuControl(
 // ---- "default": icon + name/state row, control full-width below -----------
 
 @Composable
-private fun DefaultLayout(
-    name: String,
-    stateLabel: String,
-    iconColor: Color?,
-    control: @Composable (fillWidth: Boolean) -> Unit,
-) {
+private fun DefaultLayout(name: String, stateLabel: String, iconColor: Color?, control: @Composable (fillWidth: Boolean) -> Unit) {
     Column(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1E3841))
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFF1E3841))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             SelectIcon(iconColor)
@@ -275,20 +257,15 @@ private fun DefaultLayout(
 // ---- "horizontal": icon + name/state on the left, control on the right ----
 
 @Composable
-private fun HorizontalLayout(
-    name: String,
-    stateLabel: String,
-    iconColor: Color?,
-    control: @Composable (fillWidth: Boolean) -> Unit,
-) {
+private fun HorizontalLayout(name: String, stateLabel: String, iconColor: Color?, control: @Composable (fillWidth: Boolean) -> Unit) {
     Row(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1E3841))
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFF1E3841))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         SelectIcon(iconColor)
         Spacer(Modifier.width(12.dp))
@@ -301,20 +278,15 @@ private fun HorizontalLayout(
 // ---- "vertical": icon, name, state, control — all centered and stacked ----
 
 @Composable
-private fun VerticalLayout(
-    name: String,
-    stateLabel: String,
-    iconColor: Color?,
-    control: @Composable (fillWidth: Boolean) -> Unit,
-) {
+private fun VerticalLayout(name: String, stateLabel: String, iconColor: Color?, control: @Composable (fillWidth: Boolean) -> Unit) {
     Column(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1E3841))
-                .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFF1E3841))
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         SelectIcon(iconColor, size = 48.dp)
         Spacer(Modifier.height(8.dp))

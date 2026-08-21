@@ -20,21 +20,15 @@ import com.custom.astrion.ui.ThemeColors
 data class CardConfig(
     val type: String,
     /** Free-form per-card options. Your renderer decides how to read these. */
-    val options: Map<String, Any?> = emptyMap(),
+    val options: Map<String, Any?> = emptyMap()
 ) {
     fun string(key: String): String? = options[key] as? String
 
     fun stringList(key: String): List<String> = (options[key] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
 
-    fun bool(
-        key: String,
-        default: Boolean = false,
-    ): Boolean = options[key] as? Boolean ?: default
+    fun bool(key: String, default: Boolean = false): Boolean = options[key] as? Boolean ?: default
 
-    fun int(
-        key: String,
-        default: Int = 0,
-    ): Int = (options[key] as? Number)?.toInt() ?: default
+    fun int(key: String, default: Int = 0): Int = (options[key] as? Number)?.toInt() ?: default
 }
 
 /**
@@ -92,7 +86,7 @@ class CardContext(
     /** Resolved theme colors for this dashboard. Cards read from here instead
      * of hardcoded Color literals. Defaults to the original palette so cards
      * render correctly even without a provider (e.g. in previews/tests). */
-    val theme: ThemeColors = com.custom.astrion.ui.ThemeColors.Default,
+    val theme: ThemeColors = com.custom.astrion.ui.ThemeColors.Default
 )
 
 /**
@@ -105,10 +99,7 @@ interface CardRenderer {
     val type: String
 
     @Composable
-    fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    )
+    fun Render(config: CardConfig, ctx: CardContext)
 }
 
 /**

@@ -29,7 +29,7 @@ data class ThemeColors(
     val accentSecondary: Color,
     val amber: Color,
     val danger: Color,
-    val success: Color,
+    val success: Color
 ) {
     companion object {
         /** The app's original hardcoded palette — used when no theme is
@@ -41,10 +41,7 @@ data class ThemeColors(
 /** Parses a hex color string ("#RRGGBB" or "#AARRGGBB" or "RRGGBB") into a
  * Compose [Color]. Falls back to [fallback] on any parse failure so a bad
  * value in dashboard.json never crashes the UI. */
-fun parseHexColor(
-    hex: String?,
-    fallback: Color,
-): Color {
+fun parseHexColor(hex: String?, fallback: Color): Color {
     if (hex.isNullOrBlank()) return fallback
     var s = hex.trim()
     if (s.startsWith("#")) s = s.substring(1)
@@ -75,7 +72,7 @@ fun ThemeConfig.toColors(): ThemeColors {
         accentSecondary = parseHexColor(accentSecondary, parseHexColor(d.accentSecondary, Color.White)),
         amber = parseHexColor(amber, parseHexColor(d.amber, Color.White)),
         danger = parseHexColor(danger, parseHexColor(d.danger, Color.White)),
-        success = parseHexColor(success, parseHexColor(d.success, Color.White)),
+        success = parseHexColor(success, parseHexColor(d.success, Color.White))
     )
 }
 
@@ -89,9 +86,6 @@ val LocalTheme = staticCompositionLocalOf { ThemeColors.Default }
 
 /** Provides [theme] to descendants via [LocalTheme]. */
 @Composable
-fun ProvideTheme(
-    theme: ThemeColors,
-    content: @Composable () -> Unit,
-) {
+fun ProvideTheme(theme: ThemeColors, content: @Composable () -> Unit) {
     androidx.compose.runtime.CompositionLocalProvider(LocalTheme provides theme) { content() }
 }

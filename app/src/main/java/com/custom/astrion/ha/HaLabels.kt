@@ -1,10 +1,10 @@
 package com.custom.astrion.ha
 
 import android.content.Context
+import java.util.Locale
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.util.Locale
 
 /**
  * Translations for the raw state values Home Assistant returns over its
@@ -26,16 +26,19 @@ object HaLabels {
     private var loadedLang: String? = null
 
     /** Call once at startup (or again if the language changes). */
-    fun init(
-        context: Context,
-        lang: String = Locale.getDefault().language,
-    ) {
+    fun init(context: Context, lang: String = Locale.getDefault().language) {
         if (lang == loadedLang) return
         val text =
             runCatching {
-                context.assets.open("ha_labels/$lang.json").bufferedReader().use { it.readText() }
+                context.assets
+                    .open("ha_labels/$lang.json")
+                    .bufferedReader()
+                    .use { it.readText() }
             }.getOrElse {
-                context.assets.open("ha_labels/en.json").bufferedReader().use { it.readText() }
+                context.assets
+                    .open("ha_labels/en.json")
+                    .bufferedReader()
+                    .use { it.readText() }
             }
         categories =
             runCatching {
@@ -67,10 +70,7 @@ object HaLabels {
 
     fun coverState(raw: String): String = lookup("cover_state", raw)
 
-    private fun lookup(
-        category: String,
-        raw: String,
-    ): String = categories[category]?.get(raw) ?: fallback(raw)
+    private fun lookup(category: String, raw: String): String = categories[category]?.get(raw) ?: fallback(raw)
 
     /** Best-effort display for a key with no translation entry. */
     private fun fallback(raw: String): String = raw.split('_', '-').joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }

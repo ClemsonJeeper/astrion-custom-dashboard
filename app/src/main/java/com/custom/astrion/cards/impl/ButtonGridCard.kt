@@ -4,7 +4,14 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,10 +56,7 @@ class ButtonGridCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val columns = config.int("columns", 3).coerceAtLeast(1)
         val buttons = (config.options["buttons"] as? List<Map<String, Any?>>) ?: emptyList()
 
@@ -60,7 +64,7 @@ class ButtonGridCard : CardRenderer {
             buttons.chunked(columns).forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     row.forEach { b ->
                         GridButton(b, Modifier.weight(1f), ctx.theme) { fire(ctx, b) }
@@ -72,27 +76,19 @@ class ButtonGridCard : CardRenderer {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun fire(
-        ctx: CardContext,
-        b: Map<String, Any?>,
-    ) {
+    private fun fire(ctx: CardContext, b: Map<String, Any?>) {
         val service = b["service"] as? String ?: return
         val domain = service.substringBefore('.')
         val svc = service.substringAfter('.')
         val entityId = b["entity_id"] as? String
         val data = (b["data"] as? Map<String, Any?>).orEmpty()
         ctx.client.callService(
-            ServiceCall.of(domain, svc, entityId, *data.entries.map { it.key to it.value }.toTypedArray()),
+            ServiceCall.of(domain, svc, entityId, *data.entries.map { it.key to it.value }.toTypedArray())
         )
     }
 
     @Composable
-    private fun GridButton(
-        b: Map<String, Any?>,
-        modifier: Modifier,
-        theme: ThemeColors,
-        onClick: () -> Unit,
-    ) {
+    private fun GridButton(b: Map<String, Any?>, modifier: Modifier, theme: ThemeColors, onClick: () -> Unit) {
         val name = b["name"] as? String
         val iconPath = b["icon"] as? String
         val bitmap =
@@ -108,14 +104,14 @@ class ButtonGridCard : CardRenderer {
 
         Column(
             modifier =
-                modifier
-                    .height(if (hasIcon) 68.dp else 48.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(theme.controlBackground)
-                    .clickable(onClick = onClick)
-                    .padding(6.dp),
+            modifier
+                .height(if (hasIcon) 68.dp else 48.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(theme.controlBackground)
+                .clickable(onClick = onClick)
+                .padding(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.Center
         ) {
             if (bitmap != null) {
                 Image(bitmap = bitmap, contentDescription = name, modifier = Modifier.size(32.dp))
@@ -129,7 +125,7 @@ class ButtonGridCard : CardRenderer {
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
+                    textAlign = TextAlign.Center
                 )
             }
         }

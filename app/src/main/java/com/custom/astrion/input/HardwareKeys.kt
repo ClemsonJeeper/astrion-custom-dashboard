@@ -38,7 +38,7 @@ enum class HardwareKey {
     GREEN_BUTTON,
     BLUE_BUTTON,
     YELLOW_BUTTON,
-    UNKNOWN,
+    UNKNOWN
     ;
 
     companion object {
@@ -67,7 +67,7 @@ enum class HardwareKey {
                 138 to RED_BUTTON,
                 139 to GREEN_BUTTON,
                 140 to BLUE_BUTTON,
-                141 to YELLOW_BUTTON,
+                141 to YELLOW_BUTTON
             )
 
         fun fromKeyCode(code: Int): HardwareKey = MAP[code] ?: UNKNOWN
@@ -82,17 +82,11 @@ class HardwareKeyRouter {
     private val shortHandlers = mutableMapOf<HardwareKey, () -> Boolean>()
     private val longHandlers = mutableMapOf<HardwareKey, () -> Boolean>()
 
-    fun on(
-        key: HardwareKey,
-        handler: () -> Boolean,
-    ) {
+    fun on(key: HardwareKey, handler: () -> Boolean) {
         shortHandlers[key] = handler
     }
 
-    fun onLong(
-        key: HardwareKey,
-        handler: () -> Boolean,
-    ) {
+    fun onLong(key: HardwareKey, handler: () -> Boolean) {
         longHandlers[key] = handler
     }
 

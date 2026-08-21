@@ -62,7 +62,7 @@ class AstrionApp : Application() {
             SwitchCard(),
             TitleCard(),
             TvRemoteCard(),
-            VacuumCard(),
+            VacuumCard()
             // ← Register your own card types here
         )
     }

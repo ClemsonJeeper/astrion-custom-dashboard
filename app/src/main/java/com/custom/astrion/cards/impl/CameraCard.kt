@@ -46,16 +46,16 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ui.icons.MdiIcons
+import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
+import kotlin.coroutines.coroutineContext
+import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import okhttp3.Response
-import java.io.BufferedInputStream
-import java.io.ByteArrayOutputStream
-import kotlin.coroutines.coroutineContext
-import kotlin.math.max
 
 /**
  * Live camera card.
@@ -101,10 +101,7 @@ class CameraCard : CardRenderer {
     }
 
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id")
         val mode = if (config.string("mode") == "snapshot") "snapshot" else "stream"
         val intervalMs = (config.int("snapshot_interval", DEFAULT_INTERVAL_S).coerceAtLeast(1)) * 1000L
@@ -205,14 +202,14 @@ class CameraCard : CardRenderer {
 
         Box(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(aspect)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF0E1116))
-                    .pointerInput(entityId) {
-                        detectTapGestures(onTap = { showMaximized = true })
-                    },
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(aspect)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF0E1116))
+                .pointerInput(entityId) {
+                    detectTapGestures(onTap = { showMaximized = true })
+                }
         ) {
             val img = frame
             if (img != null) {
@@ -220,19 +217,19 @@ class CameraCard : CardRenderer {
                     bitmap = img,
                     contentDescription = label,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = contentScale,
+                    contentScale = contentScale
                 )
             } else {
                 // No frame yet: connecting spinner-free placeholder, or an error glyph.
                 Box(
                     modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = if (error) MdiIcons.VideoOff else MdiIcons.Video,
                         contentDescription = null,
                         tint = if (error) Color(0xFF6E828A) else Color(0xFF9FB6BD),
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(40.dp)
                     )
                 }
             }
@@ -240,24 +237,23 @@ class CameraCard : CardRenderer {
             // Bottom gradient + name (and a live dot while a stream is flowing).
             Box(
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.BottomStart)
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(Color.Transparent, Color(0xC0000000)),
-                            ),
+                Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomStart)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, Color(0xC0000000))
                         )
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    ).padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (live) {
                         Box(
                             modifier =
-                                Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFE5484D)),
+                            Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFE5484D))
                         )
                     }
                     Text(
@@ -268,9 +264,9 @@ class CameraCard : CardRenderer {
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier =
-                            Modifier
-                                .padding(start = if (live) 7.dp else 0.dp)
-                                .weight(1f, fill = false),
+                        Modifier
+                            .padding(start = if (live) 7.dp else 0.dp)
+                            .weight(1f, fill = false)
                     )
                 }
             }
@@ -279,13 +275,15 @@ class CameraCard : CardRenderer {
         if (showMaximized) {
             Dialog(
                 onDismissRequest = { showMaximized = false },
-                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+                properties =
+                androidx.compose.ui.window
+                    .DialogProperties(usePlatformDefaultWidth = false)
             ) {
                 BoxWithConstraints(
                     modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .background(Color.Black),
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color.Black)
                 ) {
                     val containerW = constraints.maxWidth.toFloat()
                     val containerH = constraints.maxHeight.toFloat()
@@ -322,15 +320,15 @@ class CameraCard : CardRenderer {
                             bitmap = img,
                             contentDescription = label,
                             modifier =
-                                Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer(
-                                        scaleX = scale,
-                                        scaleY = scale,
-                                        translationX = clampedX,
-                                        translationY = clampedY,
-                                    ),
-                            contentScale = ContentScale.Fit,
+                            Modifier
+                                .fillMaxSize()
+                                .graphicsLayer(
+                                    scaleX = scale,
+                                    scaleY = scale,
+                                    translationX = clampedX,
+                                    translationY = clampedY
+                                ),
+                            contentScale = ContentScale.Fit
                         )
                     }
 
@@ -339,42 +337,42 @@ class CameraCard : CardRenderer {
                     // and receives taps meant for it.
                     Box(
                         modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .pointerInput(Unit) {
-                                    detectTransformGestures { _, pan, zoom, _ ->
-                                        val newScale = (scale * zoom).coerceIn(1f, 8f)
-                                        scale = newScale
-                                        if (newScale > 1f) {
-                                            offsetX += pan.x
-                                            offsetY += pan.y
-                                        } else {
-                                            offsetX = 0f
-                                            offsetY = 0f
-                                        }
+                        Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                detectTransformGestures { _, pan, zoom, _ ->
+                                    val newScale = (scale * zoom).coerceIn(1f, 8f)
+                                    scale = newScale
+                                    if (newScale > 1f) {
+                                        offsetX += pan.x
+                                        offsetY += pan.y
+                                    } else {
+                                        offsetX = 0f
+                                        offsetY = 0f
                                     }
-                                },
+                                }
+                            }
                     )
 
                     // Close button — always reachable regardless of zoom state.
                     Box(
                         modifier =
-                            Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(12.dp)
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.5f))
-                                .pointerInput(Unit) {
-                                    detectTapGestures { showMaximized = false }
-                                },
-                        contentAlignment = Alignment.Center,
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(12.dp)
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.5f))
+                            .pointerInput(Unit) {
+                                detectTapGestures { showMaximized = false }
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Close,
                             contentDescription = "Close",
                             tint = Color.White,
-                            modifier = Modifier.size(22.dp),
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
@@ -390,10 +388,7 @@ class CameraCard : CardRenderer {
      * Decoding happens on the IO dispatcher; only the tiny state write hops to
      * Main. Returns when the stream ends or the coroutine is cancelled.
      */
-    private suspend fun readMjpeg(
-        resp: Response,
-        onFrame: (ImageBitmap) -> Unit,
-    ) {
+    private suspend fun readMjpeg(resp: Response, onFrame: (ImageBitmap) -> Unit) {
         withContext(Dispatchers.IO) {
             val input = BufferedInputStream(resp.body!!.byteStream(), 64 * 1024)
             val jpeg = ByteArrayOutputStream(96 * 1024)

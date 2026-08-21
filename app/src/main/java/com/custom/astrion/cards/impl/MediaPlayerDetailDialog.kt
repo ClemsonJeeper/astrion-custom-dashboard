@@ -5,7 +5,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -56,7 +66,7 @@ fun MediaPlayerDetailDialog(
     e: EntityState?,
     client: HaClient,
     theme: ThemeColors = ThemeColors.Default,
-    onClose: () -> Unit,
+    onClose: () -> Unit
 ) {
     val mediaButtons = remember(e) { computeMediaButtons(e, MediaPlayerCard.MEDIA_CONTROL_KEYS) }
     val volumeButtons = remember(e) { computeVolumeButtons(e, listOf("mute")) }
@@ -73,23 +83,20 @@ fun MediaPlayerDetailDialog(
     var art by remember(artPath) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(artPath) { art = artPath?.let { client.fetchBitmap(it) } }
 
-    fun mp(
-        service: String,
-        data: Array<out Pair<String, Any?>> = emptyArray(),
-    ) {
+    fun mp(service: String, data: Array<out Pair<String, Any?>> = emptyArray()) {
         client.callService(ServiceCall.of("media_player", service, entityId, *data))
     }
 
     Dialog(onDismissRequest = onClose) {
         Column(
             modifier =
-                Modifier
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(theme.cardSurface)
-                    .padding(20.dp)
-                    .width(300.dp),
+            Modifier
+                .clip(RoundedCornerShape(24.dp))
+                .background(theme.cardSurface)
+                .padding(20.dp)
+                .width(300.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             val artMod = Modifier.fillMaxWidth().aspectRatio(1.3f).clip(RoundedCornerShape(18.dp))
             if (art != null) {
@@ -101,7 +108,7 @@ fun MediaPlayerDetailDialog(
                         if (isOff) MdiIcons.CastOff else MdiIcons.Cast,
                         contentDescription = null,
                         tint = Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier.size(48.dp)
                     )
                 }
             }
@@ -114,7 +121,7 @@ fun MediaPlayerDetailDialog(
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
+                    textAlign = TextAlign.Center
                 )
                 Text(
                     subtitle ?: mediaStateLabel(e?.state),
@@ -122,7 +129,7 @@ fun MediaPlayerDetailDialog(
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
+                    textAlign = TextAlign.Center
                 )
             }
 
@@ -134,7 +141,7 @@ fun MediaPlayerDetailDialog(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     mediaButtons.forEach { b ->
                         val big = b.action == "media_play" || b.action == "media_pause"
@@ -149,7 +156,7 @@ fun MediaPlayerDetailDialog(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     volumeButtons.forEach { b -> Circle(b.icon, 40.dp, theme) { mp(b.action, b.data.toTypedArray()) } }
                     if (hasVolumeSet) {
@@ -169,12 +176,12 @@ fun MediaPlayerDetailDialog(
                 val on = e.state != "off"
                 Box(
                     modifier =
-                        Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(if (on) theme.accentSecondary else theme.controlBackground)
-                            .clickable { mp(if (on) "turn_off" else "turn_on") },
-                    contentAlignment = Alignment.Center,
+                    Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(if (on) theme.accentSecondary else theme.controlBackground)
+                        .clickable { mp(if (on) "turn_off" else "turn_on") },
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(MdiIcons.Power, contentDescription = "Toggle", tint = Color.White)
                 }
@@ -184,10 +191,7 @@ fun MediaPlayerDetailDialog(
 }
 
 @Composable
-private fun DialogProgressBar(
-    e: EntityState,
-    theme: ThemeColors,
-) {
+private fun DialogProgressBar(e: EntityState, theme: ThemeColors) {
     val duration = e.attrDouble("media_duration") ?: 0.0
     // See MediaPlayerCard.MediaProgressBar's identical comment — Kodi's
     // media_content_id is a nested JsonObject, not a plain string, so this
@@ -206,18 +210,18 @@ private fun DialogProgressBar(
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(theme.insetSurface),
+            Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(theme.insetSurface)
         ) {
             Box(
                 Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(fraction.coerceAtLeast(0.01f))
                     .clip(RoundedCornerShape(2.dp))
-                    .background(theme.accentSecondary),
+                    .background(theme.accentSecondary)
             )
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -228,66 +232,53 @@ private fun DialogProgressBar(
 }
 
 @Composable
-private fun DialogVolumeSlider(
-    entityId: String,
-    e: EntityState?,
-    modifier: Modifier,
-    theme: ThemeColors,
-    onCommit: (Float) -> Unit,
-) {
+private fun DialogVolumeSlider(entityId: String, e: EntityState?, modifier: Modifier, theme: ThemeColors, onCommit: (Float) -> Unit) {
     val level = (e?.attrDouble("volume_level") ?: 0.0).toFloat().coerceIn(0f, 1f)
     var dragLevel by remember(entityId) { mutableStateOf<Float?>(null) }
     val shown = dragLevel ?: level
     Box(
         modifier =
-            modifier
-                .height(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(theme.insetSurface)
-                .pointerInput(entityId) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            dragLevel?.let(onCommit)
-                            dragLevel = null
-                        },
-                        onDragCancel = { dragLevel = null },
-                    ) { change, _ -> dragLevel = (change.position.x / size.width).coerceIn(0f, 1f) }
-                }
-                .pointerInput(entityId) {
-                    detectTapGestures { offset ->
-                        val f = (offset.x / size.width).coerceIn(0f, 1f)
-                        dragLevel = f
-                        onCommit(f)
+        modifier
+            .height(40.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(theme.insetSurface)
+            .pointerInput(entityId) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        dragLevel?.let(onCommit)
                         dragLevel = null
-                    }
-                },
+                    },
+                    onDragCancel = { dragLevel = null }
+                ) { change, _ -> dragLevel = (change.position.x / size.width).coerceIn(0f, 1f) }
+            }.pointerInput(entityId) {
+                detectTapGestures { offset ->
+                    val f = (offset.x / size.width).coerceIn(0f, 1f)
+                    dragLevel = f
+                    onCommit(f)
+                    dragLevel = null
+                }
+            }
     ) {
         Box(
             Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(shown.coerceIn(0.02f, 1f))
                 .clip(RoundedCornerShape(12.dp))
-                .background(theme.accentSecondary),
+                .background(theme.accentSecondary)
         )
     }
 }
 
 @Composable
-private fun Circle(
-    icon: ImageVector,
-    size: androidx.compose.ui.unit.Dp,
-    theme: ThemeColors,
-    accent: Boolean = false,
-    onClick: () -> Unit,
-) {
+private fun Circle(icon: ImageVector, size: androidx.compose.ui.unit.Dp, theme: ThemeColors, accent: Boolean = false, onClick: () -> Unit) {
     Box(
         modifier =
-            Modifier
-                .size(size)
-                .clip(CircleShape)
-                .background(if (accent) theme.accentSecondary else theme.controlBackground)
-                .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+        Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(if (accent) theme.accentSecondary else theme.controlBackground)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = Color.White)
     }

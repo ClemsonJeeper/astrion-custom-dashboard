@@ -96,10 +96,7 @@ class CoverCard : CardRenderer {
     override val type = "cover"
 
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id") ?: return
         val e = ctx.entities[entityId]
         val name = config.string("name") ?: e?.friendlyName ?: entityId
@@ -173,7 +170,7 @@ class CoverCard : CardRenderer {
                 Row(
                     modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier,
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Box(Modifier.weight(1f, fill = fillWidth)) {
                         when (resolvedActive) {
@@ -184,7 +181,7 @@ class CoverCard : CardRenderer {
                                     ::call,
                                     theme = ctx.theme,
                                     modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier,
-                                    arrangement = if (fillWidth) Arrangement.SpaceEvenly else Arrangement.spacedBy(8.dp),
+                                    arrangement = if (fillWidth) Arrangement.SpaceEvenly else Arrangement.spacedBy(8.dp)
                                 )
                             CoverControl.POSITION ->
                                 PercentSlider(
@@ -192,7 +189,7 @@ class CoverCard : CardRenderer {
                                     value = position ?: 0,
                                     color = ctx.theme.accent,
                                     theme = ctx.theme,
-                                    onCommit = ::setPosition,
+                                    onCommit = ::setPosition
                                 )
                             CoverControl.TILT ->
                                 PercentSlider(
@@ -200,7 +197,7 @@ class CoverCard : CardRenderer {
                                     value = tilt ?: 0,
                                     color = ctx.theme.success,
                                     theme = ctx.theme,
-                                    onCommit = ::setTiltPosition,
+                                    onCommit = ::setTiltPosition
                                 )
                             null -> {}
                         }
@@ -228,7 +225,7 @@ class CoverCard : CardRenderer {
                 e = e,
                 client = ctx.client,
                 theme = ctx.theme,
-                onClose = { showDetail = false },
+                onClose = { showDetail = false }
             )
         }
     }
@@ -239,18 +236,14 @@ private enum class CoverControl { BUTTONS, POSITION, TILT }
 // ---- shared pieces ---------------------------------------------------------
 
 @Composable
-private fun CoverIcon(
-    icon: ImageVector,
-    theme: ThemeColors,
-    size: Dp = 42.dp,
-) {
+private fun CoverIcon(icon: ImageVector, theme: ThemeColors, size: Dp = 42.dp) {
     Box(
         modifier =
-            Modifier
-                .size(size)
-                .clip(RoundedCornerShape(12.dp))
-                .background(theme.controlBackground),
-        contentAlignment = Alignment.Center,
+        Modifier
+            .size(size)
+            .clip(RoundedCornerShape(12.dp))
+            .background(theme.controlBackground),
+        contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = theme.iconTint)
     }
@@ -262,7 +255,7 @@ private fun NameState(
     stateLabel: String,
     theme: ThemeColors,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
-    textAlign: TextAlign = TextAlign.Start,
+    textAlign: TextAlign = TextAlign.Start
 ) {
     Column(horizontalAlignment = horizontalAlignment) {
         Text(
@@ -271,7 +264,7 @@ private fun NameState(
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
-            textAlign = textAlign,
+            textAlign = textAlign
         )
         Text(stateLabel, color = theme.mutedText, fontSize = 13.sp, textAlign = textAlign)
     }
@@ -285,7 +278,7 @@ private fun ControlsRow(
     call: (String) -> Unit,
     theme: ThemeColors,
     modifier: Modifier = Modifier,
-    arrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp),
+    arrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp)
 ) {
     Row(modifier = modifier, horizontalArrangement = arrangement) {
         CircleBtn(MdiIcons.CoverUp, theme, enabled = !isOpen) { call("open_cover") }
@@ -295,21 +288,16 @@ private fun ControlsRow(
 }
 
 @Composable
-private fun CircleBtn(
-    icon: ImageVector,
-    theme: ThemeColors,
-    enabled: Boolean = true,
-    onClick: () -> Unit,
-) {
+private fun CircleBtn(icon: ImageVector, theme: ThemeColors, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
         modifier =
-            Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(theme.controlBackground)
-                .alpha(if (enabled) 1f else 0.35f)
-                .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
-        contentAlignment = Alignment.Center,
+        Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(theme.controlBackground)
+            .alpha(if (enabled) 1f else 0.35f)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+        contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = theme.iconTint)
     }
@@ -317,18 +305,15 @@ private fun CircleBtn(
 
 /** Small round "next control" button — cycles through the enabled controls, Mushroom-style. */
 @Composable
-private fun CycleControlButton(
-    theme: ThemeColors,
-    onClick: () -> Unit,
-) {
+private fun CycleControlButton(theme: ThemeColors, onClick: () -> Unit) {
     Box(
         modifier =
-            Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(theme.controlBackground)
-                .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+        Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(theme.controlBackground)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = theme.iconTint)
     }
@@ -340,13 +325,7 @@ private fun CycleControlButton(
  * live percentage as a centered label, Mushroom-slider-style.
  */
 @Composable
-private fun PercentSlider(
-    entityId: String,
-    value: Int,
-    color: Color,
-    theme: ThemeColors,
-    onCommit: (Int) -> Unit,
-) {
+private fun PercentSlider(entityId: String, value: Int, color: Color, theme: ThemeColors, onCommit: (Int) -> Unit) {
     // Uses -1f as a sentinel to denote 'no active drag', avoiding Float autoboxing.
     var dragFraction by remember(entityId) { mutableFloatStateOf(-1f) }
     val liveFraction = (value / 100f).coerceIn(0f, 1f)
@@ -354,48 +333,47 @@ private fun PercentSlider(
 
     Box(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(36.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(theme.insetSurface)
-                .pointerInput(entityId) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            if (dragFraction >= 0f) {
-                                onCommit((dragFraction * 100).roundToInt())
-                            }
-                            dragFraction = -1f
-                        },
-                        onDragCancel = { dragFraction = -1f },
-                    ) { change, _ ->
-                        dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
-                    }
-                }
-                .pointerInput(entityId) {
-                    detectTapGestures { offset ->
-                        val f = (offset.x / size.width).coerceIn(0f, 1f)
-                        dragFraction = f
-                        onCommit((f * 100).roundToInt())
+        Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(theme.insetSurface)
+            .pointerInput(entityId) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (dragFraction >= 0f) {
+                            onCommit((dragFraction * 100).roundToInt())
+                        }
                         dragFraction = -1f
-                    }
-                },
-        contentAlignment = Alignment.Center,
+                    },
+                    onDragCancel = { dragFraction = -1f }
+                ) { change, _ ->
+                    dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                }
+            }.pointerInput(entityId) {
+                detectTapGestures { offset ->
+                    val f = (offset.x / size.width).coerceIn(0f, 1f)
+                    dragFraction = f
+                    onCommit((f * 100).roundToInt())
+                    dragFraction = -1f
+                }
+            },
+        contentAlignment = Alignment.Center
     ) {
         Box(
             modifier =
-                Modifier
-                    .align(Alignment.CenterStart)
-                    .fillMaxHeight()
-                    .fillMaxWidth(shownFraction.coerceIn(0.02f, 1f))
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(color),
+            Modifier
+                .align(Alignment.CenterStart)
+                .fillMaxHeight()
+                .fillMaxWidth(shownFraction.coerceIn(0.02f, 1f))
+                .clip(RoundedCornerShape(18.dp))
+                .background(color)
         )
         Text(
             "${(shownFraction * 100).roundToInt()}%",
             color = theme.primaryText,
             fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
@@ -409,16 +387,16 @@ private fun DefaultLayout(
     icon: ImageVector,
     controls: @Composable (fillWidth: Boolean) -> Unit,
     theme: ThemeColors,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     Column(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(theme.controlBackground)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(theme.controlBackground)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().then(modifier)) {
             CoverIcon(icon, theme)
@@ -438,16 +416,16 @@ private fun HorizontalLayout(
     icon: ImageVector,
     controls: @Composable (fillWidth: Boolean) -> Unit,
     theme: ThemeColors,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     Row(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(theme.controlBackground)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(theme.controlBackground)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.then(modifier)) { CoverIcon(icon, theme) }
         Spacer(Modifier.width(12.dp))
@@ -465,16 +443,16 @@ private fun VerticalLayout(
     icon: ImageVector,
     controls: @Composable (fillWidth: Boolean) -> Unit,
     theme: ThemeColors,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     Column(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(theme.controlBackground)
-                .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(theme.controlBackground)
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().then(modifier)) {
             CoverIcon(icon, theme, size = 48.dp)

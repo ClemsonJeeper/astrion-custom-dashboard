@@ -2,6 +2,7 @@ package com.custom.astrion.config
 
 import android.content.Context
 import androidx.core.content.edit
+import java.util.UUID
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
@@ -9,7 +10,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import java.util.UUID
 
 /**
  * A single Harmony Hub the app can talk to directly, bypassing Home
@@ -24,7 +24,7 @@ data class HarmonyHubConfig(
     val ip: String,
     /** Mutable: HarmonyHubRegistry.connectAll() fills this in via auto-discovery
      * when it's blank, updating this same instance in place. */
-    var hubId: String,
+    var hubId: String
 )
 
 /**
@@ -57,11 +57,7 @@ object RemoteSettings {
     @Suppress("unused")
     fun isConfigured(context: Context): Boolean = haUrl(context).isNotBlank() && haToken(context).isNotBlank()
 
-    fun saveHaConnection(
-        context: Context,
-        haUrl: String,
-        haToken: String,
-    ) {
+    fun saveHaConnection(context: Context, haUrl: String, haToken: String) {
         prefs(context).edit {
             putString(KEY_HA_URL, haUrl)
             putString(KEY_HA_TOKEN, haToken)
@@ -85,16 +81,13 @@ object RemoteSettings {
 
         val migrated =
             listOf(
-                HarmonyHubConfig(localId = UUID.randomUUID().toString(), name = "Harmony Hub", ip = legacyIp, hubId = legacyId),
+                HarmonyHubConfig(localId = UUID.randomUUID().toString(), name = "Harmony Hub", ip = legacyIp, hubId = legacyId)
             )
         saveHarmonyHubs(context, migrated)
         return migrated
     }
 
-    fun saveHarmonyHubs(
-        context: Context,
-        hubs: List<HarmonyHubConfig>,
-    ) {
+    fun saveHarmonyHubs(context: Context, hubs: List<HarmonyHubConfig>) {
         val array =
             buildJsonArray {
                 hubs.forEach { hub ->
@@ -114,27 +107,23 @@ object RemoteSettings {
 
     /** Convenience lookup used to resolve a `hub` field from dashboard.json. */
     @Suppress("unused")
-    fun harmonyHub(
-        context: Context,
-        localId: String?,
-    ): HarmonyHubConfig? {
+    fun harmonyHub(context: Context, localId: String?): HarmonyHubConfig? {
         val hubs = harmonyHubs(context)
         if (hubs.isEmpty()) return null
         return hubs.firstOrNull { it.localId == localId } ?: hubs.first()
     }
 
-    private fun parseHubs(raw: String): List<HarmonyHubConfig> =
-        try {
-            json.parseToJsonElement(raw).jsonArray.map { el ->
-                val obj = el.jsonObject
-                HarmonyHubConfig(
-                    localId = obj["localId"]?.jsonPrimitive?.content ?: UUID.randomUUID().toString(),
-                    name = obj["name"]?.jsonPrimitive?.content ?: "Harmony Hub",
-                    ip = obj["ip"]?.jsonPrimitive?.content ?: "",
-                    hubId = obj["hubId"]?.jsonPrimitive?.content ?: "",
-                )
-            }
-        } catch (_: Exception) {
-            emptyList()
+    private fun parseHubs(raw: String): List<HarmonyHubConfig> = try {
+        json.parseToJsonElement(raw).jsonArray.map { el ->
+            val obj = el.jsonObject
+            HarmonyHubConfig(
+                localId = obj["localId"]?.jsonPrimitive?.content ?: UUID.randomUUID().toString(),
+                name = obj["name"]?.jsonPrimitive?.content ?: "Harmony Hub",
+                ip = obj["ip"]?.jsonPrimitive?.content ?: "",
+                hubId = obj["hubId"]?.jsonPrimitive?.content ?: ""
+            )
         }
+    } catch (_: Exception) {
+        emptyList()
+    }
 }
