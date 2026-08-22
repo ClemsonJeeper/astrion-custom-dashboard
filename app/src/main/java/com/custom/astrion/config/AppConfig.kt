@@ -128,13 +128,36 @@ data class HotkeyConfig(
      * device with only a `PowerToggle` command and no discrete on/off.
      * Plain device-catalog ids (same ones used in an ActivityConfig's
      * `devices[].deviceId`), regardless of source. */
-    val devices: List<String> = emptyList()
+    val devices: List<String> = emptyList(),
+    /** Opens a full-screen overlay instead of dispatching any device/page
+     * action: `"settings"` (same overlay as swiping down from the top
+     * status bar) or `"activities"` (same as swiping up from the page
+     * indicator — the Active Activities picker). Case-insensitive; any
+     * other value is treated as unset. Checked first in `runHotkey`'s
+     * priority chain, before page navigation, so it always wins over the
+     * rest of this binding if both happen to be set. */
+    val openOverlay: String? = null,
+    /** One-tap "return to the AV Activity that's actually running" — the
+     * page-navigation equivalent of tapping an entry in the Active
+     * Activities overlay, but for whichever [TrackedActivity] is currently
+     * active in *this* room specifically, resolved live at press time via
+     * `ActivityRuntime.activeActivity(room)?.page`. A no-op if this room has
+     * no active Activity right now (e.g. everything's off) — deliberately
+     * doesn't fall through to the rest of this binding's action chain in
+     * that case, same as a parent-navigation press on a root page. Distinct
+     * from [openOverlay]\="activities": this jumps straight to the one
+     * Activity's page with no picker, so it only makes sense on a
+     * remote/page that's already dedicated to a single room. Checked right
+     * after [openOverlay], before page navigation. */
+    val openCurrentActivityRoom: String? = null
 ) {
     /** Helper flags to quickly check hotkey action type. */
     val isPageNavigation: Boolean get() = !page.isNullOrBlank()
     val isServiceCall: Boolean get() = !service.isNullOrBlank()
     val isHarmonyCommand: Boolean get() = !harmonyDevice.isNullOrBlank() && !harmonyCommand.isNullOrBlank()
     val isHarmonyActivity: Boolean get() = !harmonyActivity.isNullOrBlank()
+    val isOpenOverlay: Boolean
+        get() = openOverlay.equals("settings", ignoreCase = true) || openOverlay.equals("activities", ignoreCase = true)
 }
 
 /**

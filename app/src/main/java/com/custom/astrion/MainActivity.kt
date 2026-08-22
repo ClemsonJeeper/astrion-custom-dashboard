@@ -120,6 +120,7 @@ class MainActivity : ComponentActivity() {
     private val keyRouter = HardwareKeyRouter()
     private var dashboard by mutableStateOf(DashboardLoader.Result(DashboardConfig.default, null))
     private var navTarget by mutableStateOf<Int?>(null)
+    private var overlayTarget by mutableStateOf<String?>(null)
 
     /** Which page is currently visible — used to know which page-scoped
      * hotkeys should currently be layered on top of the global ones. */
@@ -240,6 +241,8 @@ class MainActivity : ComponentActivity() {
                 configNotice = dashboard.notice,
                 navTarget = navTarget,
                 onNavHandled = { navTarget = null },
+                overlayTarget = overlayTarget,
+                onOverlayHandled = { overlayTarget = null },
                 onPageChanged = { pageIndex ->
                     currentPageIndex = pageIndex
                     rebindHotkeysForCurrentPage()
@@ -354,15 +357,43 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** `hk.openOverlay`'s handling, split out of [runHotkey] purely to keep
+     * that function's cyclomatic complexity down — behavior unchanged. */
+    private fun openOverlayHotkey(target: String): Boolean {
+        if (!target.equals("settings", ignoreCase = true) && !target.equals("activities", ignoreCase = true)) return false
+        overlayTarget = target.lowercase()
+        return true
+    }
+
+    /** `hk.openCurrentActivityRoom`'s handling, split out of [runHotkey]
+     * purely to keep that function's cyclomatic complexity down — behavior
+     * unchanged. Deliberately does NOT fall through to the rest of a
+     * binding's action chain when the room has nothing active: a hotkey
+     * configured for this is meant to be a dedicated "back to what's
+     * playing" button, not a page-nav/service call in disguise for the
+     * idle case. */
+    private fun openCurrentActivityHotkey(room: String): Boolean {
+        val pageName = activityRuntime?.activeActivity(room)?.page ?: return false
+        val idx = dashboard.config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
+        if (idx < 0) return false
+        navTarget = idx
+        return true
+    }
+
     /**
      * Execute one hotkey, in priority order:
-     *  1. Page navigation
-     *  2. Harmony Activity by id
-     *  3. Direct Harmony hub command (harmonyDevice + harmonyCommand) — no HA involved
-     *  4. Local IR command (irDevice + irCommand) — no hub, no HA, fully offline
-     *  5. Home Assistant service call
+     *  1. Open overlay (settings / active activities)
+     *  2. Open current Activity's page for a room
+     *  3. Page navigation
+     *  4. Harmony Activity by id
+     *  5. Direct Harmony hub command (harmonyDevice + harmonyCommand) — no HA involved
+     *  6. Local IR command (irDevice + irCommand) — no hub, no HA, fully offline
+     *  7. Home Assistant service call
      */
     private fun runHotkey(hk: HotkeyConfig): Boolean {
+        if (hk.openOverlay != null) return openOverlayHotkey(hk.openOverlay)
+        if (hk.openCurrentActivityRoom != null) return openCurrentActivityHotkey(hk.openCurrentActivityRoom)
+
         hk.page?.let { pageName ->
             val idx = dashboard.config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
             if (idx < 0) return false
