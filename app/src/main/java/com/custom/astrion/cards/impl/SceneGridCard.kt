@@ -139,19 +139,20 @@ class SceneGridCard : CardRenderer {
 
         if (row) {
             Row(
-                modifier =
-                Modifier
+                modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 scenes.forEach { scene ->
                     SceneButton(
-                        name = nameOf(scene),
-                        color = colorOf(scene),
-                        iconPath = iconOf(scene),
-                        hasIcon = hasIcon,
-                        showLabel = showLabels,
+                        state = SceneButtonState(
+                            name = nameOf(scene),
+                            color = colorOf(scene),
+                            iconPath = iconOf(scene),
+                            hasIcon = hasIcon,
+                            showLabel = showLabels
+                        ),
                         layout = TileLayout(iconFill, tileHeight),
                         modifier = Modifier.width(104.dp)
                     ) { onTap(scene) }
@@ -163,11 +164,13 @@ class SceneGridCard : CardRenderer {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         chunk.forEach { scene ->
                             SceneButton(
-                                name = nameOf(scene),
-                                color = colorOf(scene),
-                                iconPath = iconOf(scene),
-                                hasIcon = hasIcon,
-                                showLabel = showLabels,
+                                state = SceneButtonState(
+                                    name = nameOf(scene),
+                                    color = colorOf(scene),
+                                    iconPath = iconOf(scene),
+                                    hasIcon = hasIcon,
+                                    showLabel = showLabels
+                                ),
                                 layout = TileLayout(iconFill, tileHeight),
                                 modifier = Modifier.weight(1f)
                             ) { onTap(scene) }
@@ -191,56 +194,53 @@ class SceneGridCard : CardRenderer {
      * count threshold. */
     private data class TileLayout(val iconFill: Boolean, val tileHeight: Int)
 
-    @Composable
-    private fun SceneButton(
-        name: String,
-        color: Color,
-        iconPath: String?,
-        hasIcon: Boolean,
-        showLabel: Boolean,
-        layout: TileLayout,
-        modifier: Modifier,
-        onClick: () -> Unit
-    ) {
-        val textColor = if (luminance(color) > 0.75f) Color(0xFF141414) else Color(0xFFF0F2F6)
-        val bitmap =
-            remember(iconPath) {
-                iconPath?.let {
-                    runCatching {
-                        val f = File(it)
-                        if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
-                    }.getOrNull()
-                }
-            }
+    private data class SceneButtonState(
+        val name: String,
+        val color: Color,
+        val iconPath: String?,
+        val hasIcon: Boolean,
+        val showLabel: Boolean
+    )
 
-        if (hasIcon) {
-            if (layout.iconFill && bitmap != null && !showLabel) {
-                FillIconTile(bitmap, name, layout.tileHeight, color, modifier, onClick)
+    @Composable
+    private fun SceneButton(state: SceneButtonState, layout: TileLayout, modifier: Modifier, onClick: () -> Unit) {
+        val textColor = if (luminance(state.color) > 0.75f) Color(0xFF141414) else Color(0xFFF0F2F6)
+        val bitmap = remember(state.iconPath) {
+            state.iconPath?.let {
+                runCatching {
+                    val f = File(it)
+                    if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
+                }.getOrNull()
+            }
+        }
+
+        if (state.hasIcon) {
+            if (layout.iconFill && bitmap != null && !state.showLabel) {
+                FillIconTile(bitmap, state.name, layout.tileHeight, state.color, modifier, onClick)
             } else {
                 // Every tile in the grid uses this branch once any one of them has
                 // an icon, even tiles with no icon of their own — a blank 28dp
                 // spacer keeps their label lined up with the others instead of
                 // sitting lower.
                 Column(
-                    modifier =
-                    modifier
+                    modifier = modifier
                         .height(layout.tileHeight.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(color)
+                        .background(state.color)
                         .clickable(onClick = onClick)
                         .padding(6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
                     if (bitmap != null) {
-                        Image(bitmap = bitmap, contentDescription = name, modifier = Modifier.size(28.dp))
+                        Image(bitmap = bitmap, contentDescription = state.name, modifier = Modifier.size(28.dp))
                     } else {
                         Spacer(Modifier.size(28.dp))
                     }
-                    if (showLabel) {
+                    if (state.showLabel) {
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = name,
+                            text = state.name,
                             color = textColor,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
@@ -252,17 +252,16 @@ class SceneGridCard : CardRenderer {
             }
         } else {
             Box(
-                modifier =
-                modifier
+                modifier = modifier
                     .height(58.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(color)
+                    .background(state.color)
                     .clickable(onClick = onClick)
                     .padding(horizontal = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = name,
+                    text = state.name,
                     color = textColor,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
@@ -277,17 +276,9 @@ class SceneGridCard : CardRenderer {
      * unchanged. Only reached when there's a real [bitmap] and no label
      * (see the caller), so both are non-null/false by the time this runs. */
     @Composable
-    private fun FillIconTile(
-        bitmap: ImageBitmap,
-        name: String,
-        tileHeight: Int,
-        color: Color,
-        modifier: Modifier,
-        onClick: () -> Unit
-    ) {
+    private fun FillIconTile(bitmap: ImageBitmap, name: String, tileHeight: Int, color: Color, modifier: Modifier, onClick: () -> Unit) {
         Box(
-            modifier =
-            modifier
+            modifier = modifier
                 .height(tileHeight.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .background(color)
