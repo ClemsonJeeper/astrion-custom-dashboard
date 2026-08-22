@@ -77,7 +77,7 @@ If you are on Windows, you can download the ready-to-use automatic installer pac
 
 For a detailed step-by-step setup guide, including ADB access,
 permissions, Home Assistant connection, and the first dashboard, see
-[Getting Started](GETTING_STARTED.md).
+[Getting Started](docs/GETTING_STARTED.md).
 
 ## Uninstalling
 
