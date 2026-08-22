@@ -90,6 +90,11 @@ class HardwareKeyRouter {
         longHandlers[key] = handler
     }
 
+    /** True if [key] already has a short-press handler bound — used to let a
+     * fallback binding (e.g. parent-page navigation) yield to any explicit
+     * hotkey already claiming that key, instead of overriding it. */
+    fun isShortBound(key: HardwareKey): Boolean = shortHandlers.containsKey(key)
+
     /** Drop all bindings — used before rebinding from a reloaded config. */
     fun clear() {
         shortHandlers.clear()

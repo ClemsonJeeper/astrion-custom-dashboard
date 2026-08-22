@@ -44,6 +44,7 @@ function importJson() {
         hotkeys: p.hotkeys || [],
         longHotkeys: p.longHotkeys || [],
         ...(p.parent ? { parent: p.parent } : {}),
+        ...(p.parent && p.parentKey && p.parentKey.toUpperCase() !== 'BACK' ? { parentKey: p.parentKey.toUpperCase() } : {}),
       })),
       hotkeys: parsed.hotkeys || [],
       longHotkeys: parsed.longHotkeys || [],
@@ -95,10 +96,19 @@ function openPageDialog(index) {
   document.getElementById('pageDialogName').value = isNew ? '' : dashboardData.pages[index].name;
   populatePageParentSelect(index);
   document.getElementById('pageDialogParent').value = isNew ? '' : (dashboardData.pages[index].parent || '');
+  document.getElementById('pageDialogParentKey').value = isNew ? 'BACK' : (dashboardData.pages[index].parentKey || 'BACK');
+  onPageDialogParentChange();
   document.getElementById('pageDialogStart').checked = isNew ? false : (dashboardData.startPage === index);
   document.getElementById('pageDialogDeleteBtn').style.display = isNew ? 'none' : '';
   document.getElementById('pageDialogModal').classList.add('open');
   document.getElementById('pageDialogName').focus();
+}
+
+// Shows the "return-to-parent button" picker only once a parent page is
+// actually selected — it has nothing to configure otherwise.
+function onPageDialogParentChange() {
+  const hasParent = !!document.getElementById('pageDialogParent').value;
+  document.getElementById('pageDialogParentKeyRow').style.display = hasParent ? '' : 'none';
 }
 
 // Every page that would create a cycle if picked as `excludeIndex`'s
@@ -141,11 +151,15 @@ function savePageDialog() {
   const name = document.getElementById('pageDialogName').value.trim();
   if (!name) { alert('Give the page a name.'); return; }
   const parent = document.getElementById('pageDialogParent').value || undefined;
+  const parentKey = document.getElementById('pageDialogParentKey').value || 'BACK';
   const makeStart = document.getElementById('pageDialogStart').checked;
 
   if (editingPage === null) {
     const page = { name, cards: [], hotkeys: [], longHotkeys: [] };
-    if (parent) page.parent = parent;
+    if (parent) {
+      page.parent = parent;
+      if (parentKey !== 'BACK') page.parentKey = parentKey;
+    }
     dashboardData.pages.push(page);
     currentActivePage = dashboardData.pages.length - 1;
     if (makeStart) dashboardData.startPage = currentActivePage;
@@ -153,7 +167,13 @@ function savePageDialog() {
     const page = dashboardData.pages[editingPage];
     const oldName = page.name;
     page.name = name;
-    if (parent) page.parent = parent; else delete page.parent;
+    if (parent) {
+      page.parent = parent;
+      if (parentKey !== 'BACK') page.parentKey = parentKey; else delete page.parentKey;
+    } else {
+      delete page.parent;
+      delete page.parentKey;
+    }
     if (makeStart) dashboardData.startPage = editingPage;
     else if (dashboardData.startPage === editingPage) dashboardData.startPage = 0;
 

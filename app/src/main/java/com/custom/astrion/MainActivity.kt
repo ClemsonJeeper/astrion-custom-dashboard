@@ -256,25 +256,42 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Only reached when the current page's own hotkeys don't already claim
-     * BACK — `dispatchKeyEvent` checks `keyRouter` first and consumes the
-     * event there if any hotkey (global or page-specific, AV or otherwise)
-     * is bound to it, so this fallback can never steal BACK from an AV
-     * page. When the current page has a [PageConfig.parent], jump there —
-     * the same navTarget mechanism `runHotkey`'s own page-navigation branch
-     * uses. A root page (no parent) keeps today's behavior: do nothing,
-     * so the launcher itself is never dismissed by BACK.
+     * Jump to the current page's [PageConfig.parent], if any — the same
+     * navTarget mechanism `runHotkey`'s own page-navigation branch uses.
+     * Returns false (no-op) on a root page, or if the parent name doesn't
+     * resolve to an actual page.
+     */
+    private fun goToParent(): Boolean {
+        val parentName =
+            dashboard.config.pages
+                .getOrNull(currentPageIndex)
+                ?.parent ?: return false
+        val idx = dashboard.config.pages.indexOfFirst { it.name.equals(parentName, ignoreCase = true) }
+        if (idx < 0) return false
+        navTarget = idx
+        return true
+    }
+
+    /**
+     * Safety net for the default case only. The configurable parent-jump
+     * itself is bound as a regular fallback handler in `keyRouter` by
+     * `rebindHotkeysForCurrentPage()`, for whichever key [PageConfig.parentKey]
+     * names — that's what fires for a custom (non-BACK) key, via
+     * `dispatchKeyEvent`. This override exists only to preserve the exact
+     * original behavior when `parentKey` is left at its default ("BACK"):
+     * if it were set to something else, the hardware BACK button goes back
+     * to doing nothing here, same as a page with no parent at all — it's
+     * simply no longer this page's configured "leave" button. Either way,
+     * BACK is never allowed to dismiss the launcher itself (kiosk mode).
      */
     @Suppress("DEPRECATION")
     @SuppressLint("MissingSuperCall") // intentional: BACK is fully intercepted on root pages
     // to keep this a kiosk-mode launcher — see class doc above.
     override fun onBackPressed() {
-        val parentName =
-            dashboard.config.pages
-                .getOrNull(currentPageIndex)
-                ?.parent ?: return
-        val idx = dashboard.config.pages.indexOfFirst { it.name.equals(parentName, ignoreCase = true) }
-        if (idx >= 0) navTarget = idx
+        val page = dashboard.config.pages.getOrNull(currentPageIndex) ?: return
+        if (page.parent != null && page.parentKey.equals("BACK", ignoreCase = true)) {
+            goToParent()
+        }
     }
 
     override fun onResume() {
@@ -292,12 +309,24 @@ class MainActivity : ComponentActivity() {
     /** Merge the global hotkeys with the current page's own hotkeys — a
      * page-scoped binding for a given key wins over the global one for that
      * same key while that page is visible; keys the page doesn't touch keep
-     * their global behavior (e.g. volume always targets the soundbar). */
+     * their global behavior (e.g. volume always targets the soundbar). Then,
+     * if the page has a [PageConfig.parent], layer in the parent-navigation
+     * fallback on [PageConfig.parentKey] — but only if that key isn't
+     * already claimed by one of the hotkeys just bound above, so an AV page
+     * that binds its own hotkey on the same key (e.g. a custom HOME action)
+     * is never overridden by the fallback. */
     private fun rebindHotkeysForCurrentPage() {
         val page = dashboard.config.pages.getOrNull(currentPageIndex)
         val mergedShort = mergeHotkeys(dashboard.config.hotkeys, page?.hotkeys.orEmpty())
         val mergedLong = mergeHotkeys(dashboard.config.longHotkeys, page?.longHotkeys.orEmpty())
         bindHotkeys(mergedShort, mergedLong)
+
+        if (page?.parent != null) {
+            val key = runCatching { HardwareKey.valueOf(page.parentKey.uppercase()) }.getOrNull()
+            if (key != null && !keyRouter.isShortBound(key)) {
+                keyRouter.on(key) { goToParent() }
+            }
+        }
     }
 
     private fun mergeHotkeys(global: List<HotkeyConfig>, pageSpecific: List<HotkeyConfig>): List<HotkeyConfig> {
