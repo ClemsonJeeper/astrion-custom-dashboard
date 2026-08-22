@@ -26,17 +26,44 @@ async function loadDashboardFromDevice() {
   try {
     const res = await fetch('/dashboard.json');
     deviceModeAvailable = true; // reaching this line at all means the app answered — even a 404 (no dashboard.json saved yet) still confirms device mode
+    await loadHaStates(); // best-effort: lets the preview render with live HA data instead of the static mocks
     if (res.ok) {
       const parsed = await res.json();
       applyParsedDashboard(parsed);
       initEditor();
       console.log('Loaded dashboard.json from this device.');
+    } else {
+      // No dashboard.json yet — the inline initEditor() already ran with the
+      // default empty page; just refresh the preview now that haStates is loaded.
+      renderPreview();
     }
   } catch (e) {
     deviceModeAvailable = false;
     console.log('Not served by the app (or offline) — using the paste/download flow instead.', e);
   }
   updateDeviceModeUi();
+}
+
+/**
+ * Fetches a snapshot of every HA entity the device currently knows, exposed
+ * by the app at /ha-states. Sets the global `haStates` (declared in preview.js)
+ * so the card renderers can use live state/names/attributes instead of the
+ * static *_MOCK examples. Failures are swallowed: on GitHub Pages or when HA
+ * is unreachable, haStates stays null and the preview quietly falls back to
+ * the mocks + prettyEntityName().
+ */
+async function loadHaStates() {
+  try {
+    const res = await fetch('/ha-states');
+    if (!res.ok) return;
+    const data = await res.json();
+    haStates = (data && data.states) ? data.states : null;
+    if (data && data.connected === false) {
+      console.log('HA not connected — preview will use example data.');
+    }
+  } catch (e) {
+    haStates = null; // not device mode, or older app build without the endpoint
+  }
 }
 
 /** Normalizes a parsed dashboard.json into dashboardData — same shape importJson() builds,

@@ -196,6 +196,7 @@ class MainActivity : ComponentActivity() {
             ConfigServer(
                 context = this,
                 harmonyRegistry = harmonyRegistry,
+                haClient = client,
                 onConnectionSaved = { runOnUiThread { reconnectWithNewSettings() } },
                 onDashboardUpdated = { runOnUiThread { reloadDashboard() } },
                 getPageNames = { dashboard.config.pages.map { it.name } },

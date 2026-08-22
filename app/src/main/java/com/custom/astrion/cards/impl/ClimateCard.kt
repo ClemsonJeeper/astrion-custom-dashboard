@@ -97,8 +97,13 @@ class ClimateCard : CardRenderer {
         val maxT = e?.attrDouble("max_temp")
 
         val target = e?.attrDouble("temperature")
+        val targetHigh = e?.attrDouble("target_temp_high")
+        val targetLow = e?.attrDouble("target_temp_low")
         val current = e?.attrDouble("current_temperature")
         val mode = e?.state ?: "off"
+        // heat_cool mode uses a temp range (target_temp_low..target_temp_high)
+        // instead of a single setpoint — temperature is null in that mode.
+        val isRange = target == null && targetHigh != null && targetLow != null
         // "off" is deliberately excluded — the header's dedicated power
         // button already turns the unit off, so a chip for it would just
         // duplicate that control.
@@ -134,6 +139,23 @@ class ClimateCard : CardRenderer {
             val clamped = t.coerceIn(minT ?: t, maxT ?: t)
             ctx.client.callService(
                 ServiceCall.of("climate", "set_temperature", entityId, "temperature" to clamped)
+            )
+        }
+
+        // In heat_cool mode, shift both bounds together by `delta` — keeps the
+        // deadband intact. HA's set_temperature service accepts
+        // target_temp_high/target_temp_low for range mode.
+        fun shiftRange(delta: Double) {
+            val lo = (targetLow!! + delta).coerceIn(minT ?: Double.NEGATIVE_INFINITY, maxT ?: Double.POSITIVE_INFINITY)
+            val hi = (targetHigh!! + delta).coerceIn(minT ?: Double.NEGATIVE_INFINITY, maxT ?: Double.POSITIVE_INFINITY)
+            ctx.client.callService(
+                ServiceCall.of(
+                    "climate",
+                    "set_temperature",
+                    entityId,
+                    "target_temp_low" to lo,
+                    "target_temp_high" to hi
+                )
             )
         }
 
@@ -201,13 +223,19 @@ class ClimateCard : CardRenderer {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Stepper(Icons.Filled.Remove, ctx.theme) { target?.let { setTemp(it - step) } }
+                Stepper(Icons.Filled.Remove, ctx.theme) {
+                    if (isRange) shiftRange(-step) else target?.let { setTemp(it - step) }
+                }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        target?.let { "${trim(it)}°" } ?: "—",
+                        when {
+                            isRange -> "${trim(targetLow!!)}-${trim(targetHigh!!)}°"
+                            target != null -> "${trim(target)}°"
+                            else -> "—"
+                        },
                         color = ctx.theme.primaryText,
-                        fontSize = 36.sp,
+                        fontSize = if (isRange) 28.sp else 36.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
@@ -217,7 +245,9 @@ class ClimateCard : CardRenderer {
                     )
                 }
 
-                Stepper(Icons.Filled.Add, ctx.theme) { target?.let { setTemp(it + step) } }
+                Stepper(Icons.Filled.Add, ctx.theme) {
+                    if (isRange) shiftRange(step) else target?.let { setTemp(it + step) }
+                }
             }
 
             // HVAC mode chips (icons by default, matching HA's tile card; "off" excluded, see above).
