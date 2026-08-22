@@ -79,7 +79,6 @@ For a detailed step-by-step setup guide, including ADB access,
 permissions, Home Assistant connection, and the first dashboard, see
 [Getting Started](GETTING_STARTED.md).
 
-### Uninstalling
 ## Uninstalling
 
 ### Option A: Automatic Uninstaller (Windows)
