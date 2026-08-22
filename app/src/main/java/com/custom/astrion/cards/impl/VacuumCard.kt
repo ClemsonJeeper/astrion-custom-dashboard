@@ -62,9 +62,13 @@ import kotlinx.serialization.json.JsonPrimitive
  * already renders the robot moving), start/pause/dock/locate controls, a
  * fan-speed (cleaning-mode) dropdown, and room buttons that start a segment clean.
  *
- * Room buttons fire `vacuum.send_command app_segment_clean` with the segment
- * id (the Roborock room id from your map). The map image is fetched from the
- * entity's `entity_picture` — no blocked-zone editing, just a live-ish view.
+ * Room buttons fire a per-room "clean this segment" service call — by
+ * default `vacuum.send_command app_segment_clean` with the segment id (the
+ * Roborock/Xiaomi room id from your map), but configurable via
+ * `room_clean_action` for integrations that use their own service instead
+ * (e.g. Dreame's `dreame_vacuum.vacuum_clean_segment`) — see [RoomCleanAction].
+ * The map image is fetched from the entity's `entity_picture` — no
+ * blocked-zone editing, just a live-ish view.
  *
  * The vacuum's activity state (docked/cleaning/paused/idle/returning/error) is
  * translated via `HaLabels.vacuumState()` — see assets/ha_labels/<lang>.json.
@@ -79,8 +83,16 @@ import kotlinx.serialization.json.JsonPrimitive
  *       "map_image": "image.roborock_map",
  *       "map_rotation": 90,
  *       "map_height": 200,
- *       "rooms": [ { "name": "Kitchen", "id": 18 }, ... ]
+ *       "rooms": [ { "name": "Kitchen", "id": 18 }, ... ],
+ *       "room_clean_action": {
+ *         "domain": "dreame_vacuum",
+ *         "service": "vacuum_clean_segment",
+ *         "parameter": "segments"
+ *       }
  *   } }
+ *
+ * `room_clean_action` is optional — see [roomCleanAction] doc below for what
+ * it changes and why it defaults to the Roborock/Xiaomi-style call.
  *
  * The same options map can be reused as the "vacuum" overlay block on a
  * `picture_elements` floorplan card (see [PictureElementsCard]) — tapping the
@@ -122,6 +134,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
     val mapEntity = options["map_image"] as? String
     val mapHeight = (options["map_height"] as? Number)?.toInt() ?: 200
     val rooms = (options["rooms"] as? List<Map<String, Any?>>) ?: emptyList()
+    val roomCleanAction = (options["room_clean_action"] as? Map<String, Any?>)?.let { RoomCleanAction.fromOptions(it) }
 
     // Degrees clockwise to rotate the map so it matches the floorplan card's
     // orientation above it (the vacuum map's native orientation rarely
@@ -139,7 +152,10 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
 
     fun vac(service: String) = ctx.client.callService(ServiceCall("vacuum", service, entityId))
 
-    fun cleanSegment(id: Int) {
+    // Default: the original hardcoded Roborock/Xiaomi-style call, unchanged
+    // for backward compatibility with every existing dashboard.json. Only
+    // used when `room_clean_action` isn't set.
+    fun cleanSegmentDefault(id: Int) {
         ctx.client.callService(
             ServiceCall(
                 "vacuum",
@@ -151,6 +167,21 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                 )
             )
         )
+    }
+
+    fun cleanSegment(id: Int) {
+        if (roomCleanAction != null) {
+            ctx.client.callService(
+                ServiceCall.of(
+                    roomCleanAction.domain,
+                    roomCleanAction.service,
+                    entityId,
+                    roomCleanAction.parameter to id
+                )
+            )
+        } else {
+            cleanSegmentDefault(id)
+        }
     }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -266,6 +297,37 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
                 }
                 repeat(3 - chunk.size) { Spacer(Modifier.weight(1f)) }
             }
+        }
+    }
+}
+
+/**
+ * Which HA service to call for a room-clean button, and where the raw
+ * room/segment id (as configured in a `rooms[].id`) goes. Not every vacuum
+ * integration speaks the Roborock/Xiaomi-style `vacuum.send_command
+ * app_segment_clean` (the default when this isn't set at all — see
+ * [VacuumPanelContent]'s own `cleanSegmentDefault`); e.g. Dreame instead
+ * exposes `dreame_vacuum.vacuum_clean_segment` with a plain `segments`
+ * field. This covers that common shape: `domain.service` with the id
+ * written as a single scalar service-data field named [parameter] —
+ * `entity_id` is always sent as the service call's `target`, same as every
+ * other card ([ServiceCall.of]).
+ *
+ * Config (under a `vacuum` card's `options.room_clean_action`):
+ *   { "domain": "dreame_vacuum", "service": "vacuum_clean_segment", "parameter": "segments" }
+ *
+ * This intentionally doesn't try to cover every possible service-data
+ * shape (e.g. Roborock's own nested `params: [[id]]` list) — that one stays
+ * hardcoded as the default specifically so it needs no configuration at
+ * all for the integration most Astrion users are already on.
+ */
+data class RoomCleanAction(val domain: String, val service: String, val parameter: String) {
+    companion object {
+        fun fromOptions(map: Map<String, Any?>): RoomCleanAction? {
+            val domain = map["domain"] as? String ?: return null
+            val service = map["service"] as? String ?: return null
+            val parameter = (map["parameter"] as? String)?.takeIf { it.isNotBlank() } ?: return null
+            return RoomCleanAction(domain, service, parameter)
         }
     }
 }
