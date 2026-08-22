@@ -4,14 +4,14 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
 import com.custom.astrion.BuildConfig
+import java.io.File
+import java.io.IOException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.io.File
-import java.io.IOException
 
 /**
  * Checks this project's GitHub Releases for a build newer than the one
@@ -48,7 +48,12 @@ object UpdateChecker {
 
     /** Blocking network call — invoke off the main thread. */
     fun checkForUpdate(): CheckResult {
-        val request = Request.Builder().url(API_URL).header("Accept", "application/vnd.github+json").build()
+        val request =
+            Request
+                .Builder()
+                .url(API_URL)
+                .header("Accept", "application/vnd.github+json")
+                .build()
 
         val response =
             try {
@@ -61,8 +66,8 @@ object UpdateChecker {
             if (!resp.isSuccessful) {
                 return CheckResult.Failed(
                     "GitHub API returned HTTP ${resp.code} for $REPO — check the REPO constant " +
-                            "in UpdateChecker.kt, and that the release isn't a draft or pre-release " +
-                            "(the /latest endpoint ignores both).",
+                        "in UpdateChecker.kt, and that the release isn't a draft or pre-release " +
+                        "(the /latest endpoint ignores both)."
                 )
             }
             val bodyText = resp.body?.string() ?: return CheckResult.Failed("Empty response from GitHub")
@@ -78,10 +83,13 @@ object UpdateChecker {
             if (!isNewer(tag)) return CheckResult.UpToDate
 
             val apkUrl =
-                root["assets"]?.jsonArray
+                root["assets"]
+                    ?.jsonArray
                     ?.map { it.jsonObject }
                     ?.firstOrNull { it["name"]?.jsonPrimitive?.content?.endsWith(".apk") == true }
-                    ?.get("browser_download_url")?.jsonPrimitive?.content
+                    ?.get("browser_download_url")
+                    ?.jsonPrimitive
+                    ?.content
                     ?: return CheckResult.Failed("Release $tag has no .apk file attached as an asset")
 
             val notes = root["body"]?.jsonPrimitive?.content.orEmpty()
@@ -102,10 +110,7 @@ object UpdateChecker {
     }
 
     /** Downloads the APK into the app cache dir. Blocking — invoke off the main thread. */
-    fun download(
-        context: Context,
-        apkUrl: String,
-    ): File? {
+    fun download(context: Context, apkUrl: String): File? {
         val request = Request.Builder().url(apkUrl).build()
         val bytes =
             http.newCall(request).execute().use { resp ->
@@ -126,10 +131,7 @@ object UpdateChecker {
      * surfacing later, uncaught, on the main thread (which would crash the
      * whole app — and with it, the local web server used to trigger this).
      */
-    fun promptInstall(
-        context: Context,
-        apkFile: File,
-    ) {
+    fun promptInstall(context: Context, apkFile: File) {
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apkFile)
         val intent =
             Intent(Intent.ACTION_VIEW).apply {

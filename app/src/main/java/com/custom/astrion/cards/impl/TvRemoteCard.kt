@@ -2,12 +2,26 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.*
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowLeft
+import androidx.compose.material.icons.automirrored.filled.ArrowRight
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,10 +66,7 @@ class TvRemoteCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val remoteEntity = config.string("remote_entity") ?: return
         val muteEntity = config.string("mute_entity") ?: remoteEntity
         val name = config.string("name") ?: "TV"
@@ -64,22 +75,16 @@ class TvRemoteCard : CardRenderer {
         // Android TV `remote.send_command` entity (DPAD_*, HOME, BACK, ...).
         val commands = (config.options["commands"] as? Map<String, Any?>).orEmpty()
 
-        fun c(
-            key: String,
-            default: String,
-        ): String = (commands[key] as? String) ?: default
+        fun c(key: String, default: String): String = (commands[key] as? String) ?: default
 
-        fun send(
-            command: String,
-            entity: String = remoteEntity,
-        ) {
+        fun send(command: String, entity: String = remoteEntity) {
             ctx.client.callService(
                 ServiceCall.of(
                     domain = "remote",
                     service = "send_command",
                     entityId = entity,
-                    "command" to command,
-                ),
+                    "command" to command
+                )
             )
         }
 
@@ -97,7 +102,7 @@ class TvRemoteCard : CardRenderer {
                 val entity = app["entity_id"] as? String
                 val data = (app["data"] as? Map<String, Any?>).orEmpty()
                 ctx.client.callService(
-                    ServiceCall.of(domain, svc, entity, *data.entries.map { it.key to it.value }.toTypedArray()),
+                    ServiceCall.of(domain, svc, entity, *data.entries.map { it.key to it.value }.toTypedArray())
                 )
             } else {
                 val appId = app["app"] as? String ?: return
@@ -107,26 +112,26 @@ class TvRemoteCard : CardRenderer {
                         "play_media",
                         mediaEntity,
                         "media_content_type" to "app",
-                        "media_content_id" to appId,
-                    ),
+                        "media_content_id" to appId
+                    )
                 )
             }
         }
 
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(ctx.theme.cardSurface)
-                    .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(ctx.theme.cardSurface)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Header row: name + power
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(name, color = ctx.theme.primaryText, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 RoundIconButton(Icons.Filled.PowerSettingsNew, ctx.theme, tint = ctx.theme.danger) {
@@ -141,13 +146,13 @@ class TvRemoteCard : CardRenderer {
                 onLeft = { send(c("left", "DPAD_LEFT")) },
                 onRight = { send(c("right", "DPAD_RIGHT")) },
                 onCenter = { send(c("center", "DPAD_CENTER")) },
-                theme = ctx.theme,
+                theme = ctx.theme
             )
 
             // Navigation row: back / home / menu
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 RoundIconButton(Icons.AutoMirrored.Filled.ArrowBack, ctx.theme) { send(c("back", "BACK")) }
                 RoundIconButton(Icons.Filled.Home, ctx.theme) { send(c("home", "HOME")) }
@@ -158,13 +163,13 @@ class TvRemoteCard : CardRenderer {
             apps.chunked(2).forEach { pair ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     pair.forEach { app ->
                         AppButton(
                             label = app["name"] as? String ?: "App",
                             modifier = Modifier.weight(1f),
-                            theme = ctx.theme,
+                            theme = ctx.theme
                         ) { launch(app) }
                     }
                     if (pair.size == 1) Spacer(Modifier.weight(1f))
@@ -174,20 +179,15 @@ class TvRemoteCard : CardRenderer {
     }
 
     @Composable
-    private fun AppButton(
-        label: String,
-        modifier: Modifier,
-        theme: ThemeColors,
-        onClick: () -> Unit,
-    ) {
+    private fun AppButton(label: String, modifier: Modifier, theme: ThemeColors, onClick: () -> Unit) {
         Box(
             modifier =
-                modifier
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(theme.controlBackground)
-                    .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
+            modifier
+                .height(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(theme.controlBackground)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
         ) {
             Text(label, color = theme.primaryText, fontSize = 15.sp, fontWeight = FontWeight.Medium)
         }
@@ -199,7 +199,7 @@ class TvRemoteCard : CardRenderer {
                 mapOf("name" to "Netflix", "app" to "com.netflix.ninja"),
                 mapOf("name" to "Plex", "app" to "com.plexapp.android"),
                 mapOf("name" to "ABC iView", "app" to "au.net.abc.iview"),
-                mapOf("name" to "VLC", "app" to "org.videolan.vlc"),
+                mapOf("name" to "VLC", "app" to "org.videolan.vlc")
             )
     }
 
@@ -210,16 +210,16 @@ class TvRemoteCard : CardRenderer {
         onLeft: () -> Unit,
         onRight: () -> Unit,
         onCenter: () -> Unit,
-        theme: ThemeColors,
+        theme: ThemeColors
     ) {
         Box(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(90.dp))
-                    .background(theme.controlBackground),
-            contentAlignment = Alignment.Center,
+            Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .clip(RoundedCornerShape(90.dp))
+                .background(theme.controlBackground),
+            contentAlignment = Alignment.Center
         ) {
             // Up
             Box(Modifier.align(Alignment.TopCenter).padding(top = 12.dp)) {
@@ -240,12 +240,12 @@ class TvRemoteCard : CardRenderer {
             // Center / OK
             Box(
                 modifier =
-                    Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(theme.controlBackground)
-                        .clickable(onClick = onCenter),
-                contentAlignment = Alignment.Center,
+                Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(theme.controlBackground)
+                    .clickable(onClick = onCenter),
+                contentAlignment = Alignment.Center
             ) {
                 Text("OK", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
@@ -253,20 +253,15 @@ class TvRemoteCard : CardRenderer {
     }
 
     @Composable
-    private fun RoundIconButton(
-        icon: ImageVector,
-        theme: ThemeColors,
-        tint: Color = theme.iconTint,
-        onClick: () -> Unit,
-    ) {
+    private fun RoundIconButton(icon: ImageVector, theme: ThemeColors, tint: Color = theme.iconTint, onClick: () -> Unit) {
         Box(
             modifier =
-                Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(theme.controlBackground)
-                    .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
+            Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(theme.controlBackground)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = tint)
         }

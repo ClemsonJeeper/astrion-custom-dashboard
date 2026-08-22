@@ -84,10 +84,7 @@ class ClimateCard : CardRenderer {
     override val type = "climate"
 
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id") ?: return
         val e = ctx.entities[entityId]
         // Prefer the entity's real step; a 1° aircon ignores 0.5° changes and
@@ -100,8 +97,13 @@ class ClimateCard : CardRenderer {
         val maxT = e?.attrDouble("max_temp")
 
         val target = e?.attrDouble("temperature")
+        val targetHigh = e?.attrDouble("target_temp_high")
+        val targetLow = e?.attrDouble("target_temp_low")
         val current = e?.attrDouble("current_temperature")
         val mode = e?.state ?: "off"
+        // heat_cool mode uses a temp range (target_temp_low..target_temp_high)
+        // instead of a single setpoint — temperature is null in that mode.
+        val isRange = target == null && targetHigh != null && targetLow != null
         // "off" is deliberately excluded — the header's dedicated power
         // button already turns the unit off, so a chip for it would just
         // duplicate that control.
@@ -109,7 +111,8 @@ class ClimateCard : CardRenderer {
         // entity's real hvac_modes → nothing. "off" is deliberately excluded
         // in all cases — see comment above.
         val modes =
-            config.stringList("hvac_modes")
+            config
+                .stringList("hvac_modes")
                 .ifEmpty { e?.attrStringList("hvac_modes").orEmpty() }
                 .filter { it != "off" }
         val name = config.string("name") ?: e?.friendlyName ?: entityId
@@ -119,11 +122,13 @@ class ClimateCard : CardRenderer {
         // above); a config override lets you reorder/restrict; the hardcoded
         // list is only a last resort for integrations that don't report it.
         val fanModes =
-            config.stringList("fan_modes")
+            config
+                .stringList("fan_modes")
                 .ifEmpty { e?.attrStringList("fan_modes").orEmpty() }
                 .ifEmpty { listOf("low", "medium", "high", "auto") }
         val swingModes =
-            config.stringList("swing_modes")
+            config
+                .stringList("swing_modes")
                 .ifEmpty { e?.attrStringList("swing_modes").orEmpty() }
         val hvacModeIcons = config.string("hvac_mode_style") != "label"
         val fanModeIcons = config.string("fan_mode_style") == "icons"
@@ -133,25 +138,42 @@ class ClimateCard : CardRenderer {
         fun setTemp(t: Double) {
             val clamped = t.coerceIn(minT ?: t, maxT ?: t)
             ctx.client.callService(
-                ServiceCall.of("climate", "set_temperature", entityId, "temperature" to clamped),
+                ServiceCall.of("climate", "set_temperature", entityId, "temperature" to clamped)
+            )
+        }
+
+        // In heat_cool mode, shift both bounds together by `delta` — keeps the
+        // deadband intact. HA's set_temperature service accepts
+        // target_temp_high/target_temp_low for range mode.
+        fun shiftRange(delta: Double) {
+            val lo = (targetLow!! + delta).coerceIn(minT ?: Double.NEGATIVE_INFINITY, maxT ?: Double.POSITIVE_INFINITY)
+            val hi = (targetHigh!! + delta).coerceIn(minT ?: Double.NEGATIVE_INFINITY, maxT ?: Double.POSITIVE_INFINITY)
+            ctx.client.callService(
+                ServiceCall.of(
+                    "climate",
+                    "set_temperature",
+                    entityId,
+                    "target_temp_low" to lo,
+                    "target_temp_high" to hi
+                )
             )
         }
 
         fun setMode(m: String) {
             ctx.client.callService(
-                ServiceCall.of("climate", "set_hvac_mode", entityId, "hvac_mode" to m),
+                ServiceCall.of("climate", "set_hvac_mode", entityId, "hvac_mode" to m)
             )
         }
 
         fun setFan(f: String) {
             ctx.client.callService(
-                ServiceCall.of("climate", "set_fan_mode", entityId, "fan_mode" to f),
+                ServiceCall.of("climate", "set_fan_mode", entityId, "fan_mode" to f)
             )
         }
 
         fun setSwing(s: String) {
             ctx.client.callService(
-                ServiceCall.of("climate", "set_swing_mode", entityId, "swing_mode" to s),
+                ServiceCall.of("climate", "set_swing_mode", entityId, "swing_mode" to s)
             )
         }
 
@@ -163,34 +185,34 @@ class ClimateCard : CardRenderer {
 
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(ctx.theme.cardSurface)
-                    .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(ctx.theme.cardSurface)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // Header: name + a dedicated off button.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(name, color = ctx.theme.primaryText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 Box(
                     modifier =
-                        Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(if (isOff) ctx.theme.danger.copy(alpha = 0.25f) else ctx.theme.controlBackground)
-                            .clickable { turnOff() },
-                    contentAlignment = Alignment.Center,
+                    Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(if (isOff) ctx.theme.danger.copy(alpha = 0.25f) else ctx.theme.controlBackground)
+                        .clickable { turnOff() },
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Filled.PowerSettingsNew,
                         contentDescription = "Off",
                         tint = if (isOff) ctx.theme.danger else ctx.theme.iconTint,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -199,25 +221,33 @@ class ClimateCard : CardRenderer {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Stepper(Icons.Filled.Remove, ctx.theme) { target?.let { setTemp(it - step) } }
+                Stepper(Icons.Filled.Remove, ctx.theme) {
+                    if (isRange) shiftRange(-step) else target?.let { setTemp(it - step) }
+                }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        target?.let { "${trim(it)}°" } ?: "—",
+                        when {
+                            isRange -> "${trim(targetLow!!)}-${trim(targetHigh!!)}°"
+                            target != null -> "${trim(target)}°"
+                            else -> "—"
+                        },
                         color = ctx.theme.primaryText,
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = if (isRange) 28.sp else 36.sp,
+                        fontWeight = FontWeight.Bold
                     )
                     Text(
                         current?.let { stringResource(R.string.climate_current_temp, trim(it)) } ?: "",
                         color = ctx.theme.mutedText,
-                        fontSize = 12.sp,
+                        fontSize = 12.sp
                     )
                 }
 
-                Stepper(Icons.Filled.Add, ctx.theme) { target?.let { setTemp(it + step) } }
+                Stepper(Icons.Filled.Add, ctx.theme) {
+                    if (isRange) shiftRange(step) else target?.let { setTemp(it + step) }
+                }
             }
 
             // HVAC mode chips (icons by default, matching HA's tile card; "off" excluded, see above).
@@ -226,7 +256,7 @@ class ClimateCard : CardRenderer {
                     balancedRows(modes, maxPerRow = if (hvacModeIcons) 5 else 3).forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             row.forEach { m ->
                                 ModeChip(
@@ -234,7 +264,7 @@ class ClimateCard : CardRenderer {
                                     icon = if (hvacModeIcons) hvacModeIcon(m) else null,
                                     selected = m == mode,
                                     theme = ctx.theme,
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.weight(1f)
                                 ) { setMode(m) }
                             }
                         }
@@ -248,7 +278,7 @@ class ClimateCard : CardRenderer {
                     balancedRows(fanModes, maxPerRow = if (fanModeIcons) 5 else 3).forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             row.forEach { f ->
                                 ModeChip(
@@ -256,7 +286,7 @@ class ClimateCard : CardRenderer {
                                     icon = if (fanModeIcons) fanModeIcon(f) else null,
                                     selected = fanMode?.equals(f, ignoreCase = true) == true,
                                     theme = ctx.theme,
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.weight(1f)
                                 ) { setFan(f) }
                             }
                         }
@@ -270,7 +300,7 @@ class ClimateCard : CardRenderer {
                     balancedRows(swingModes, maxPerRow = if (swingModeIcons) 5 else 3).forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             row.forEach { s ->
                                 ModeChip(
@@ -278,7 +308,7 @@ class ClimateCard : CardRenderer {
                                     icon = if (swingModeIcons) swingModeIcon(s) else null,
                                     selected = swingMode?.equals(s, ignoreCase = true) == true,
                                     theme = ctx.theme,
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.weight(1f)
                                 ) { setSwing(s) }
                             }
                         }
@@ -296,10 +326,7 @@ class ClimateCard : CardRenderer {
      * one lonely chip. Small screens (this targets 480×800 panels) especially
      * suffer from an orphaned last-row chip stretching to full width.
      */
-    private fun <T> balancedRows(
-        items: List<T>,
-        maxPerRow: Int,
-    ): List<List<T>> {
+    private fun <T> balancedRows(items: List<T>, maxPerRow: Int): List<List<T>> {
         if (items.isEmpty()) return emptyList()
         val rows = (items.size + maxPerRow - 1) / maxPerRow
         val perRow = (items.size + rows - 1) / rows
@@ -307,15 +334,14 @@ class ClimateCard : CardRenderer {
     }
 
     /** HVAC mode → MDI glyph, matching what HA's own climate tile-card feature shows. */
-    private fun hvacModeIcon(mode: String): ImageVector =
-        when (mode) {
-            "heat" -> MdiIcons.Fire
-            "cool" -> MdiIcons.Snowflake
-            "heat_cool", "auto" -> MdiIcons.HeatCool
-            "dry" -> MdiIcons.WaterPercent
-            "fan_only" -> MdiIcons.Fan
-            else -> MdiIcons.Power
-        }
+    private fun hvacModeIcon(mode: String): ImageVector = when (mode) {
+        "heat" -> MdiIcons.Fire
+        "cool" -> MdiIcons.Snowflake
+        "heat_cool", "auto" -> MdiIcons.HeatCool
+        "dry" -> MdiIcons.WaterPercent
+        "fan_only" -> MdiIcons.Fan
+        else -> MdiIcons.Power
+    }
 
     /**
      * Fan-speed → MDI glyph. Numeric speeds ("1"..."5") show their digit —
@@ -324,58 +350,48 @@ class ClimateCard : CardRenderer {
      * (e.g. "low"/"medium"/"high"/"turbo") falls back to the generic fan
      * glyph, since MDI has no dedicated icon for those.
      */
-    private fun fanModeIcon(mode: String): ImageVector =
-        when (mode.lowercase()) {
-            "auto" -> MdiIcons.FanAuto
-            "quiet", "silent" -> MdiIcons.FanQuiet
-            "1" -> MdiIcons.Fan1
-            "2" -> MdiIcons.Fan2
-            "3" -> MdiIcons.Fan3
-            "4" -> MdiIcons.Fan4
-            "5" -> MdiIcons.Fan5
-            else -> MdiIcons.Fan
-        }
+    private fun fanModeIcon(mode: String): ImageVector = when (mode.lowercase()) {
+        "auto" -> MdiIcons.FanAuto
+        "quiet", "silent" -> MdiIcons.FanQuiet
+        "1" -> MdiIcons.Fan1
+        "2" -> MdiIcons.Fan2
+        "3" -> MdiIcons.Fan3
+        "4" -> MdiIcons.Fan4
+        "5" -> MdiIcons.Fan5
+        else -> MdiIcons.Fan
+    }
 
     /** Swing mode → glyph. Covers both HA's official values (off/on/both/vertical/horizontal)
      *  and the "stop"/"swing" values some integrations (e.g. this Daikin one) use instead. */
-    private fun swingModeIcon(mode: String): ImageVector =
-        when (mode.lowercase()) {
-            "off", "stop" -> MdiIcons.SwingOff
-            else -> MdiIcons.SwingOn
-        }
+    private fun swingModeIcon(mode: String): ImageVector = when (mode.lowercase()) {
+        "off", "stop" -> MdiIcons.SwingOff
+        else -> MdiIcons.SwingOn
+    }
 
     @Composable
-    private fun Stepper(
-        icon: ImageVector,
-        theme: ThemeColors,
-        onClick: () -> Unit,
-    ) {
+    private fun Stepper(icon: ImageVector, theme: ThemeColors, onClick: () -> Unit) {
         Box(
             modifier =
-                Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(theme.controlBackground)
-                    .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
+            Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(theme.controlBackground)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = theme.iconTint)
         }
     }
 
     @Composable
-    private fun ModeSection(
-        caption: String?,
-        theme: ThemeColors,
-        content: @Composable () -> Unit,
-    ) {
+    private fun ModeSection(caption: String?, theme: ThemeColors, content: @Composable () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (caption != null) {
                 Text(
                     caption,
                     color = theme.mutedText,
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.Medium
                 )
             }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -391,16 +407,16 @@ class ClimateCard : CardRenderer {
         modifier: Modifier,
         theme: ThemeColors,
         icon: ImageVector? = null,
-        onClick: () -> Unit,
+        onClick: () -> Unit
     ) {
         Box(
             modifier =
-                modifier
-                    .height(34.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) theme.accentSecondary else theme.controlBackground)
-                    .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
+            modifier
+                .height(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (selected) theme.accentSecondary else theme.controlBackground)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
         ) {
             val tint = if (selected) Color.White else theme.mutedText
             if (icon != null) {

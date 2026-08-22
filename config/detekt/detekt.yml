@@ -1,0 +1,55 @@
+# Starter detekt config for astrion-custom-dashboard.
+# buildUponDefaultConfig = true (set in app/build.gradle.kts) means this file
+# only needs to list what you want to CHANGE from detekt's built-in defaults —
+# not redeclare every rule.
+#
+# Regenerate the full default config for reference (not meant to be committed
+# as-is, just useful to see every available rule/option):
+#   ./gradlew detektGenerateConfig
+
+build:
+  maxIssues: 0 # CI fails on any issue; raise temporarily if you need to land this incrementally
+
+config:
+  validation: true
+  warningsAsErrors: false
+
+complexity:
+  LongMethod:
+    threshold: 80 # default is 60 — Compose functions with a lot of UI tend to run long legitimately
+  LongParameterList:
+    active: true
+    constructorThreshold: 10 # ConfigServer's constructor alone has ~10 callback params by design
+    functionThreshold: 8
+  TooManyFunctions:
+    active: false # card renderer files naturally cluster many small @Composable helpers
+
+style:
+  MagicNumber:
+    active: false # a UI-heavy Compose codebase has magic numbers everywhere (dp, sp, alpha) — not worth chasing
+  WildcardImport:
+    active: true
+    excludeImports:
+      - "androidx.compose.foundation.layout.*"
+      - "androidx.compose.material.icons.automirrored.filled.*"
+  MaxLineLength:
+    active: true
+    maxLineLength: 140
+  ReturnCount:
+    active: false # early-return guard clauses (val x = ... ?: return) are idiomatic here
+
+naming:
+  FunctionNaming:
+    active: true
+    # Compose convention: PascalCase for @Composable functions is correct,
+    # not a naming violation — detekt's default already excludes annotated
+    # functions via ignoreAnnotated, but being explicit here in case that
+    # default ever changes upstream.
+    ignoreAnnotated: ["Composable"]
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false # ConfigServer.serve()'s top-level catch (Exception e) is intentional — one bad request shouldn't crash the local server
+
+comments:
+  active: false # this codebase already documents extensively via KDoc; comment-density rules add noise here

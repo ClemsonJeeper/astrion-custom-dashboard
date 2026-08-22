@@ -282,6 +282,12 @@ function updateCardFormInputs() {
         <button type="button" class="secondary" onclick="addVacuumRoom()">+ Add room to this card</button>
       </div>
       <div class="hint">Add every room, then click "Add card to page" once below. The vacuum's state ("Cleaning", "Docked"...) is translated automatically via assets/ha_labels/&lt;lang&gt;.json.</div>
+
+      <label style="margin-top:10px">Room-clean service (optional — defaults to Roborock/Xiaomi's <code>vacuum.send_command</code>)</label>
+      <input type="text" id="optRoomCleanDomain" placeholder="Domain, e.g. dreame_vacuum">
+      <input type="text" id="optRoomCleanService" placeholder="Service, e.g. vacuum_clean_segment" style="margin-top:6px">
+      <input type="text" id="optRoomCleanParameter" placeholder="Field for the room ID, e.g. segments" style="margin-top:6px">
+      <div class="hint">Only needed if your vacuum's HA integration doesn't understand <code>app_segment_clean</code> — e.g. Dreame uses its own <code>dreame_vacuum.vacuum_clean_segment</code> service with a <code>segments</code> field instead. Leave all three blank to keep the default. Fill in all three together, or none.</div>
     `;
     window._pendingVacuumRooms = window._pendingVacuumRooms || [];
     renderVacuumRoomsList();
@@ -294,6 +300,27 @@ function updateCardFormInputs() {
       <div class="hint">This card type isn't fully modeled in the builder yet — paste the options object directly.</div>
     `;
   }
+
+  // Attach live entity autocomplete to whichever entity_id fields this card
+  // type created. Only attaches when /ha-states data is available (device mode
+  // + HA connected); otherwise the inputs stay plain text fields.
+  const mainDomain = type === 'clock_weather' ? 'weather'
+    : type === 'source_select' ? null
+    : type === 'select' ? ['select', 'input_select']
+    : type;
+  ['optEntityId', 'optRemoteEntity', 'optMediaEntity', 'optMuteEntity',
+    'optCalendarEntity', 'optMapImage', 'giEntityId'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const dom = id === 'optEntityId' ? mainDomain
+      : id === 'optRemoteEntity' ? 'remote'
+      : id === 'optMediaEntity' ? 'media_player'
+      : id === 'optMuteEntity' ? 'media_player'
+      : id === 'optCalendarEntity' ? 'calendar'
+      : id === 'optMapImage' ? 'image'
+      : null; // giEntityId — any domain (scene.*, script.*, media_player.*, …)
+    attachEntityAutocomplete(el, dom);
+  });
 }
 
 // media_player card: top_buttons only make sense on the "full" variant
@@ -742,6 +769,10 @@ function fillCardForm(card) {
     document.getElementById('optMapHeight').value = o.map_height ?? 200;
     window._pendingVacuumRooms = JSON.parse(JSON.stringify(o.rooms || []));
     renderVacuumRoomsList();
+    const rca = o.room_clean_action || {};
+    document.getElementById('optRoomCleanDomain').value = rca.domain || '';
+    document.getElementById('optRoomCleanService').value = rca.service || '';
+    document.getElementById('optRoomCleanParameter').value = rca.parameter || '';
   } else {
     const customField = document.getElementById('optCustomType');
     if (customField) customField.value = type;
@@ -952,6 +983,16 @@ function addCardToPage() {
     newCard.options.map_height = isNaN(mapHeight) ? 200 : mapHeight;
     newCard.options.rooms = window._pendingVacuumRooms || [];
     window._pendingVacuumRooms = [];
+    const rcaDomain = document.getElementById('optRoomCleanDomain').value.trim();
+    const rcaService = document.getElementById('optRoomCleanService').value.trim();
+    const rcaParameter = document.getElementById('optRoomCleanParameter').value.trim();
+    if (rcaDomain || rcaService || rcaParameter) {
+      if (!rcaDomain || !rcaService || !rcaParameter) {
+        alert('Fill in all three room-clean service fields (domain, service, and field name), or leave all three blank.');
+        return;
+      }
+      newCard.options.room_clean_action = { domain: rcaDomain, service: rcaService, parameter: rcaParameter };
+    }
   } else {
     if (type === 'custom') newCard.type = document.getElementById('optCustomType').value.trim() || 'custom';
     try {

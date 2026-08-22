@@ -2,9 +2,11 @@ package com.custom.astrion.web
 
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
-import android.os.Environment
 import android.provider.Settings
 import android.util.Log
 import androidx.core.net.toUri
@@ -14,18 +16,24 @@ import com.custom.astrion.config.ActivityRuntime
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HarmonyHubConfig
 import com.custom.astrion.config.RemoteSettings
+import com.custom.astrion.ha.ConnectionState
+import com.custom.astrion.ha.HaClient
 import com.custom.astrion.harmony.HarmonyHubDiscovery
 import com.custom.astrion.harmony.HarmonyHubRegistry
 import com.custom.astrion.update.UpdateChecker
 import fi.iki.elonen.NanoHTTPD
+import java.io.ByteArrayInputStream
+import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.ByteArrayInputStream
-import java.io.File
-import java.util.UUID
 
 /**
  * Tiny local web server (http://<remote-ip>:8080) that lets anyone on the
@@ -51,6 +59,10 @@ import java.util.UUID
  *                        (?entity=<id>) through this device's HA token, as
  *                        image/jpeg — lets the editor preview show a real
  *                        camera frame (the browser has no HA token of its own)
+ *  GET  /ha-states       snapshot of every HA entity this device currently knows
+ *                        ({entity_id: {state, friendly_name, attributes}}) plus
+ *                        a `connected` flag — lets the dashboard editor preview
+ *                        render with live HA data instead of the static mocks
  *  GET  /dashboard.json  download the current dashboard.json (backup)
  *  POST /dashboard.json  replace dashboard.json, then live-reload the dashboard
  *  POST /icons           upload a PNG into /sdcard/astrion/icons/
@@ -76,6 +88,8 @@ import java.util.UUID
  *                        no visible scroll through intermediate pages
  *  GET  /version            `{"version","versionCode"}` — the installed
  *                        app's own version, static per build.
+ *  GET  /battery         { level, charging } — this device's own battery
+ *                        status, for the companion HA integration
  *  GET  /activities        every trackable Activity (`"track": true` tile,
  *                        hotkey, or composed AppConfig.activities entry),
  *                        as JSON `[{"id","name","room","icon"},...]` — lets
@@ -107,6 +121,7 @@ import java.util.UUID
 class ConfigServer(
     private val context: Context,
     private val harmonyRegistry: HarmonyHubRegistry,
+    private val haClient: HaClient,
     private val onConnectionSaved: () -> Unit,
     private val onDashboardUpdated: () -> Unit,
     /** Current dashboard's page names, in pager order — read fresh on every
@@ -129,57 +144,79 @@ class ConfigServer(
      * its tile. Backs POST /activities/start. */
     private val onStartActivity: (activityId: String) -> Unit,
     /** Stops whichever Activity is active in a room. Backs POST /activities/stop. */
-    private val onStopActivity: (room: String) -> Unit,
+    private val onStopActivity: (room: String) -> Unit
 ) : NanoHTTPD(8080) {
-    @Volatile private var lastResult: UpdateChecker.CheckResult? = null
+    @Volatile
+    private var lastResult: UpdateChecker.CheckResult? = null
 
     private val iconsDir: File
         get() = File(Environment.getExternalStorageDirectory(), "astrion/icons").apply { mkdirs() }
 
-    override fun serve(session: IHTTPSession): Response {
-        return try {
-            val method = session.method
-            when (val uri = session.uri) {
-                "/" -> if (method == Method.GET) serveForm() else methodNotAllowed()
-                "/dashboard.json" ->
-                    when (method) {
-                        Method.GET -> serveDashboardJson()
-                        Method.POST -> handleDashboardUpload(session)
-                        else -> methodNotAllowed()
-                    }
-                "/builder" -> if (method == Method.GET) redirectBuilder() else methodNotAllowed()
-                "/harmony-config" -> if (method == Method.GET) serveHarmonyConfig(session) else methodNotAllowed()
-                "/harmony-hubs" -> if (method == Method.GET) serveHarmonyHubs() else methodNotAllowed()
-                "/harmony-discover" -> if (method == Method.GET) serveHarmonyDiscover(session) else methodNotAllowed()
-                "/camera-snapshot" -> if (method == Method.GET) serveCameraSnapshot(session) else methodNotAllowed()
-                "/icons-list" -> if (method == Method.GET) serveIconsList() else methodNotAllowed()
-                "/check-update" -> if (method == Method.GET) handleCheckUpdate() else methodNotAllowed()
-                "/save-connection" -> if (method == Method.POST) handleSaveConnection(session) else methodNotAllowed()
-                "/icons" -> if (method == Method.POST) handleIconUpload(session) else methodNotAllowed()
-                "/install-update" -> if (method == Method.POST) handleInstallUpdate() else methodNotAllowed()
-                "/pages" -> if (method == Method.GET) servePages() else methodNotAllowed()
-                "/current-page" -> if (method == Method.GET) serveCurrentPage() else methodNotAllowed()
-                "/version" -> if (method == Method.GET) serveVersion() else methodNotAllowed()
-                "/set-page" -> if (method == Method.POST) handleSetPage(session) else methodNotAllowed()
-                "/activities" -> if (method == Method.GET) serveActivities() else methodNotAllowed()
-                "/activities/active" -> if (method == Method.GET) serveActiveActivities() else methodNotAllowed()
-                "/activities/start" -> if (method == Method.POST) handleStartActivity(session) else methodNotAllowed()
-                "/activities/stop" -> if (method == Method.POST) handleStopActivity(session) else methodNotAllowed()
-                else ->
-                    when {
-                        uri.startsWith("/builder/") -> if (method == Method.GET) serveBuilderAsset(uri) else methodNotAllowed()
-                        uri.startsWith("/icons/") -> if (method == Method.GET) serveIcon(uri) else methodNotAllowed()
-                        else -> newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found")
-                    }
-            }
-        } catch (e: Exception) {
-            Log.e("ConfigServer", "request failed", e)
-            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Error: ${e.message}")
+    override fun serve(session: IHTTPSession): Response = try {
+        val method = session.method
+        when (val uri = session.uri) {
+            "/" -> if (method == Method.GET) serveForm() else methodNotAllowed()
+            "/dashboard.json" ->
+                when (method) {
+                    Method.GET -> serveDashboardJson()
+                    Method.POST -> handleDashboardUpload(session)
+                    else -> methodNotAllowed()
+                }
+
+            "/builder" -> if (method == Method.GET) redirectBuilder() else methodNotAllowed()
+            "/harmony-config" -> if (method == Method.GET) serveHarmonyConfig(session) else methodNotAllowed()
+            "/harmony-hubs" -> if (method == Method.GET) serveHarmonyHubs() else methodNotAllowed()
+            "/harmony-discover" -> if (method == Method.GET) serveHarmonyDiscover(session) else methodNotAllowed()
+            "/camera-snapshot" -> if (method == Method.GET) serveCameraSnapshot(session) else methodNotAllowed()
+            "/ha-states" -> if (method == Method.GET) serveHaStates() else methodNotAllowed()
+            "/icons-list" -> if (method == Method.GET) serveIconsList() else methodNotAllowed()
+            "/check-update" -> if (method == Method.GET) handleCheckUpdate() else methodNotAllowed()
+            "/save-connection" -> if (method == Method.POST) handleSaveConnection(session) else methodNotAllowed()
+            "/icons" -> if (method == Method.POST) handleIconUpload(session) else methodNotAllowed()
+            "/install-update" -> if (method == Method.POST) handleInstallUpdate() else methodNotAllowed()
+            "/pages" -> if (method == Method.GET) servePages() else methodNotAllowed()
+            "/current-page" -> if (method == Method.GET) serveCurrentPage() else methodNotAllowed()
+            "/version" -> if (method == Method.GET) serveVersion() else methodNotAllowed()
+            "/battery" -> if (method == Method.GET) serveBattery() else methodNotAllowed()
+            "/set-page" -> if (method == Method.POST) handleSetPage(session) else methodNotAllowed()
+            "/activities" -> if (method == Method.GET) serveActivities() else methodNotAllowed()
+            "/activities/active" -> if (method == Method.GET) serveActiveActivities() else methodNotAllowed()
+            "/activities/start" -> if (method == Method.POST) handleStartActivity(session) else methodNotAllowed()
+            "/activities/stop" -> if (method == Method.POST) handleStopActivity(session) else methodNotAllowed()
+            else ->
+                when {
+                    uri.startsWith("/builder/") ->
+                        if (method == Method.GET) {
+                            serveBuilderAsset(
+                                uri
+                            )
+                        } else {
+                            methodNotAllowed()
+                        }
+
+                    uri.startsWith("/icons/") -> if (method == Method.GET) serveIcon(uri) else methodNotAllowed()
+                    else ->
+                        newFixedLengthResponse(
+                            Response.Status.NOT_FOUND,
+                            "text/plain",
+                            "Not found"
+                        )
+                }
         }
+    } catch (e: Exception) {
+        Log.e("ConfigServer", "request failed", e)
+        newFixedLengthResponse(
+            Response.Status.INTERNAL_ERROR,
+            "text/plain",
+            "Error: ${e.message}"
+        )
     }
 
-    private fun methodNotAllowed(): Response =
-        newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, "text/plain", "Method not allowed")
+    private fun methodNotAllowed(): Response = newFixedLengthResponse(
+        Response.Status.METHOD_NOT_ALLOWED,
+        "text/plain",
+        "Method not allowed"
+    )
 
     // ---- pages --------------------------------------------------------------
 
@@ -194,14 +231,27 @@ class ConfigServer(
             if (update != null) {
                 """
                 <form method="post" action="/install-update" class="status-right">
-                  <button type="submit" class="badge badge-warn" title="${escape(context.getString(R.string.web_config_install_update_button))}">
-                    <span class="dot dot-warn"></span>${context.getString(R.string.web_config_update_found, update.version)}
+                  <button type="submit" class="badge badge-warn" title="${
+                    escape(
+                        context.getString(R.string.web_config_install_update_button)
+                    )
+                }">
+                    <span class="dot dot-warn"></span>${
+                    context.getString(
+                        R.string.web_config_update_found,
+                        update.version
+                    )
+                }
                   </button>
                 </form>
                 """.trimIndent()
             } else {
                 """
-                <a class="badge status-right" href="/check-update" title="${escape(context.getString(R.string.web_config_check_update_link))}">
+                <a class="badge status-right" href="/check-update" title="${
+                    escape(
+                        context.getString(R.string.web_config_check_update_link)
+                    )
+                }">
                   <span class="dot dot-off"></span>v${BuildConfig.VERSION_NAME}
                 </a>
                 """.trimIndent()
@@ -298,8 +348,16 @@ class ConfigServer(
             <h1>${context.getString(R.string.web_config_title)}</h1>
             <div class="status-strip">
               <div class="status-left">
-                <span class="badge"><span class="dot ${if (haConfigured) "dot-ok" else "dot-off"}"></span>${context.getString(R.string.web_config_ha_heading)}${if (haConfigured) "" else " — " + context.getString(R.string.web_config_status_not_set)}</span>
-                <span class="badge"><span class="dot ${if (hubs.isNotEmpty()) "dot-ok" else "dot-off"}"></span>${hubs.size} ${context.getString(if (hubs.size == 1) R.string.web_config_status_hub_singular else R.string.web_config_status_hub_plural)}</span>
+                <span class="badge"><span class="dot ${if (haConfigured) "dot-ok" else "dot-off"}"></span>${
+                context.getString(
+                    R.string.web_config_ha_heading
+                )
+            }${if (haConfigured) "" else " — " + context.getString(R.string.web_config_status_not_set)}</span>
+                <span class="badge"><span class="dot ${if (hubs.isNotEmpty()) "dot-ok" else "dot-off"}"></span>${hubs.size} ${
+                context.getString(
+                    if (hubs.size == 1) R.string.web_config_status_hub_singular else R.string.web_config_status_hub_plural
+                )
+            }</span>
               </div>
               $updateBadgeHtml
             </div>
@@ -319,7 +377,11 @@ class ConfigServer(
                 <div id="harmony-hubs">
                   ${hubs.joinToString("") { hubRowHtml(it) }}
                 </div>
-                <button type="button" class="btn hub-add" onclick="addHubRow()">${context.getString(R.string.web_config_harmony_add_button)}</button>
+                <button type="button" class="btn hub-add" onclick="addHubRow()">${
+                context.getString(
+                    R.string.web_config_harmony_add_button
+                )
+            }</button>
 
                 <button type="submit" class="btn btn-cyan">${context.getString(R.string.web_config_save_button)}</button>
                 <div class="note">${context.getString(R.string.web_config_save_note)}</div>
@@ -333,7 +395,11 @@ class ConfigServer(
 
               <div class="divider"></div>
 
-              <a class="btn btn-ghost" href="/dashboard.json">${svgDownload()} ${context.getString(R.string.web_config_dashboard_download)}</a>
+              <a class="btn btn-ghost" href="/dashboard.json">${svgDownload()} ${
+                context.getString(
+                    R.string.web_config_dashboard_download
+                )
+            }</a>
 
               <label>${svgUpload()} ${context.getString(R.string.web_config_dashboard_upload_button)}</label>
               <form method="post" action="/dashboard.json" enctype="multipart/form-data">
@@ -352,7 +418,16 @@ class ConfigServer(
             </div>
             </div>
 
-            <template id="hub-row-template">${hubRowHtml(HarmonyHubConfig("", "", "", ""))}</template>
+            <template id="hub-row-template">${
+                hubRowHtml(
+                    HarmonyHubConfig(
+                        "",
+                        "",
+                        "",
+                        ""
+                    )
+                )
+            }</template>
             <script>
               function addHubRow() {
                 const tpl = document.getElementById('hub-row-template').innerHTML;
@@ -391,7 +466,11 @@ class ConfigServer(
                   .then(r => r.json())
                   .then(data => {
                     if (data.hubId) { idInput.value = data.hubId; }
-                    else if (!silent) { alert(data.error || '${jsEscape(context.getString(R.string.web_config_harmony_discover_failed))}'); }
+                    else if (!silent) { alert(data.error || '${
+                jsEscape(
+                    context.getString(R.string.web_config_harmony_discover_failed)
+                )
+            }'); }
                   })
                   .catch(e => { if (!silent) alert('${jsEscape(context.getString(R.string.web_config_harmony_discover_failed))}: ' + e); })
                   .finally(() => { btn.textContent = originalText; btn.disabled = false; });
@@ -421,51 +500,95 @@ class ConfigServer(
     // ---- inline icons (no external requests — this page must work with zero
     // internet access beyond the optional Google Fonts, which degrade gracefully) --
 
-    private fun svgWifi() = """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.5a17 17 0 0 1 20 0"/><path d="M5.5 12.5a12 12 0 0 1 13 0"/><path d="M9 16.5a7 7 0 0 1 6 0"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/></svg>"""
+    private fun svgWifi() =
+        """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.5a17 17 0 0 1 20 0"/><path d="M5.5 12.5a12 12 0 0 1 13 0"/><path d="M9 16.5a7 7 0 0 1 6 0"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/></svg>"""
 
-    private fun svgRemote() = """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="7" r="1.4" fill="currentColor" stroke="none"/><path d="M9.5 12h5M9.5 15.5h5M9.5 19h2"/></svg>"""
+    private fun svgRemote() =
+        """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="7" r="1.4" fill="currentColor" stroke="none"/><path d="M9.5 12h5M9.5 15.5h5M9.5 19h2"/></svg>"""
 
-    private fun svgWand() = """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 16 8"/><path d="M14.5 9.5 18 6"/><path d="M19 4v2M22 5h-2M4 3v2M3 4h2M19.5 15v2M20.5 16h-2"/></svg>"""
+    private fun svgWand() =
+        """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 16 8"/><path d="M14.5 9.5 18 6"/><path d="M19 4v2M22 5h-2M4 3v2M3 4h2M19.5 15v2M20.5 16h-2"/></svg>"""
 
-    private fun svgDownload() = """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>"""
+    private fun svgDownload() =
+        """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>"""
 
-    private fun svgUpload() = """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V8M7 13l5-5 5 5M4 4h16"/></svg>"""
+    private fun svgUpload() =
+        """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V8M7 13l5-5 5 5M4 4h16"/></svg>"""
 
-    private fun svgImage() = """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.4" fill="currentColor" stroke="none"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg>"""
+    private fun svgImage() =
+        """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.4" fill="currentColor" stroke="none"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg>"""
 
     /** One repeatable hub row — also used (with blank values) as the JS `+` template. */
     private fun hubRowHtml(hub: HarmonyHubConfig): String {
         val fetchLink =
             if (hub.localId.isNotBlank()) {
-                """<a href="#" onclick="fetchHubConfig(this, '${escape(hub.localId)}'); return false;">${context.getString(R.string.web_config_harmony_fetch_link)}</a>"""
+                """<a href="#" onclick="fetchHubConfig(this, '${
+                    escape(
+                        hub.localId
+                    )
+                }'); return false;">${context.getString(R.string.web_config_harmony_fetch_link)}</a>"""
             } else {
                 "" // unsaved row — nothing to fetch yet, hub doesn't exist on the backend until Save is pressed
             }
         return """
-            <div class="hub-row">
-              <input type="hidden" name="hub_localid[]" value="${escape(hub.localId)}">
-              <label>${context.getString(R.string.web_config_harmony_name_label)}</label>
-              <input type="text" name="hub_name[]" value="${escape(hub.name)}" placeholder="Salon">
-              <label>${context.getString(R.string.web_config_harmony_ip_label)}</label>
-              <input type="text" name="hub_ip[]" value="${escape(hub.ip)}" placeholder="192.168.1.50" onblur="onHubIpBlur(this)">
-              <label>${context.getString(R.string.web_config_harmony_id_label)}</label>
-              <div style="display:flex;gap:6px;align-items:center">
-                <input type="text" name="hub_hubid[]" value="${escape(hub.hubId)}" style="flex:1">
-                <button type="button" class="hub-discover-btn" style="margin-top:0;padding:8px 10px;white-space:nowrap;border-radius:7px;font-family:inherit;font-size:12px;cursor:pointer" onclick="discoverHubId(this)">${context.getString(R.string.web_config_harmony_discover_button)}</button>
-              </div>
-              <div class="hub-actions">
-                $fetchLink
-                <button type="button" class="hub-remove" onclick="removeHubRow(this)">${context.getString(R.string.web_config_harmony_remove_button)}</button>
-              </div>
-              <div class="hub-config-result"></div>
-            </div>
-            """.trimIndent()
+                                                                                                                                                <div class="hub-row">
+                                                                                                                                                  <input type="hidden" name="hub_localid[]" value="${
+            escape(
+                hub.localId
+            )
+        }">
+                                                                                                                                                  <label>${context.getString(
+            R.string.web_config_harmony_name_label
+        )}</label>
+                                                                                                                                                  <input type="text" name="hub_name[]" value="${
+            escape(
+                hub.name
+            )
+        }" placeholder="Salon">
+                                                                                                                                                  <label>${context.getString(
+            R.string.web_config_harmony_ip_label
+        )}</label>
+                                                                                                                                                  <input type="text" name="hub_ip[]" value="${
+            escape(
+                hub.ip
+            )
+        }" placeholder="192.168.1.50" onblur="onHubIpBlur(this)">
+                                                                                                                                                  <label>${context.getString(
+            R.string.web_config_harmony_id_label
+        )}</label>
+                                                                                                                                                  <div style="display:flex;gap:6px;align-items:center">
+                                                                                                                                                    <input type="text" name="hub_hubid[]" value="${
+            escape(
+                hub.hubId
+            )
+        }" style="flex:1">
+                                                                                                                                                    <button type="button" class="hub-discover-btn" style="margin-top:0;padding:8px 10px;white-space:nowrap;border-radius:7px;font-family:inherit;font-size:12px;cursor:pointer" onclick="discoverHubId(this)">${
+            context.getString(
+                R.string.web_config_harmony_discover_button
+            )
+        }</button>
+                                                                                                                                                  </div>
+                                                                                                                                                  <div class="hub-actions">
+                                                                                                                                                    $fetchLink
+                                                                                                                                                    <button type="button" class="hub-remove" onclick="removeHubRow(this)">${
+            context.getString(
+                R.string.web_config_harmony_remove_button
+            )
+        }</button>
+                                                                                                                                                  </div>
+                                                                                                                                                  <div class="hub-config-result"></div>
+                                                                                                                                                </div>
+        """.trimIndent()
     }
 
     private fun serveDashboardJson(): Response {
         val file = DashboardLoader.configFile
         if (!file.exists()) {
-            return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "No dashboard.json yet")
+            return newFixedLengthResponse(
+                Response.Status.NOT_FOUND,
+                "text/plain",
+                "No dashboard.json yet"
+            )
         }
         return newFixedLengthResponse(Response.Status.OK, "application/json", file.readText())
     }
@@ -487,7 +610,11 @@ class ConfigServer(
             try {
                 context.assets.open(assetPath).use { it.readBytes() }
             } catch (_: java.io.FileNotFoundException) {
-                return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found: $assetPath")
+                return newFixedLengthResponse(
+                    Response.Status.NOT_FOUND,
+                    "text/plain",
+                    "Not found: $assetPath"
+                )
             }
         val mime =
             when (relativePath.substringAfterLast('.', "")) {
@@ -501,7 +628,12 @@ class ConfigServer(
                 "ico" -> "image/x-icon"
                 else -> "application/octet-stream"
             }
-        return newFixedLengthResponse(Response.Status.OK, mime, bytes.inputStream(), bytes.size.toLong())
+        return newFixedLengthResponse(
+            Response.Status.OK,
+            mime,
+            bytes.inputStream(),
+            bytes.size.toLong()
+        )
     }
 
     /** 302 redirect — used to send /builder to /builder/ so index.html's
@@ -527,7 +659,7 @@ class ConfigServer(
                         JSONObject().apply {
                             put("localId", hub.localId)
                             put("name", hub.name)
-                        },
+                        }
                     )
                 }
             }
@@ -551,17 +683,28 @@ class ConfigServer(
         val hubConfig =
             harmonyRegistry.configs.firstOrNull { it.localId == hubParam }
                 ?: harmonyRegistry.configs.firstOrNull()
-                ?: return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", """{"error":"no Harmony hub configured"}""")
+                ?: return newFixedLengthResponse(
+                    Response.Status.NOT_FOUND,
+                    "application/json",
+                    """{"error":"no Harmony hub configured"}"""
+                )
         val client = harmonyRegistry.client(hubConfig.localId)
 
         val config = client?.let { runBlocking { it.getConfig() } }
         if (config == null) {
             val cached = readHarmonyConfigCache(hubConfig)
             return if (cached != null) {
-                Log.w("ConfigServer", "Harmony hub '${hubConfig.name}' unreachable — serving last cached config")
+                Log.w(
+                    "ConfigServer",
+                    "Harmony hub '${hubConfig.name}' unreachable — serving last cached config"
+                )
                 newFixedLengthResponse(Response.Status.OK, "application/json", cached.toString())
             } else {
-                newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", """{"error":"could not reach hub (not connected, or request timed out), and no cached config on disk yet"}""")
+                newFixedLengthResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    "application/json",
+                    """{"error":"could not reach hub (not connected, or request timed out), and no cached config on disk yet"}"""
+                )
             }
         }
 
@@ -583,15 +726,15 @@ class ConfigServer(
                                                     JSONObject().apply {
                                                         put("name", c.name)
                                                         put("label", c.label)
-                                                    },
+                                                    }
                                                 )
                                             }
-                                        },
+                                        }
                                     )
-                                },
+                                }
                             )
                         }
-                    },
+                    }
                 )
                 put(
                     "activities",
@@ -601,10 +744,10 @@ class ConfigServer(
                                 JSONObject().apply {
                                     put("id", a.id)
                                     put("label", a.label)
-                                },
+                                }
                             )
                         }
-                    },
+                    }
                 )
             }
         writeHarmonyConfigCache(hubConfig, json)
@@ -614,13 +757,12 @@ class ConfigServer(
     /** Cache file for a hub's config, next to dashboard.json — astrion/harmony_<hubId>.json
      * (or <localId> as a fallback if hubId is somehow blank). Named after the hub's own
      * numeric ID, same spirit as Home Assistant's harmony_<id>.conf. */
-    private fun harmonyConfigCacheFile(hub: HarmonyHubConfig): File =
-        File(DashboardLoader.configFile.parentFile, "harmony_${hub.hubId.ifBlank { hub.localId }}.json")
+    private fun harmonyConfigCacheFile(hub: HarmonyHubConfig): File = File(
+        DashboardLoader.configFile.parentFile,
+        "harmony_${hub.hubId.ifBlank { hub.localId }}.json"
+    )
 
-    private fun writeHarmonyConfigCache(
-        hub: HarmonyHubConfig,
-        config: JSONObject,
-    ) {
+    private fun writeHarmonyConfigCache(hub: HarmonyHubConfig, config: JSONObject) {
         try {
             val file = harmonyConfigCacheFile(hub)
             file.parentFile?.mkdirs()
@@ -634,8 +776,13 @@ class ConfigServer(
         val file = harmonyConfigCacheFile(hub)
         if (!file.exists()) return null
         return runCatching { JSONObject(file.readText()) }
-            .onFailure { Log.e("ConfigServer", "failed to read cached Harmony config for '${hub.name}'", it) }
-            .getOrNull()
+            .onFailure {
+                Log.e(
+                    "ConfigServer",
+                    "failed to read cached Harmony config for '${hub.name}'",
+                    it
+                )
+            }.getOrNull()
     }
 
     /**
@@ -647,12 +794,24 @@ class ConfigServer(
     private fun serveHarmonyDiscover(session: IHTTPSession): Response {
         val ip = session.parameters["ip"]?.firstOrNull()?.trim()
         if (ip.isNullOrBlank()) {
-            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", """{"error":"missing ip"}""")
+            return newFixedLengthResponse(
+                Response.Status.BAD_REQUEST,
+                "application/json",
+                """{"error":"missing ip"}"""
+            )
         }
         val hubId =
             runBlocking { HarmonyHubDiscovery.discoverHubId(ip) }
-                ?: return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", """{"error":"could not reach hub at $ip, or unexpected response"}""")
-        return newFixedLengthResponse(Response.Status.OK, "application/json", """{"hubId":"$hubId"}""")
+                ?: return newFixedLengthResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    "application/json",
+                    """{"error":"could not reach hub at $ip, or unexpected response"}"""
+                )
+        return newFixedLengthResponse(
+            Response.Status.OK,
+            "application/json",
+            """{"hubId":"$hubId"}"""
+        )
     }
 
     // ---- remote page control ---------------------------------------------
@@ -667,7 +826,12 @@ class ConfigServer(
         val json =
             JSONArray().apply {
                 getPageNames().forEachIndexed { index, name ->
-                    put(JSONObject().apply { put("index", index); put("name", name) })
+                    put(
+                        JSONObject().apply {
+                            put("index", index)
+                            put("name", name)
+                        }
+                    )
                 }
             }
         return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
@@ -698,7 +862,11 @@ class ConfigServer(
         session.parseBody(files) // populates session.parameters for an urlencoded POST, same as handleSaveConnection
         val requested = session.parameters["page"]?.firstOrNull()?.trim()
         if (requested.isNullOrBlank()) {
-            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", """{"error":"missing 'page'"}""")
+            return newFixedLengthResponse(
+                Response.Status.BAD_REQUEST,
+                "application/json",
+                """{"error":"missing 'page'"}"""
+            )
         }
         val names = getPageNames()
         val index = names.indexOfFirst { it.equals(requested, ignoreCase = true) }
@@ -706,13 +874,20 @@ class ConfigServer(
             return newFixedLengthResponse(
                 Response.Status.NOT_FOUND,
                 "application/json",
-                """{"error":"no page named '$requested'","pages":${JSONArray(names)}}""",
+                """{"error":"no page named '$requested'","pages":${JSONArray(names)}}"""
             )
         }
         onSetPage(index)
-        val json = JSONObject().apply { put("status", "ok"); put("index", index); put("name", names[index]) }
+        val json =
+            JSONObject().apply {
+                put("status", "ok")
+                put("index", index)
+                put("name", names[index])
+            }
         return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
     }
+
+    // ---- version & battery --------------------------------------------------
 
     /** The installed app version — lets a remote controller (the Home
      * Assistant integration's `update.*` entity, primarily) know what's
@@ -728,14 +903,38 @@ class ConfigServer(
         return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
     }
 
+    /**
+     * Battery status of the tablet running Astrion itself (not a
+     * remote-controlled device) — lets the companion Home Assistant
+     * integration surface the wall tablet's own battery level and charging
+     * state, e.g. for an alert if a tablet that isn't permanently wired to
+     * power starts running low.
+     */
+    private fun serveBattery(): Response {
+        val status = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = status?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = status?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        val pct = if (level >= 0 && scale > 0) (level * 100 / scale) else null
+        val batteryStatus = status?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val charging =
+            batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING ||
+                batteryStatus == BatteryManager.BATTERY_STATUS_FULL
+
+        val json =
+            JSONObject().apply {
+                put("level", pct ?: JSONObject.NULL)
+                put("charging", charging)
+            }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
+    }
+
     // ---- activities -------------------------------------------------------
 
-    private fun activitiesUnavailable(): Response =
-        newFixedLengthResponse(
-            Response.Status.INTERNAL_ERROR,
-            "application/json",
-            """{"error":"dashboard not composed yet, try again shortly"}""",
-        )
+    private fun activitiesUnavailable(): Response = newFixedLengthResponse(
+        Response.Status.INTERNAL_ERROR,
+        "application/json",
+        """{"error":"dashboard not composed yet, try again shortly"}"""
+    )
 
     /** Every trackable Activity, in [ActivityRuntime.all] order — same
      * shape regardless of whether it's a composed Activity or a lightweight
@@ -751,7 +950,7 @@ class ConfigServer(
                             put("name", a.name)
                             put("room", a.room)
                             put("icon", a.icon)
-                        },
+                        }
                     )
                 }
             }
@@ -774,8 +973,11 @@ class ConfigServer(
                         if (active == null) {
                             JSONObject.NULL
                         } else {
-                            JSONObject().apply { put("id", active.id); put("name", active.name) }
-                        },
+                            JSONObject().apply {
+                                put("id", active.id)
+                                put("name", active.name)
+                            }
+                        }
                     )
                 }
             }
@@ -788,13 +990,25 @@ class ConfigServer(
         session.parseBody(files)
         val id = session.parameters["id"]?.firstOrNull()?.trim()
         if (id.isNullOrBlank()) {
-            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", """{"error":"missing 'id'"}""")
+            return newFixedLengthResponse(
+                Response.Status.BAD_REQUEST,
+                "application/json",
+                """{"error":"missing 'id'"}"""
+            )
         }
         if (runtime.all.none { it.id == id }) {
-            return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", """{"error":"no activity with id '$id'"}""")
+            return newFixedLengthResponse(
+                Response.Status.NOT_FOUND,
+                "application/json",
+                """{"error":"no activity with id '$id'"}"""
+            )
         }
         onStartActivity(id)
-        return newFixedLengthResponse(Response.Status.OK, "application/json", """{"status":"ok","id":"$id"}""")
+        return newFixedLengthResponse(
+            Response.Status.OK,
+            "application/json",
+            """{"status":"ok","id":"$id"}"""
+        )
     }
 
     /**
@@ -809,13 +1023,25 @@ class ConfigServer(
         session.parseBody(files)
         val room = session.parameters["room"]?.firstOrNull()?.trim()
         if (room.isNullOrBlank()) {
-            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", """{"error":"missing 'room'"}""")
+            return newFixedLengthResponse(
+                Response.Status.BAD_REQUEST,
+                "application/json",
+                """{"error":"missing 'room'"}"""
+            )
         }
         if (runtime.all.none { it.room == room }) {
-            return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", """{"error":"no such room '$room'"}""")
+            return newFixedLengthResponse(
+                Response.Status.NOT_FOUND,
+                "application/json",
+                """{"error":"no such room '$room'"}"""
+            )
         }
         onStopActivity(room)
-        return newFixedLengthResponse(Response.Status.OK, "application/json", """{"status":"ok","room":"$room"}""")
+        return newFixedLengthResponse(
+            Response.Status.OK,
+            "application/json",
+            """{"status":"ok","room":"$room"}"""
+        )
     }
 
     /**
@@ -827,42 +1053,117 @@ class ConfigServer(
      * each time it's re-rendered.
      */
     private fun serveCameraSnapshot(session: IHTTPSession): Response {
-        val entity = session.parameters["entity"]?.firstOrNull()?.trim().orEmpty()
+        val entity =
+            session.parameters["entity"]
+                ?.firstOrNull()
+                ?.trim()
+                .orEmpty()
         if (entity.isBlank()) {
-            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "Missing entity")
+            return newFixedLengthResponse(
+                Response.Status.BAD_REQUEST,
+                "text/plain",
+                "Missing entity"
+            )
         }
         val haUrl = RemoteSettings.haUrl(context)
         val haToken = RemoteSettings.haToken(context)
         if (haUrl.isBlank() || haToken.isBlank()) {
-            return newFixedLengthResponse(Response.Status.SERVICE_UNAVAILABLE, "text/plain", "HA not configured")
+            return newFixedLengthResponse(
+                Response.Status.SERVICE_UNAVAILABLE,
+                "text/plain",
+                "HA not configured"
+            )
         }
         // The browser has no HA token of its own, so the app fetches the
         // token-authenticated camera_proxy frame here and re-serves it.
         val path = if (entity.startsWith("camera.")) "/api/camera_proxy/$entity" else null
         if (path == null) {
-            return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not a camera entity: $entity")
+            return newFixedLengthResponse(
+                Response.Status.NOT_FOUND,
+                "text/plain",
+                "Not a camera entity: $entity"
+            )
         }
         val req =
-            Request.Builder()
+            Request
+                .Builder()
                 .url(haUrl.trimEnd('/') + path)
                 .header("Authorization", "Bearer $haToken")
                 .build()
         val bytes =
             try {
                 OkHttpClient().newCall(req).execute().use { resp ->
-                    if (!resp.isSuccessful) return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "HA returned ${resp.code}")
+                    if (!resp.isSuccessful) {
+                        return newFixedLengthResponse(
+                            Response.Status.INTERNAL_ERROR,
+                            "text/plain",
+                            "HA returned ${resp.code}"
+                        )
+                    }
                     resp.body?.bytes()
                 }
             } catch (e: Exception) {
-                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Fetch failed: ${e.message}")
+                return newFixedLengthResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    "text/plain",
+                    "Fetch failed: ${e.message}"
+                )
             }
         if (bytes == null) {
-            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Empty response from HA")
+            return newFixedLengthResponse(
+                Response.Status.INTERNAL_ERROR,
+                "text/plain",
+                "Empty response from HA"
+            )
         }
         val resp =
-            newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong())
+            newFixedLengthResponse(
+                Response.Status.OK,
+                "image/jpeg",
+                ByteArrayInputStream(bytes),
+                bytes.size.toLong()
+            )
         resp.addHeader("Cache-Control", "no-store")
         return resp
+    }
+
+    /**
+     * Snapshot of every HA entity the running app currently holds, as JSON the
+     * dashboard editor (docs/js/preview.js) can render against instead of the
+     * static `*_MOCK` examples. Shape:
+     *   { "connected": true, "states": { "cover.x": { "state": "open",
+     *       "friendly_name": "X", "attributes": { ... } }, ... } }
+     *
+     * `connected` reflects the WebSocket state at call time; the editor falls
+     * back to the mocks when it's false (or when this endpoint isn't reachable,
+     * e.g. the GitHub Pages copy of the editor). Attributes are passed through
+     * verbatim (the same kotlinx JsonObject the cards read), so each card's
+     * preview can pull whatever domain-specific fields it needs.
+     */
+    private fun serveHaStates(): Response {
+        val connected = haClient.connection.value == ConnectionState.CONNECTED
+        val entities = haClient.entities.value
+        val json =
+            buildJsonObject {
+                put("connected", connected)
+                put(
+                    "states",
+                    buildJsonObject {
+                        entities.forEach { (id, e) ->
+                            put(
+                                id,
+                                buildJsonObject {
+                                    put("state", e.state)
+                                    put("friendly_name", e.friendlyName)
+                                    put("attributes", e.attributes)
+                                }
+                            )
+                        }
+                    }
+                )
+            }
+        val body = Json.encodeToString(JsonObject.serializer(), json)
+        return newFixedLengthResponse(Response.Status.OK, "application/json", body)
     }
 
     // ---- actions --------------------------------------------------------------
@@ -875,7 +1176,7 @@ class ConfigServer(
         RemoteSettings.saveHaConnection(
             context = context,
             haUrl = params["ha_url"]?.firstOrNull().orEmpty().trim(),
-            haToken = params["ha_token"]?.firstOrNull().orEmpty().trim(),
+            haToken = params["ha_token"]?.firstOrNull().orEmpty().trim()
         )
         RemoteSettings.saveHarmonyHubs(context, parseHubRows(params))
         Handler(Looper.getMainLooper()).postDelayed({ onConnectionSaved() }, 500L)
@@ -898,7 +1199,12 @@ class ConfigServer(
 
             val existingLocalId = ids.getOrNull(i).orEmpty().trim()
             val localId = existingLocalId.ifBlank { UUID.randomUUID().toString() }
-            HarmonyHubConfig(localId = localId, name = name.ifBlank { "Harmony Hub" }, ip = ip, hubId = hubId)
+            HarmonyHubConfig(
+                localId = localId,
+                name = name.ifBlank { "Harmony Hub" },
+                ip = ip,
+                hubId = hubId
+            )
         }
     }
 
@@ -907,7 +1213,11 @@ class ConfigServer(
         session.parseBody(files) // NanoHTTPD writes uploaded parts to temp files, keyed by form field name
         val tmpPath =
             files["file"]
-                ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "Missing file")
+                ?: return newFixedLengthResponse(
+                    Response.Status.BAD_REQUEST,
+                    "text/plain",
+                    "Missing file"
+                )
         File(tmpPath).copyTo(DashboardLoader.configFile, overwrite = true)
         onDashboardUpdated()
         return redirectHome(context.getString(R.string.web_config_dashboard_updated))
@@ -918,10 +1228,15 @@ class ConfigServer(
         session.parseBody(files)
         val tmpPath =
             files["file"]
-                ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "Missing file")
+                ?: return newFixedLengthResponse(
+                    Response.Status.BAD_REQUEST,
+                    "text/plain",
+                    "Missing file"
+                )
         // For multipart file fields, NanoHTTPD puts the temp path in `files` and
         // the original filename as the parameter value for that same field name.
-        val originalName = session.parameters["file"]?.firstOrNull() ?: "icon_${System.currentTimeMillis()}.png"
+        val originalName =
+            session.parameters["file"]?.firstOrNull() ?: "icon_${System.currentTimeMillis()}.png"
         File(tmpPath).copyTo(File(iconsDir, sanitize(originalName)), overwrite = true)
         return redirectHome(context.getString(R.string.web_config_icon_uploaded))
     }
@@ -935,7 +1250,12 @@ class ConfigServer(
      * the picker button hides itself if this call fails (e.g. GitHub Pages).
      */
     private fun serveIconsList(): Response {
-        val names = iconsDir.listFiles()?.filter { it.isFile }?.map { it.name }?.sorted() ?: emptyList()
+        val names =
+            iconsDir
+                .listFiles()
+                ?.filter { it.isFile }
+                ?.map { it.name }
+                ?.sorted() ?: emptyList()
         val json = JSONArray(names).toString()
         return newFixedLengthResponse(Response.Status.OK, "application/json", json)
     }
@@ -953,7 +1273,11 @@ class ConfigServer(
         val name = sanitize(uri.removePrefix("/icons/"))
         val file = File(iconsDir, name)
         if (name.isBlank() || !file.isFile) {
-            return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found: $name")
+            return newFixedLengthResponse(
+                Response.Status.NOT_FOUND,
+                "text/plain",
+                "Not found: $name"
+            )
         }
         val mime =
             when (name.substringAfterLast('.', "").lowercase()) {
@@ -964,7 +1288,12 @@ class ConfigServer(
                 else -> "application/octet-stream"
             }
         val bytes = file.readBytes()
-        return newFixedLengthResponse(Response.Status.OK, mime, bytes.inputStream(), bytes.size.toLong())
+        return newFixedLengthResponse(
+            Response.Status.OK,
+            mime,
+            bytes.inputStream(),
+            bytes.size.toLong()
+        )
     }
 
     private fun handleCheckUpdate(): Response {
@@ -974,8 +1303,10 @@ class ConfigServer(
             when (result) {
                 is UpdateChecker.CheckResult.Available ->
                     context.getString(R.string.web_config_update_found, result.info.version)
+
                 is UpdateChecker.CheckResult.UpToDate ->
                     context.getString(R.string.web_config_update_none)
+
                 is UpdateChecker.CheckResult.Failed ->
                     context.getString(R.string.web_config_update_failed, result.reason)
             }
@@ -988,9 +1319,14 @@ class ConfigServer(
             (result as? UpdateChecker.CheckResult.Available)?.info
                 ?: return redirectHome(
                     when (result) {
-                        is UpdateChecker.CheckResult.Failed -> context.getString(R.string.web_config_update_failed, result.reason)
+                        is UpdateChecker.CheckResult.Failed ->
+                            context.getString(
+                                R.string.web_config_update_failed,
+                                result.reason
+                            )
+
                         else -> context.getString(R.string.web_config_update_none)
-                    },
+                    }
                 )
 
         // Ask first instead of letting the installation intent fail: on Android 8+
@@ -999,7 +1335,7 @@ class ConfigServer(
             val settingsIntent =
                 Intent(
                     Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                    "package:${context.packageName}".toUri(),
+                    "package:${context.packageName}".toUri()
                 ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             runCatching { context.startActivity(settingsIntent) }
             return redirectHome(context.getString(R.string.web_config_update_needs_permission))
@@ -1007,14 +1343,22 @@ class ConfigServer(
 
         val file =
             UpdateChecker.download(context, info.apkUrl)
-                ?: return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Download failed")
+                ?: return newFixedLengthResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    "text/plain",
+                    "Download failed"
+                )
 
         return try {
             UpdateChecker.promptInstall(context, file)
             redirectHome(context.getString(R.string.web_config_update_installing))
         } catch (e: Exception) {
             Log.e("ConfigServer", "install prompt failed", e)
-            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Could not open installer: ${e.message}")
+            newFixedLengthResponse(
+                Response.Status.INTERNAL_ERROR,
+                "text/plain",
+                "Could not open installer: ${e.message}"
+            )
         }
     }
 
@@ -1026,15 +1370,16 @@ class ConfigServer(
         return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
     }
 
-    private fun sanitize(name: String) =
-        name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
+    private fun sanitize(name: String) = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
 
-    private fun escape(s: String) =
-        s.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;")
+    private fun escape(s: String) = s.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;")
 
     /** Escapes a string for safe embedding inside a single-quoted JS string literal
      * in the generated <script> block — needed for any translated string (which may
      * contain apostrophes, e.g. French "d'abord") interpolated into inline JS. */
-    private fun jsEscape(s: String) =
-        s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
+    private fun jsEscape(s: String) = s
+        .replace("\\", "\\\\")
+        .replace("'", "\\'")
+        .replace("\n", "\\n")
+        .replace("\r", "")
 }

@@ -40,9 +40,9 @@ import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.ui.Dashboard
 import com.custom.astrion.web.ConfigServer
 import fi.iki.elonen.NanoHTTPD
-import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sqrt
+import kotlinx.coroutines.launch
 
 /**
  * Single-activity host. Owns the HA client, the direct Harmony hub client,
@@ -56,7 +56,6 @@ import kotlin.math.sqrt
  */
 @Suppress("SpellCheckingInspection")
 class MainActivity : ComponentActivity() {
-
     private companion object {
         const val DEBUG_KEYS = false
         const val KEY_TAG = "AstrionKeys"
@@ -74,17 +73,19 @@ class MainActivity : ComponentActivity() {
     private var motionSensor: Sensor? = null
     private var lastMagnitude = 0f
     private var lastWakeMs = 0L
-    private val motionListener = object : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent) {
-            val (x, y, z) = event.values
-            val mag = sqrt(x * x + y * y + z * z)
-            if (lastMagnitude != 0f && abs(mag - lastMagnitude) > MOTION_THRESHOLD) {
-                wakeScreen()
+    private val motionListener =
+        object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                val (x, y, z) = event.values
+                val mag = sqrt(x * x + y * y + z * z)
+                if (lastMagnitude != 0f && abs(mag - lastMagnitude) > MOTION_THRESHOLD) {
+                    wakeScreen()
+                }
+                lastMagnitude = mag
             }
-            lastMagnitude = mag
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-    }
 
     private lateinit var client: HaClient
 
@@ -119,6 +120,7 @@ class MainActivity : ComponentActivity() {
     private val keyRouter = HardwareKeyRouter()
     private var dashboard by mutableStateOf(DashboardLoader.Result(DashboardConfig.default, null))
     private var navTarget by mutableStateOf<Int?>(null)
+    private var overlayTarget by mutableStateOf<String?>(null)
 
     /** Which page is currently visible — used to know which page-scoped
      * hotkeys should currently be layered on top of the global ones. */
@@ -137,9 +139,10 @@ class MainActivity : ComponentActivity() {
      * :8080 admin surface. */
     private var configServerEnabled by mutableStateOf(true)
 
-    private val storagePermission = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { reloadDashboard() }
+    private val storagePermission =
+        registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { reloadDashboard() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -148,16 +151,16 @@ class MainActivity : ComponentActivity() {
         // Enable full-screen immersive sticky mode for dedicated wall/remote tablet mode
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_FULLSCREEN
-                        or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                )
+            View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            )
 
         if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             storagePermission.launch(
                 arrayOf(
                     Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
                 )
             )
         }
@@ -183,26 +186,29 @@ class MainActivity : ComponentActivity() {
      *  unreliable on Android 8.1 HOME launcher activities. */
     private fun initClientsAndServer() {
         client = HaClient(baseUrl = RemoteSettings.haUrl(this), token = RemoteSettings.haToken(this))
-        harmonyRegistry = HarmonyHubRegistry(
-            hubs = RemoteSettings.harmonyHubs(this),
-            onError = { hubName, msg -> Log.e("HarmonyHubClient", "[$hubName] $msg") },
-            onHubIdDiscovered = { updatedHubs -> RemoteSettings.saveHarmonyHubs(this, updatedHubs) },
-        )
-        configServer = ConfigServer(
-            context = this,
-            harmonyRegistry = harmonyRegistry,
-            onConnectionSaved = { runOnUiThread { reconnectWithNewSettings() } },
-            onDashboardUpdated = { runOnUiThread { reloadDashboard() } },
-            getPageNames = { dashboard.config.pages.map { it.name } },
-            getCurrentPageIndex = { currentPageIndex },
-            // Reuses the exact mechanism hardware shortcut buttons already use
-            // (see runHotkey's `hk.page` branch): set navTarget, Dashboard's
-            // LaunchedEffect(navTarget) does the scrollToPage + clears it.
-            onSetPage = { index -> runOnUiThread { navTarget = index } },
-            getActivityRuntime = { activityRuntime },
-            onStartActivity = { id -> runOnUiThread { startActivityFn?.invoke(id) } },
-            onStopActivity = { room -> runOnUiThread { stopActivityFn?.invoke(room) } },
-        )
+        harmonyRegistry =
+            HarmonyHubRegistry(
+                hubs = RemoteSettings.harmonyHubs(this),
+                onError = { hubName, msg -> Log.e("HarmonyHubClient", "[$hubName] $msg") },
+                onHubIdDiscovered = { updatedHubs -> RemoteSettings.saveHarmonyHubs(this, updatedHubs) }
+            )
+        configServer =
+            ConfigServer(
+                context = this,
+                harmonyRegistry = harmonyRegistry,
+                haClient = client,
+                onConnectionSaved = { runOnUiThread { reconnectWithNewSettings() } },
+                onDashboardUpdated = { runOnUiThread { reloadDashboard() } },
+                getPageNames = { dashboard.config.pages.map { it.name } },
+                getCurrentPageIndex = { currentPageIndex },
+                // Reuses the exact mechanism hardware shortcut buttons already use
+                // (see runHotkey's `hk.page` branch): set navTarget, Dashboard's
+                // LaunchedEffect(navTarget) does the scrollToPage + clears it.
+                onSetPage = { index -> runOnUiThread { navTarget = index } },
+                getActivityRuntime = { activityRuntime },
+                onStartActivity = { id -> runOnUiThread { startActivityFn?.invoke(id) } },
+                onStopActivity = { room -> runOnUiThread { stopActivityFn?.invoke(room) } }
+            )
     }
 
     /** Called when the user saves new HA/Harmony connection settings via the
@@ -236,6 +242,8 @@ class MainActivity : ComponentActivity() {
                 configNotice = dashboard.notice,
                 navTarget = navTarget,
                 onNavHandled = { navTarget = null },
+                overlayTarget = overlayTarget,
+                onOverlayHandled = { overlayTarget = null },
                 onPageChanged = { pageIndex ->
                     currentPageIndex = pageIndex
                     rebindHotkeysForCurrentPage()
@@ -246,26 +254,48 @@ class MainActivity : ComponentActivity() {
                 setConfigServerEnabled = { enabled -> updateConfigServerEnabled(enabled) },
                 onActivityRuntimeReady = { activityRuntime = it },
                 onStartActivityReady = { fn -> startActivityFn = fn },
-                onStopActivityReady = { fn -> stopActivityFn = fn },
+                onStopActivityReady = { fn -> stopActivityFn = fn }
             )
         }
     }
 
     /**
-     * Only reached when the current page's own hotkeys don't already claim
-     * BACK — `dispatchKeyEvent` checks `keyRouter` first and consumes the
-     * event there if any hotkey (global or page-specific, AV or otherwise)
-     * is bound to it, so this fallback can never steal BACK from an AV
-     * page. When the current page has a [PageConfig.parent], jump there —
-     * the same navTarget mechanism `runHotkey`'s own page-navigation branch
-     * uses. A root page (no parent) keeps today's behavior: do nothing,
-     * so the launcher itself is never dismissed by BACK.
+     * Jump to the current page's [PageConfig.parent], if any — the same
+     * navTarget mechanism `runHotkey`'s own page-navigation branch uses.
+     * Returns false (no-op) on a root page, or if the parent name doesn't
+     * resolve to an actual page.
+     */
+    private fun goToParent(): Boolean {
+        val parentName =
+            dashboard.config.pages
+                .getOrNull(currentPageIndex)
+                ?.parent ?: return false
+        val idx = dashboard.config.pages.indexOfFirst { it.name.equals(parentName, ignoreCase = true) }
+        if (idx < 0) return false
+        navTarget = idx
+        return true
+    }
+
+    /**
+     * Safety net for the default case only. The configurable parent-jump
+     * itself is bound as a regular fallback handler in `keyRouter` by
+     * `rebindHotkeysForCurrentPage()`, for whichever key [PageConfig.parentKey]
+     * names — that's what fires for a custom (non-BACK) key, via
+     * `dispatchKeyEvent`. This override exists only to preserve the exact
+     * original behavior when `parentKey` is left at its default ("BACK"):
+     * if it were set to something else, the hardware BACK button goes back
+     * to doing nothing here, same as a page with no parent at all — it's
+     * simply no longer this page's configured "leave" button. Either way,
+     * BACK is never allowed to dismiss the launcher itself (kiosk mode).
      */
     @Suppress("DEPRECATION")
+    @SuppressLint("MissingSuperCall") // intentional: BACK is fully intercepted on root pages
+    // to keep this a kiosk-mode launcher — see class doc above.
     override fun onBackPressed() {
-        val parentName = dashboard.config.pages.getOrNull(currentPageIndex)?.parent ?: return
-        val idx = dashboard.config.pages.indexOfFirst { it.name.equals(parentName, ignoreCase = true) }
-        if (idx >= 0) navTarget = idx
+        val page = dashboard.config.pages.getOrNull(currentPageIndex) ?: return
+        if (page.parent != null && page.parentKey.equals("BACK", ignoreCase = true)) {
+            goToParent()
+        }
     }
 
     override fun onResume() {
@@ -283,12 +313,24 @@ class MainActivity : ComponentActivity() {
     /** Merge the global hotkeys with the current page's own hotkeys — a
      * page-scoped binding for a given key wins over the global one for that
      * same key while that page is visible; keys the page doesn't touch keep
-     * their global behavior (e.g. volume always targets the soundbar). */
+     * their global behavior (e.g. volume always targets the soundbar). Then,
+     * if the page has a [PageConfig.parent], layer in the parent-navigation
+     * fallback on [PageConfig.parentKey] — but only if that key isn't
+     * already claimed by one of the hotkeys just bound above, so an AV page
+     * that binds its own hotkey on the same key (e.g. a custom HOME action)
+     * is never overridden by the fallback. */
     private fun rebindHotkeysForCurrentPage() {
         val page = dashboard.config.pages.getOrNull(currentPageIndex)
         val mergedShort = mergeHotkeys(dashboard.config.hotkeys, page?.hotkeys.orEmpty())
         val mergedLong = mergeHotkeys(dashboard.config.longHotkeys, page?.longHotkeys.orEmpty())
         bindHotkeys(mergedShort, mergedLong)
+
+        if (page?.parent != null) {
+            val key = runCatching { HardwareKey.valueOf(page.parentKey.uppercase()) }.getOrNull()
+            if (key != null && !keyRouter.isShortBound(key)) {
+                keyRouter.on(key) { goToParent() }
+            }
+        }
     }
 
     private fun mergeHotkeys(global: List<HotkeyConfig>, pageSpecific: List<HotkeyConfig>): List<HotkeyConfig> {
@@ -303,26 +345,56 @@ class MainActivity : ComponentActivity() {
     private fun bindHotkeys(short: List<HotkeyConfig>, long: List<HotkeyConfig>) {
         keyRouter.clear()
         short.forEach { hk ->
-            val key = runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
-                ?: return@forEach
+            val key =
+                runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
+                    ?: return@forEach
             keyRouter.on(key) { runHotkey(hk) }
         }
         long.forEach { hk ->
-            val key = runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
-                ?: return@forEach
+            val key =
+                runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
+                    ?: return@forEach
             keyRouter.onLong(key) { runHotkey(hk) }
         }
     }
 
+    /** `hk.openOverlay`'s handling, split out of [runHotkey] purely to keep
+     * that function's cyclomatic complexity down — behavior unchanged. */
+    private fun openOverlayHotkey(target: String): Boolean {
+        if (!target.equals("settings", ignoreCase = true) && !target.equals("activities", ignoreCase = true)) return false
+        overlayTarget = target.lowercase()
+        return true
+    }
+
+    /** `hk.openCurrentActivityRoom`'s handling, split out of [runHotkey]
+     * purely to keep that function's cyclomatic complexity down — behavior
+     * unchanged. Deliberately does NOT fall through to the rest of a
+     * binding's action chain when the room has nothing active: a hotkey
+     * configured for this is meant to be a dedicated "back to what's
+     * playing" button, not a page-nav/service call in disguise for the
+     * idle case. */
+    private fun openCurrentActivityHotkey(room: String): Boolean {
+        val pageName = activityRuntime?.activeActivity(room)?.page ?: return false
+        val idx = dashboard.config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
+        if (idx < 0) return false
+        navTarget = idx
+        return true
+    }
+
     /**
      * Execute one hotkey, in priority order:
-     *  1. Page navigation
-     *  2. Harmony Activity by id
-     *  3. Direct Harmony hub command (harmonyDevice + harmonyCommand) — no HA involved
-     *  4. Local IR command (irDevice + irCommand) — no hub, no HA, fully offline
-     *  5. Home Assistant service call
+     *  1. Open overlay (settings / active activities)
+     *  2. Open current Activity's page for a room
+     *  3. Page navigation
+     *  4. Harmony Activity by id
+     *  5. Direct Harmony hub command (harmonyDevice + harmonyCommand) — no HA involved
+     *  6. Local IR command (irDevice + irCommand) — no hub, no HA, fully offline
+     *  7. Home Assistant service call
      */
     private fun runHotkey(hk: HotkeyConfig): Boolean {
+        if (hk.openOverlay != null) return openOverlayHotkey(hk.openOverlay)
+        if (hk.openCurrentActivityRoom != null) return openCurrentActivityHotkey(hk.openCurrentActivityRoom)
+
         hk.page?.let { pageName ->
             val idx = dashboard.config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
             if (idx < 0) return false
@@ -347,7 +419,11 @@ class MainActivity : ComponentActivity() {
         val irDevice = hk.irDevice
         val irCommand = hk.irCommand
         if (irDevice != null && irCommand != null) {
-            val irStep = dashboard.config.irDevices.firstOrNull { it.id == irDevice }?.commands?.get(irCommand)
+            val irStep =
+                dashboard.config.irDevices
+                    .firstOrNull { it.id == irDevice }
+                    ?.commands
+                    ?.get(irCommand)
             if (irStep != null) {
                 runCatching { irManager?.transmit(irStep.freq, irStep.pattern.toIntArray()) }
                     .onFailure { Log.e("MainActivity", "hotkey IR send failed: $irDevice/$irCommand", it) }
@@ -386,10 +462,11 @@ class MainActivity : ComponentActivity() {
                         cancelPendingLong()
                         longFired = false
                         activeLongKey = code
-                        val r = Runnable {
-                            longFired = true
-                            longH.invoke()
-                        }
+                        val r =
+                            Runnable {
+                                longFired = true
+                                longH.invoke()
+                            }
                         pendingLong = r
                         keyHandler.postDelayed(r, LONG_PRESS_MS)
                     }
@@ -421,7 +498,8 @@ class MainActivity : ComponentActivity() {
         val sm = getSystemService(SENSOR_SERVICE) as? SensorManager ?: return
         sensorManager = sm
 
-        motionSensor = sm.getSensorList(Sensor.TYPE_ACCELEROMETER)
+        motionSensor = sm
+            .getSensorList(Sensor.TYPE_ACCELEROMETER)
             .firstOrNull { it.isWakeUpSensor }
             ?: sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
@@ -485,7 +563,8 @@ class MainActivity : ComponentActivity() {
         lastWakeMs = now
 
         // Suppressed deprecation for older Android 8.1 (HA100 remote) compatibility
-        val flags = PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
+        val flags =
+            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
                 PowerManager.ACQUIRE_CAUSES_WAKEUP or
                 PowerManager.ON_AFTER_RELEASE
 

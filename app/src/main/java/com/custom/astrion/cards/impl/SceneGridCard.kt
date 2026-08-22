@@ -85,10 +85,7 @@ class SceneGridCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val columns = remember(config) { config.int("columns", 2).coerceAtLeast(1) }
         val scenes = remember(config) { (config.options["scenes"] as? List<Map<String, Any?>>) ?: emptyList() }
         val row = remember(config) { config.string("layout") == "row" }
@@ -142,10 +139,11 @@ class SceneGridCard : CardRenderer {
 
         if (row) {
             Row(
-                modifier = Modifier
+                modifier =
+                Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 scenes.forEach { scene ->
                     SceneButton(
@@ -183,12 +181,10 @@ class SceneGridCard : CardRenderer {
         }
     }
 
-    private fun parseHexColor(s: String): Color? {
-        return runCatching {
-            val hex = if (s.startsWith("#")) s else "#$s"
-            Color(hex.toColorInt())
-        }.getOrNull()
-    }
+    private fun parseHexColor(s: String): Color? = runCatching {
+        val hex = if (s.startsWith("#")) s else "#$s"
+        Color(hex.toColorInt())
+    }.getOrNull()
 
     private fun luminance(c: Color): Float = 0.2126f * c.red + 0.7152f * c.green + 0.0722f * c.blue
 
@@ -202,37 +198,74 @@ class SceneGridCard : CardRenderer {
         iconFill: Boolean,
         tileHeight: Int,
         modifier: Modifier,
-        onClick: () -> Unit,
+        onClick: () -> Unit
     ) {
         val textColor = if (luminance(color) > 0.75f) Color(0xFF141414) else Color(0xFFF0F2F6)
-        val bitmap = remember(iconPath) {
-            iconPath?.let {
-                runCatching {
-                    val f = File(it)
-                    if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
-                }.getOrNull()
+        val bitmap =
+            remember(iconPath) {
+                iconPath?.let {
+                    runCatching {
+                        val f = File(it)
+                        if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
+                    }.getOrNull()
+                }
             }
-        }
 
+        if (hasIcon) {
         if (hasIcon) {
             if (iconFill && bitmap != null && !showLabel) {
                 Box(
-                    modifier = modifier
+                    modifier =
+                    modifier
                         .height(tileHeight.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(color)
                         .clickable(onClick = onClick)
                         .padding(6.dp),
-                    contentAlignment = Alignment.Center,
+                    contentAlignment = Alignment.Center
                 ) {
                     Image(
                         bitmap = bitmap,
                         contentDescription = name,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit,
+                        contentScale = ContentScale.FillHeight
                     )
                 }
             } else {
+                // Every tile in the grid uses this branch once any one of them has
+                // an icon, even tiles with no icon of their own — a blank 28dp
+                // spacer keeps their label lined up with the others instead of
+                // sitting lower.
+                Column(
+                    modifier =
+                    modifier
+                        .height(tileHeight.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(color)
+                        .clickable(onClick = onClick)
+                        .padding(6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    if (bitmap != null) {
+                        Image(bitmap = bitmap, contentDescription = name, modifier = Modifier.size(28.dp))
+                    } else {
+                        Spacer(Modifier.size(28.dp))
+                    }
+                    if (showLabel) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = name,
+                            color = textColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        } else {
                 Column(
                     modifier = modifier
                         .height(tileHeight.dp)
@@ -263,20 +296,21 @@ class SceneGridCard : CardRenderer {
             }
         } else {
             Box(
-                modifier = modifier
+                modifier =
+                modifier
                     .height(58.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(color)
                     .clickable(onClick = onClick)
                     .padding(horizontal = 8.dp),
-                contentAlignment = Alignment.Center,
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = name,
                     color = textColor,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
+                    textAlign = TextAlign.Center
                 )
             }
         }
