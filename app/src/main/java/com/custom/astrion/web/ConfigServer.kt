@@ -1156,10 +1156,10 @@ class ConfigServer(
                                     put("state", e.state)
                                     put("friendly_name", e.friendlyName)
                                     put("attributes", e.attributes)
-                                },
+                                }
                             )
                         }
-                    },
+                    }
                 )
             }
         val body = Json.encodeToString(JsonObject.serializer(), json)

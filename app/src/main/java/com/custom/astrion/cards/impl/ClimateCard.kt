@@ -149,8 +149,13 @@ class ClimateCard : CardRenderer {
             val lo = (targetLow!! + delta).coerceIn(minT ?: Double.NEGATIVE_INFINITY, maxT ?: Double.POSITIVE_INFINITY)
             val hi = (targetHigh!! + delta).coerceIn(minT ?: Double.NEGATIVE_INFINITY, maxT ?: Double.POSITIVE_INFINITY)
             ctx.client.callService(
-                ServiceCall.of("climate", "set_temperature", entityId,
-                    "target_temp_low" to lo, "target_temp_high" to hi),
+                ServiceCall.of(
+                    "climate",
+                    "set_temperature",
+                    entityId,
+                    "target_temp_low" to lo,
+                    "target_temp_high" to hi
+                )
             )
         }
 
