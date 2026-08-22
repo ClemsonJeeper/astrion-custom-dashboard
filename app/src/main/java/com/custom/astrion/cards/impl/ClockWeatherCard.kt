@@ -1,7 +1,16 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -15,7 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -25,14 +33,14 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ui.ThemeColors
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Clock + weather header. Big local time (device clock), date, current
@@ -59,10 +67,7 @@ class ClockWeatherCard : CardRenderer {
     override val type = "clock_weather"
 
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id") ?: "weather.forecast_home"
         val e = ctx.entities[entityId]
         val is24 = config.int("time_format", 12) == 24
@@ -103,12 +108,12 @@ class ClockWeatherCard : CardRenderer {
 
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(ctx.theme.cardSurface)
-                    .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(ctx.theme.cardSurface)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Current info.
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -119,7 +124,7 @@ class ClockWeatherCard : CardRenderer {
                         timeFmt.format(Date(now)),
                         color = ctx.theme.primaryText,
                         fontSize = 32.sp,
-                        fontWeight = FontWeight.Light,
+                        fontWeight = FontWeight.Light
                     )
                     Text(dateFmt.format(Date(now)), color = ctx.theme.mutedText, fontSize = 13.sp)
                     if (todayEvent != null) {
@@ -128,7 +133,7 @@ class ClockWeatherCard : CardRenderer {
                             color = ctx.theme.accent,
                             fontSize = 11.sp,
                             maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -137,12 +142,12 @@ class ClockWeatherCard : CardRenderer {
                         temp?.let { "${trim(it)}°" } ?: "—",
                         color = ctx.theme.primaryText,
                         fontSize = 22.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         HaLabels.weatherCondition(condition),
                         color = ctx.theme.mutedText,
-                        fontSize = 11.sp,
+                        fontSize = 11.sp
                     )
                 }
             }
@@ -163,56 +168,51 @@ class ClockWeatherCard : CardRenderer {
     }
 
     @Composable
-    private fun ForecastRow(
-        f: Forecast,
-        weekMin: Double,
-        span: Double,
-        theme: ThemeColors,
-    ) {
+    private fun ForecastRow(f: Forecast, weekMin: Double, span: Double, theme: ThemeColors) {
         val lowFrac = (((f.low ?: weekMin) - weekMin) / span).toFloat().coerceIn(0f, 1f)
         val highFrac = (((f.high ?: (weekMin + span)) - weekMin) / span).toFloat().coerceIn(0f, 1f)
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(f.day, color = theme.mutedText, fontSize = 13.sp, modifier = Modifier.width(40.dp))
             Text(
                 emojiFor(f.condition),
                 fontSize = 18.sp,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.width(30.dp),
+                modifier = Modifier.width(30.dp)
             )
             Text(
                 f.low?.let { "${trim(it)}°" } ?: "",
                 color = theme.mutedText,
                 fontSize = 13.sp,
                 textAlign = TextAlign.End,
-                modifier = Modifier.width(40.dp),
+                modifier = Modifier.width(40.dp)
             )
             Spacer(Modifier.width(8.dp))
             // Min→max gradient bar, positioned within the week's range via weights.
             Box(
                 modifier =
-                    Modifier
-                        .weight(1f)
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(theme.controlBackground),
+                Modifier
+                    .weight(1f)
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(theme.controlBackground)
             ) {
                 Row(Modifier.matchParentSize()) {
                     Spacer(Modifier.weight(lowFrac.coerceAtLeast(0.001f)))
                     Box(
                         modifier =
-                            Modifier
-                                .weight((highFrac - lowFrac).coerceAtLeast(0.03f))
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(
-                                    Brush.horizontalGradient(
-                                        listOf(theme.success, theme.success.copy(alpha = 0.55f)),
-                                    ),
-                                ),
+                        Modifier
+                            .weight((highFrac - lowFrac).coerceAtLeast(0.03f))
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(theme.success, theme.success.copy(alpha = 0.55f))
+                                )
+                            )
                     )
                     Spacer(Modifier.weight((1f - highFrac).coerceAtLeast(0.001f)))
                 }
@@ -224,7 +224,7 @@ class ClockWeatherCard : CardRenderer {
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.End,
-                modifier = Modifier.width(40.dp),
+                modifier = Modifier.width(40.dp)
             )
         }
     }
@@ -252,10 +252,7 @@ class ClockWeatherCard : CardRenderer {
      * over the WebSocket state, only this one. Show it only if that event's
      * date is today, so a distant next event doesn't sit here for days.
      */
-    private fun todaysEvent(
-        e: com.custom.astrion.ha.EntityState?,
-        nowMs: Long,
-    ): String? {
+    private fun todaysEvent(e: com.custom.astrion.ha.EntityState?, nowMs: Long): String? {
         e ?: return null
         val message = e.attrString("message") ?: return null
         val startStr = e.attrString("start_time") ?: return null
@@ -277,18 +274,17 @@ class ClockWeatherCard : CardRenderer {
     private fun trim(d: Double): String = if (d == d.toLong().toDouble()) d.toLong().toString() else String.format(Locale.US, "%.1f", d)
 
     /** Map HA weather condition strings to a simple emoji — no icon assets needed. */
-    private fun emojiFor(condition: String): String =
-        when (condition) {
-            "sunny", "clear" -> "☀️"
-            "clear-night" -> "🌙"
-            "partlycloudy" -> "⛅"
-            "cloudy" -> "☁️"
-            "fog" -> "🌫️"
-            "rainy", "pouring" -> "🌧️"
-            "lightning", "lightning-rainy" -> "⛈️"
-            "snowy", "snowy-rainy" -> "❄️"
-            "windy", "windy-variant" -> "💨"
-            "hail" -> "🌨️"
-            else -> "🌡️"
-        }
+    private fun emojiFor(condition: String): String = when (condition) {
+        "sunny", "clear" -> "☀️"
+        "clear-night" -> "🌙"
+        "partlycloudy" -> "⛅"
+        "cloudy" -> "☁️"
+        "fog" -> "🌫️"
+        "rainy", "pouring" -> "🌧️"
+        "lightning", "lightning-rainy" -> "⛈️"
+        "snowy", "snowy-rainy" -> "❄️"
+        "windy", "windy-variant" -> "💨"
+        "hail" -> "🌨️"
+        else -> "🌡️"
+    }
 }

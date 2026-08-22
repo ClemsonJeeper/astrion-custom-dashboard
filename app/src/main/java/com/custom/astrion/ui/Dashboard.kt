@@ -3,8 +3,10 @@ package com.custom.astrion.ui
 import android.content.Context
 import android.hardware.ConsumerIrManager
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +23,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,24 +32,30 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.astrion.R
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRegistry
-import com.custom.astrion.config.AppConfig
 import com.custom.astrion.config.ActivityConfig
 import com.custom.astrion.config.ActivityDeviceConfig
 import com.custom.astrion.config.ActivityRuntime
+import com.custom.astrion.config.AppConfig
 import com.custom.astrion.config.PageConfig
 import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ha.EntityMap
@@ -54,22 +63,11 @@ import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.harmony.HarmonyHubRegistry
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlin.time.Duration.Companion.milliseconds
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.stringResource
-import com.custom.astrion.R
 
 /**
  * Swipeable, paginated dashboard. Each config page is a horizontally-swipeable
@@ -115,7 +113,7 @@ fun Dashboard(
      * exist in this Composable's scope, so ConfigServer gets a fresh
      * function reference instead of duplicating the dispatch logic. */
     onStartActivityReady: ((String) -> Unit) -> Unit = {},
-    onStopActivityReady: ((String) -> Unit) -> Unit = {},
+    onStopActivityReady: ((String) -> Unit) -> Unit = {}
 ) {
     val entities by entitiesState
     val context = LocalContext.current
@@ -125,297 +123,294 @@ fun Dashboard(
     val connection by connectionState
     val theme = remember(config.theme) { config.theme.toColors() }
     ProvideTheme(theme) {
-    // Status dot reflects the first configured hub — good enough for a single
-    // glance indicator; a per-hub breakdown isn't worth the UI space here.
-    val harmonyConnected by (harmonyRegistry.client()?.connected ?: remember { MutableStateFlow(false) }).collectAsState()
-    val scope = rememberCoroutineScope()
+        // Status dot reflects the first configured hub — good enough for a single
+        // glance indicator; a per-hub breakdown isn't worth the UI space here.
+        val harmonyConnected by (harmonyRegistry.client()?.connected ?: remember { MutableStateFlow(false) }).collectAsState()
+        val scope = rememberCoroutineScope()
 
-    val pageCount = config.pages.size.coerceAtLeast(1)
-    val pagerState = rememberPagerState(
-        initialPage = config.startPage.coerceIn(0, pageCount - 1),
-        pageCount = { pageCount },
-    )
+        val pageCount = config.pages.size.coerceAtLeast(1)
+        val pagerState =
+            rememberPagerState(
+                initialPage = config.startPage.coerceIn(0, pageCount - 1),
+                pageCount = { pageCount }
+            )
 
-    // Scans pages/hotkeys once per config load for every `"track": true`
-    // item; re-scanned automatically whenever `config` itself changes
-    // (dashboard.json reload). Bound to each hub's live state below.
-    val activityRuntime = remember(config) { ActivityRuntime(config) }
-    LaunchedEffect(activityRuntime) {
-        harmonyRegistry.clientsByLocalId.forEach { (localId, hubClient) ->
-            launch {
-                hubClient.connected.first { it }
-                hubClient.getCurrentActivity()
-                activityRuntime.bind(hubClient, localId)
+        // Scans pages/hotkeys once per config load for every `"track": true`
+        // item; re-scanned automatically whenever `config` itself changes
+        // (dashboard.json reload). Bound to each hub's live state below.
+        val activityRuntime = remember(config) { ActivityRuntime(config) }
+        LaunchedEffect(activityRuntime) {
+            harmonyRegistry.clientsByLocalId.forEach { (localId, hubClient) ->
+                launch {
+                    hubClient.connected.first { it }
+                    hubClient.getCurrentActivity()
+                    activityRuntime.bind(hubClient, localId)
+                }
             }
         }
-    }
-    LaunchedEffect(activityRuntime) { onActivityRuntimeReady(activityRuntime) }
+        LaunchedEffect(activityRuntime) { onActivityRuntimeReady(activityRuntime) }
 
-    // Card-driven navigation: any card can call this with a page name (as it
-    // appears in dashboard.json's "pages[].name", case-insensitive) to jump
-    // there — same mechanism physical hotkeys use, just triggered by a tap.
-    // Uses scrollToPage (instant, no animation) rather than
-    // animateScrollToPage: the animated variant visibly scrolls through every
-    // intermediate page between the current one and the target, which reads
-    // as "the wrong page flashes up" right before the real one lands —
-    // especially noticeable on the HA100's weak CPU. A direct jump should
-    // land directly.
-    val navigateToPage: (String) -> Unit = { pageName ->
-        val idx = config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
-        if (idx >= 0) {
-            scope.launch { pagerState.scrollToPage(idx) }
+        // Card-driven navigation: any card can call this with a page name (as it
+        // appears in dashboard.json's "pages[].name", case-insensitive) to jump
+        // there — same mechanism physical hotkeys use, just triggered by a tap.
+        // Uses scrollToPage (instant, no animation) rather than
+        // animateScrollToPage: the animated variant visibly scrolls through every
+        // intermediate page between the current one and the target, which reads
+        // as "the wrong page flashes up" right before the real one lands —
+        // especially noticeable on the HA100's weak CPU. A direct jump should
+        // land directly.
+        val navigateToPage: (String) -> Unit = { pageName ->
+            val idx = config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
+            if (idx >= 0) {
+                scope.launch { pagerState.scrollToPage(idx) }
+            }
         }
-    }
 
-    // Local IR — the resilience baseline: works fully offline, no hub, no
-    // HA, no cloud. Shared by scene_grid's own irDevice/irCommand fields
-    // AND by composed Activities' "ir"-sourced devices below, so there's
-    // exactly one place that touches ConsumerIrManager.
-    val androidContext = LocalContext.current
-    val irManager = remember(androidContext) {
-        androidContext.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
-    }
-    val irDevicesById = remember(config.irDevices) { config.irDevices.associateBy { it.id } }
-    val activitiesById = activityRuntime.activityConfigs
+        // Local IR — the resilience baseline: works fully offline, no hub, no
+        // HA, no cloud. Shared by scene_grid's own irDevice/irCommand fields
+        // AND by composed Activities' "ir"-sourced devices below, so there's
+        // exactly one place that touches ConsumerIrManager.
+        val androidContext = LocalContext.current
+        val irManager =
+            remember(androidContext) {
+                androidContext.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
+            }
+        val irDevicesById = remember(config.irDevices) { config.irDevices.associateBy { it.id } }
+        val activitiesById = activityRuntime.activityConfigs
 
-    fun sendIrCommand(
-        deviceId: String,
-        command: String,
-    ) {
-        val device = irDevicesById[deviceId]
-        val step = device?.commands?.get(command)
-        val manager = irManager
-        when {
-            device == null -> Log.w("Dashboard", "sendIrCommand: unknown irDevice \"$deviceId\"")
-            step == null -> Log.w("Dashboard", "sendIrCommand: device \"$deviceId\" has no command \"$command\"")
-            manager == null -> Log.w("Dashboard", "sendIrCommand: no IR blaster on this device")
-            else ->
-                runCatching { manager.transmit(step.freq, step.pattern.toIntArray()) }
-                    .onFailure { Log.e("Dashboard", "IR send failed: $deviceId/$command", it) }
+        fun sendIrCommand(deviceId: String, command: String) {
+            val device = irDevicesById[deviceId]
+            val step = device?.commands?.get(command)
+            val manager = irManager
+            when {
+                device == null -> Log.w("Dashboard", "sendIrCommand: unknown irDevice \"$deviceId\"")
+                step == null -> Log.w("Dashboard", "sendIrCommand: device \"$deviceId\" has no command \"$command\"")
+                manager == null -> Log.w("Dashboard", "sendIrCommand: no IR blaster on this device")
+                else ->
+                    runCatching { manager.transmit(step.freq, step.pattern.toIntArray()) }
+                        .onFailure { Log.e("Dashboard", "IR send failed: $deviceId/$command", it) }
+            }
         }
-    }
 
-    // Sends one device's power/input command through whichever source it's
-    // configured for — the one place that knows how to talk to all three
-    // (ir/harmony/ha), shared by both the start and stop side of
-    // switchActivity below.
-    fun dispatchActivityCommand(
-        d: ActivityDeviceConfig,
-        command: String?,
-    ) {
-        if (command == null) return
-        when (d.source) {
-            "ir" -> sendIrCommand(d.deviceId, command)
-            "harmony" ->
-                harmonyRegistry.client(d.hub)?.sendCommand(d.deviceId, command)
-                    ?: Log.w("Dashboard", "activity device ${d.deviceId}: hub ${d.hub} not configured")
-            "ha" -> {
+        // Sends one device's power/input command through whichever source it's
+        // configured for — the one place that knows how to talk to all three
+        // (ir/harmony/ha), shared by both the start and stop side of
+        // switchActivity below.
+        fun dispatchActivityCommand(d: ActivityDeviceConfig, command: String?) {
+            if (command == null) return
+            when (d.source) {
+                "ir" -> sendIrCommand(d.deviceId, command)
+                "harmony" ->
+                    harmonyRegistry.client(d.hub)?.sendCommand(d.deviceId, command)
+                        ?: Log.w("Dashboard", "activity device ${d.deviceId}: hub ${d.hub} not configured")
+                "ha" -> {
+                    val domain = d.deviceId.substringBefore('.')
+                    client.callService(ServiceCall.of(domain, "select_source", d.deviceId, "source" to command))
+                }
+            }
+        }
+
+        fun dispatchActivityPower(d: ActivityDeviceConfig, on: Boolean) {
+            if (d.source == "ha") {
                 val domain = d.deviceId.substringBefore('.')
-                client.callService(ServiceCall.of(domain, "select_source", d.deviceId, "source" to command))
-            }
-        }
-    }
-
-    fun dispatchActivityPower(
-        d: ActivityDeviceConfig,
-        on: Boolean,
-    ) {
-        if (d.source == "ha") {
-            val domain = d.deviceId.substringBefore('.')
-            client.callService(ServiceCall(domain = domain, service = if (on) "turn_on" else "turn_off", entityId = d.deviceId))
-        } else {
-            dispatchActivityCommand(d, if (on) d.powerOnCommand else d.powerOffCommand)
-        }
-    }
-
-    // The composed-Activity switch: diffs the outgoing Activity (whatever
-    // was active in `activity.room` before, if anything) against `activity`
-    // itself. A device present in both is left alone — no power cycle, and
-    // its input is only re-sent if this Activity gives it one — a device
-    // only in the outgoing one gets powered off (unless powerOffOnExit is
-    // false), a device only in the incoming one gets powered on + its input
-    // (unless powerOnFirst is false). Devices execute in declared order,
-    // each waited on for its own delayAfterMs before the next starts.
-    // The composed-Activity switch: diffs the outgoing Activity (whatever
-    // was active in `activity.room` before, if anything — Harmony-backed or
-    // composed, both work uniformly via TrackedActivity.devices, see below)
-    // against `activity` itself. A device present in both is left alone —
-    // no power cycle, and its input is only re-sent if this Activity gives
-    // it one — a device only in the outgoing one gets powered off (unless
-    // powerOffOnExit is false), a device only in the incoming one gets
-    // powered on + its input (unless powerOnFirst is false). Devices execute
-    // in declared order, each waited on for its own delayAfterMs before the
-    // next starts.
-    //
-    // "Already on" is read from TrackedActivity.devices, not from a
-    // composed ActivityConfig's own device list — this matters a lot for a
-    // shared device with only a toggle command (no discrete on/off, e.g.
-    // many IR soundbars): if the outgoing Activity was Harmony-backed (no
-    // ActivityConfig of its own at all), we'd otherwise have no idea a
-    // shared device was already on and could send an unwanted toggle. See
-    // HotkeyConfig.devices / the scene_grid "devices" hint for how a
-    // Harmony-backed tracked tile declares which physical devices it
-    // touches. Actual *stop* commands (powerOffCommand) still only fire for
-    // a genuinely composed outgoing Activity — a Harmony-backed one has no
-    // ActivityDeviceConfig of its own to run one from; its hub is left to
-    // manage its own devices' power on its own terms.
-    suspend fun switchActivity(activity: ActivityConfig) {
-        val outgoingTracked = activityRuntime.activeActivity(activity.room)
-        val outgoingDeviceIds = outgoingTracked?.devices?.toSet().orEmpty()
-        val incomingIds = activity.devices.map { it.deviceId }.toSet()
-
-        val outgoingComposed = outgoingTracked?.let { activitiesById[it.id] }
-        outgoingComposed?.devices?.forEach { d ->
-            if (d.deviceId !in incomingIds && d.powerOffOnExit) dispatchActivityPower(d, on = false)
-        }
-
-        activity.devices.forEachIndexed { index, d ->
-            val alreadyOn = d.deviceId in outgoingDeviceIds
-            if (!alreadyOn && d.powerOnFirst) dispatchActivityPower(d, on = true)
-            dispatchActivityCommand(d, d.inputCommand)
-            if (index < activity.devices.lastIndex && d.delayAfterMs > 0) {
-                delay(d.delayAfterMs.milliseconds)
+                client.callService(ServiceCall(domain = domain, service = if (on) "turn_on" else "turn_off", entityId = d.deviceId))
+            } else {
+                dispatchActivityCommand(d, if (on) d.powerOnCommand else d.powerOffCommand)
             }
         }
 
-        activityRuntime.markActiveById(activity.id)
-    }
+        // The composed-Activity switch: diffs the outgoing Activity (whatever
+        // was active in `activity.room` before, if anything) against `activity`
+        // itself. A device present in both is left alone — no power cycle, and
+        // its input is only re-sent if this Activity gives it one — a device
+        // only in the outgoing one gets powered off (unless powerOffOnExit is
+        // false), a device only in the incoming one gets powered on + its input
+        // (unless powerOnFirst is false). Devices execute in declared order,
+        // each waited on for its own delayAfterMs before the next starts.
+        // The composed-Activity switch: diffs the outgoing Activity (whatever
+        // was active in `activity.room` before, if anything — Harmony-backed or
+        // composed, both work uniformly via TrackedActivity.devices, see below)
+        // against `activity` itself. A device present in both is left alone —
+        // no power cycle, and its input is only re-sent if this Activity gives
+        // it one — a device only in the outgoing one gets powered off (unless
+        // powerOffOnExit is false), a device only in the incoming one gets
+        // powered on + its input (unless powerOnFirst is false). Devices execute
+        // in declared order, each waited on for its own delayAfterMs before the
+        // next starts.
+        //
+        // "Already on" is read from TrackedActivity.devices, not from a
+        // composed ActivityConfig's own device list — this matters a lot for a
+        // shared device with only a toggle command (no discrete on/off, e.g.
+        // many IR soundbars): if the outgoing Activity was Harmony-backed (no
+        // ActivityConfig of its own at all), we'd otherwise have no idea a
+        // shared device was already on and could send an unwanted toggle. See
+        // HotkeyConfig.devices / the scene_grid "devices" hint for how a
+        // Harmony-backed tracked tile declares which physical devices it
+        // touches. Actual *stop* commands (powerOffCommand) still only fire for
+        // a genuinely composed outgoing Activity — a Harmony-backed one has no
+        // ActivityDeviceConfig of its own to run one from; its hub is left to
+        // manage its own devices' power on its own terms.
+        suspend fun switchActivity(activity: ActivityConfig) {
+            val outgoingTracked = activityRuntime.activeActivity(activity.room)
+            val outgoingDeviceIds = outgoingTracked?.devices?.toSet().orEmpty()
+            val incomingIds = activity.devices.map { it.deviceId }.toSet()
 
-    val startActivity: (String) -> Unit = { activityId ->
-        activitiesById[activityId]?.let { activity ->
-            scope.launch { switchActivity(activity) }
-        } ?: Log.w("Dashboard", "startActivity: unknown activity \"$activityId\"")
-    }
-
-    // The missing counterpart to switchActivity/startActivity: stops
-    // whichever Activity is currently active in `room`, without starting a
-    // new one. Two real cases:
-    //  - Composed Activity (AppConfig.activities): send each device's own
-    //    powerOffCommand (same as switchActivity's outgoing-diff branch,
-    //    just with an empty incoming set), then clear the room.
-    //  - Harmony-backed tracked Activity: Harmony has no "stop just this
-    //    Activity" command — a hub always runs exactly one Activity at a
-    //    time, so PowerOff on *that Activity's own hub* is the correct,
-    //    narrowest possible stop (it never touches a different room's hub).
-    //    ActivityRuntime.bind()'s own "-1" handling clears the room(s) that
-    //    hub drives once the hub confirms it, so no explicit clear() here.
-    // A plain HA-entity tracked tile has no dedicated "stop" of its own
-    // (it's whatever a scene_grid tap already toggles) — just clear it.
-    fun stopActivity(room: String) {
-        val tracked = activityRuntime.activeActivity(room) ?: return
-        val composed = activitiesById[tracked.id]
-        when {
-            composed != null -> {
-                composed.devices.forEach { d -> if (d.powerOffOnExit) dispatchActivityPower(d, on = false) }
-                activityRuntime.clear(room)
+            val outgoingComposed = outgoingTracked?.let { activitiesById[it.id] }
+            outgoingComposed?.devices?.forEach { d ->
+                if (d.deviceId !in incomingIds && d.powerOffOnExit) dispatchActivityPower(d, on = false)
             }
-            tracked.harmonyActivityId != null ->
-                harmonyRegistry.client(tracked.harmonyHub)?.startActivity("-1")
-                    ?: Log.w("Dashboard", "stopActivity($room): hub ${tracked.harmonyHub} not configured")
-            else -> activityRuntime.clear(room)
+
+            activity.devices.forEachIndexed { index, d ->
+                val alreadyOn = d.deviceId in outgoingDeviceIds
+                if (!alreadyOn && d.powerOnFirst) dispatchActivityPower(d, on = true)
+                dispatchActivityCommand(d, d.inputCommand)
+                if (index < activity.devices.lastIndex && d.delayAfterMs > 0) {
+                    delay(d.delayAfterMs.milliseconds)
+                }
+            }
+
+            activityRuntime.markActiveById(activity.id)
         }
-    }
-    LaunchedEffect(activityRuntime) {
-        onStartActivityReady(startActivity)
-        onStopActivityReady(::stopActivity)
-    }
 
-    val ctx = CardContext(
-        entities = entities,
-        client = client,
-        navigateToPage = navigateToPage,
-        startHarmonyActivity = { activityId, hub ->
-            harmonyRegistry.client(hub)?.startActivity(activityId)
-                ?: Log.w("Dashboard", "startHarmonyActivity($activityId, hub=$hub) but that hub isn't configured")
-        },
-        sendHarmonyCommand = { deviceId, command, hub ->
-            harmonyRegistry.client(hub)?.sendCommand(deviceId, command)
-                ?: Log.w("Dashboard", "sendHarmonyCommand($deviceId, $command, hub=$hub) but that hub isn't configured")
-        },
-        wakeOnMotionEnabled = wakeOnMotionEnabled,
-        setWakeOnMotionEnabled = setWakeOnMotionEnabled,
-        configServerEnabled = configServerEnabled,
-        setConfigServerEnabled = setConfigServerEnabled,
-        harmonyConnected = harmonyConnected,
-        irDevices = irDevicesById,
-        sendIrCommand = ::sendIrCommand,
-        activities = activitiesById,
-        startActivity = startActivity,
-        activityRuntime = activityRuntime,
-        theme = theme,
-    )
+        val startActivity: (String) -> Unit = { activityId ->
+            activitiesById[activityId]?.let { activity ->
+                scope.launch { switchActivity(activity) }
+            } ?: Log.w("Dashboard", "startActivity: unknown activity \"$activityId\"")
+        }
 
-    // Hardware-button navigation: jump straight to the requested page, then
-    // clear it. scrollToPage (not animateScrollToPage) for the same reason as
-    // navigateToPage above — a physical shortcut button should land directly,
-    // not visibly scroll through every page in between.
-    LaunchedEffect(navTarget) {
-        val target = navTarget ?: return@LaunchedEffect
-        if (target in 0 until pageCount) pagerState.scrollToPage(target)
-        onNavHandled()
-    }
-
-    // Tell MainActivity which page is visible now, so it can rebind hardware
-    // hotkeys to that page's own bindings (swipe, dot tap, hardware nav, or a
-    // card's navigateToPage all funnel through pagerState.currentPage).
-    LaunchedEffect(pagerState.currentPage) {
-        onPageChanged(pagerState.currentPage)
-    }
-
-    var showSettings by remember { mutableStateOf(false) }
-    var showActivities by remember { mutableStateOf(false) }
-    BackHandler(enabled = showSettings) { showSettings = false }
-    BackHandler(enabled = showActivities) { showActivities = false }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(LocalTheme.current.background),
-        ) {
-            TopStatusBar(onSwipeDownToSettings = { showSettings = true })
-            ConnectionBanner(connection)
-            if (configNotice != null) ConfigNoticeBanner(configNotice)
-
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-            ) { pageIndex ->
-                PageContent(config.pages[pageIndex], ctx)
+        // The missing counterpart to switchActivity/startActivity: stops
+        // whichever Activity is currently active in `room`, without starting a
+        // new one. Two real cases:
+        //  - Composed Activity (AppConfig.activities): send each device's own
+        //    powerOffCommand (same as switchActivity's outgoing-diff branch,
+        //    just with an empty incoming set), then clear the room.
+        //  - Harmony-backed tracked Activity: Harmony has no "stop just this
+        //    Activity" command — a hub always runs exactly one Activity at a
+        //    time, so PowerOff on *that Activity's own hub* is the correct,
+        //    narrowest possible stop (it never touches a different room's hub).
+        //    ActivityRuntime.bind()'s own "-1" handling clears the room(s) that
+        //    hub drives once the hub confirms it, so no explicit clear() here.
+        // A plain HA-entity tracked tile has no dedicated "stop" of its own
+        // (it's whatever a scene_grid tap already toggles) — just clear it.
+        fun stopActivity(room: String) {
+            val tracked = activityRuntime.activeActivity(room) ?: return
+            val composed = activitiesById[tracked.id]
+            when {
+                composed != null -> {
+                    composed.devices.forEach { d -> if (d.powerOffOnExit) dispatchActivityPower(d, on = false) }
+                    activityRuntime.clear(room)
+                }
+                tracked.harmonyActivityId != null ->
+                    harmonyRegistry.client(tracked.harmonyHub)?.startActivity("-1")
+                        ?: Log.w("Dashboard", "stopActivity($room): hub ${tracked.harmonyHub} not configured")
+                else -> activityRuntime.clear(room)
             }
+        }
+        LaunchedEffect(activityRuntime) {
+            onStartActivityReady(startActivity)
+            onStopActivityReady(::stopActivity)
+        }
 
-            PageIndicator(
-                pages = config.pages,
-                current = pagerState.currentPage,
-                // Same instant scrollToPage as navigateToPage/hardware nav —
-                // a dot tap is a direct jump too, not a swipe gesture, so it
-                // shouldn't visibly scroll through pages in between.
-                onDotClick = { index -> scope.launch { pagerState.scrollToPage(index) } },
-                onNavigateToParent = {
-                    val parentName = config.pages.getOrNull(pagerState.currentPage)?.parent
-                    val idx = parentName?.let { name ->
-                        config.pages.indexOfFirst { it.name.equals(name, ignoreCase = true) }
-                    }
-                    if (idx != null && idx >= 0) scope.launch { pagerState.scrollToPage(idx) }
+        val ctx =
+            CardContext(
+                entities = entities,
+                client = client,
+                navigateToPage = navigateToPage,
+                startHarmonyActivity = { activityId, hub ->
+                    harmonyRegistry.client(hub)?.startActivity(activityId)
+                        ?: Log.w("Dashboard", "startHarmonyActivity($activityId, hub=$hub) but that hub isn't configured")
                 },
-                onSwipeUpToActivities = { showActivities = true },
+                sendHarmonyCommand = { deviceId, command, hub ->
+                    harmonyRegistry.client(hub)?.sendCommand(deviceId, command)
+                        ?: Log.w("Dashboard", "sendHarmonyCommand($deviceId, $command, hub=$hub) but that hub isn't configured")
+                },
+                wakeOnMotionEnabled = wakeOnMotionEnabled,
+                setWakeOnMotionEnabled = setWakeOnMotionEnabled,
+                configServerEnabled = configServerEnabled,
+                setConfigServerEnabled = setConfigServerEnabled,
+                harmonyConnected = harmonyConnected,
+                irDevices = irDevicesById,
+                sendIrCommand = ::sendIrCommand,
+                activities = activitiesById,
+                startActivity = startActivity,
+                activityRuntime = activityRuntime,
+                theme = theme
             )
+
+        // Hardware-button navigation: jump straight to the requested page, then
+        // clear it. scrollToPage (not animateScrollToPage) for the same reason as
+        // navigateToPage above — a physical shortcut button should land directly,
+        // not visibly scroll through every page in between.
+        LaunchedEffect(navTarget) {
+            val target = navTarget ?: return@LaunchedEffect
+            if (target in 0 until pageCount) pagerState.scrollToPage(target)
+            onNavHandled()
         }
 
-        if (showSettings) {
-            SettingsOverlay(ctx = ctx, onClose = { showSettings = false })
+        // Tell MainActivity which page is visible now, so it can rebind hardware
+        // hotkeys to that page's own bindings (swipe, dot tap, hardware nav, or a
+        // card's navigateToPage all funnel through pagerState.currentPage).
+        LaunchedEffect(pagerState.currentPage) {
+            onPageChanged(pagerState.currentPage)
         }
-        if (showActivities) {
-            ActivitiesOverlay(
-                activityRuntime = activityRuntime,
-                ctx = ctx,
-                onStop = ::stopActivity,
-                onClose = { showActivities = false },
-            )
+
+        var showSettings by remember { mutableStateOf(false) }
+        var showActivities by remember { mutableStateOf(false) }
+        BackHandler(enabled = showSettings) { showSettings = false }
+        BackHandler(enabled = showActivities) { showActivities = false }
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(LocalTheme.current.background)
+            ) {
+                TopStatusBar(onSwipeDownToSettings = { showSettings = true })
+                ConnectionBanner(connection)
+                if (configNotice != null) ConfigNoticeBanner(configNotice)
+
+                HorizontalPager(
+                    state = pagerState,
+                    modifier =
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) { pageIndex ->
+                    PageContent(config.pages[pageIndex], ctx)
+                }
+
+                PageIndicator(
+                    pages = config.pages,
+                    current = pagerState.currentPage,
+                    // Same instant scrollToPage as navigateToPage/hardware nav —
+                    // a dot tap is a direct jump too, not a swipe gesture, so it
+                    // shouldn't visibly scroll through pages in between.
+                    onDotClick = { index -> scope.launch { pagerState.scrollToPage(index) } },
+                    onNavigateToParent = {
+                        val parentName = config.pages.getOrNull(pagerState.currentPage)?.parent
+                        val idx =
+                            parentName?.let { name ->
+                                config.pages.indexOfFirst { it.name.equals(name, ignoreCase = true) }
+                            }
+                        if (idx != null && idx >= 0) scope.launch { pagerState.scrollToPage(idx) }
+                    },
+                    onSwipeUpToActivities = { showActivities = true }
+                )
+            }
+
+            if (showSettings) {
+                SettingsOverlay(ctx = ctx, onClose = { showSettings = false })
+            }
+            if (showActivities) {
+                ActivitiesOverlay(
+                    activityRuntime = activityRuntime,
+                    ctx = ctx,
+                    onStop = ::stopActivity,
+                    onClose = { showActivities = false }
+                )
+            }
         }
-    }
     }
 }
 
@@ -436,21 +431,23 @@ fun Dashboard(
 private fun SettingsOverlay(ctx: CardContext, onClose: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(LocalTheme.current.background)) {
         Column(
-            modifier = Modifier
+            modifier =
+            Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Text(
                     "✕ " + stringResource(R.string.close),
                     color = LocalTheme.current.mutedText,
                     fontSize = 13.sp,
-                    modifier = Modifier
+                    modifier =
+                    Modifier
                         .clip(RoundedCornerShape(10.dp))
                         .clickable { onClose() }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
             SettingsMenu(ctx)
@@ -459,7 +456,8 @@ private fun SettingsOverlay(ctx: CardContext, onClose: () -> Unit) {
         // content so the drag detector doesn't fight verticalScroll for events.
         // A visual handle bar cues the user where to swipe.
         Box(
-            modifier = Modifier
+            modifier =
+            Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .height(50.dp)
@@ -468,14 +466,15 @@ private fun SettingsOverlay(ctx: CardContext, onClose: () -> Unit) {
                         if (dragAmount < -15f) onClose()
                     }
                 },
-            contentAlignment = Alignment.Center,
+            contentAlignment = Alignment.Center
         ) {
             Box(
-                modifier = Modifier
+                modifier =
+                Modifier
                     .width(40.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(LocalTheme.current.controlBackground),
+                    .background(LocalTheme.current.controlBackground)
             )
         }
     }
@@ -500,18 +499,19 @@ private fun ActivitiesOverlay(
      * `stopActivity`. Separate from `onClose`: stopping doesn't dismiss the
      * overlay, so more than one room can be stopped in a row. */
     onStop: (room: String) -> Unit,
-    onClose: () -> Unit,
+    onClose: () -> Unit
 ) {
     val activeByRoom by activityRuntime.activeByRoom.collectAsState()
     val active = remember(activeByRoom) { activityRuntime.activeActivities() }
 
     Box(modifier = Modifier.fillMaxSize().background(LocalTheme.current.background)) {
         Column(
-            modifier = Modifier
+            modifier =
+            Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // Leaves room at the top for the gesture strip below so the
             // first list item doesn't render underneath it.
@@ -521,10 +521,11 @@ private fun ActivitiesOverlay(
                     "✕ " + stringResource(R.string.close),
                     color = LocalTheme.current.mutedText,
                     fontSize = 13.sp,
-                    modifier = Modifier
+                    modifier =
+                    Modifier
                         .clip(RoundedCornerShape(10.dp))
                         .clickable { onClose() }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
             Text(
@@ -532,14 +533,14 @@ private fun ActivitiesOverlay(
                 color = LocalTheme.current.primaryText,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 10.dp),
+                modifier = Modifier.padding(horizontal = 10.dp)
             )
             if (active.isEmpty()) {
                 Text(
                     stringResource(R.string.no_active_activities),
                     color = LocalTheme.current.mutedText,
                     fontSize = 13.sp,
-                    modifier = Modifier.padding(10.dp),
+                    modifier = Modifier.padding(10.dp)
                 )
             }
             active.groupBy { it.room }.forEach { (room, activities) ->
@@ -548,20 +549,23 @@ private fun ActivitiesOverlay(
                     color = LocalTheme.current.accent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                 )
                 activities.forEach { activity ->
                     Row(
-                        modifier = Modifier
+                        modifier =
+                        Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
                             .background(LocalTheme.current.insetSurface)
                             .clickable(enabled = activity.page != null) {
-                                activity.page?.let { ctx.navigateToPage(it); onClose() }
-                            }
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                activity.page?.let {
+                                    ctx.navigateToPage(it)
+                                    onClose()
+                                }
+                            }.padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(activity.name, color = LocalTheme.current.primaryText, fontSize = 15.sp)
                         // Dedicated per-room stop — the missing piece this
@@ -575,10 +579,11 @@ private fun ActivitiesOverlay(
                             stringResource(R.string.stop_activity),
                             color = LocalTheme.current.danger,
                             fontSize = 13.sp,
-                            modifier = Modifier
+                            modifier =
+                            Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { onStop(room) }
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
                 }
@@ -588,7 +593,8 @@ private fun ActivitiesOverlay(
         // bottom strip, same reasoning (keeps the drag detector off the
         // scrollable node so it doesn't lose the gesture to verticalScroll).
         Box(
-            modifier = Modifier
+            modifier =
+            Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .height(50.dp)
@@ -597,14 +603,15 @@ private fun ActivitiesOverlay(
                         if (dragAmount > 15f) onClose()
                     }
                 },
-            contentAlignment = Alignment.Center,
+            contentAlignment = Alignment.Center
         ) {
             Box(
-                modifier = Modifier
+                modifier =
+                Modifier
                     .width(40.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(LocalTheme.current.controlBackground),
+                    .background(LocalTheme.current.controlBackground)
             )
         }
     }
@@ -617,22 +624,24 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier
+            modifier =
+            Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             scrolling.forEach { RenderCard(it, ctx) }
         }
         if (pinned.isNotEmpty()) {
             Column(
-                modifier = Modifier
+                modifier =
+                Modifier
                     .fillMaxWidth()
                     .background(LocalTheme.current.insetSurface)
                     .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 pinned.forEach { RenderCard(it, ctx) }
             }
@@ -649,6 +658,7 @@ private fun RenderCard(cardConfig: CardConfig, ctx: CardContext) {
         UnknownCard(cardConfig.type)
     }
 }
+
 /**
  * Row of page dots + current page name at the bottom of the screen —
  * doubles as the swipe-UP trigger for the "Active Activities" overlay, the
@@ -680,7 +690,7 @@ private fun PageIndicator(
     current: Int,
     onDotClick: (Int) -> Unit,
     onNavigateToParent: () -> Unit,
-    onSwipeUpToActivities: () -> Unit,
+    onSwipeUpToActivities: () -> Unit
 ) {
     val density = LocalDensity.current
     val triggerPx = with(density) { 40.dp.toPx() }
@@ -688,9 +698,10 @@ private fun PageIndicator(
 
     val currentPage = pages.getOrNull(current)
     val hasHierarchy = remember(pages) { pages.any { it.parent != null } }
-    val siblings = remember(pages, currentPage?.parent) {
-        pages.withIndex().filter { (_, p) -> p.parent == currentPage?.parent }
-    }
+    val siblings =
+        remember(pages, currentPage?.parent) {
+            pages.withIndex().filter { (_, p) -> p.parent == currentPage?.parent }
+        }
     val currentSiblingPos = siblings.indexOfFirst { it.index == current }.coerceAtLeast(0)
 
     val windowStart: Int
@@ -706,7 +717,8 @@ private fun PageIndicator(
     }
 
     Row(
-        modifier = Modifier
+        modifier =
+        Modifier
             .fillMaxWidth()
             .padding(vertical = 5.dp, horizontal = 10.dp)
             .pointerInput(Unit) {
@@ -720,10 +732,10 @@ private fun PageIndicator(
                             onSwipeUpToActivities()
                             dragAccumulated = 0f
                         }
-                    },
+                    }
                 )
             },
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         // Left zone: only a child page shows this — jump to its parent.
         // A fixed-width spacer on other pages keeps the dots visually
@@ -731,12 +743,13 @@ private fun PageIndicator(
         // child page and a root one within the same dashboard.
         if (currentPage?.parent != null) {
             Row(
-                modifier = Modifier
+                modifier =
+                Modifier
                     .clip(RoundedCornerShape(10.dp))
                     .clickable { onNavigateToParent() }
                     .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                     .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("‹", color = LocalTheme.current.accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(4.dp))
@@ -746,7 +759,7 @@ private fun PageIndicator(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         } else if (hasHierarchy) {
@@ -757,19 +770,20 @@ private fun PageIndicator(
         Row(
             modifier = Modifier.weight(1f),
             horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             if (windowStart > 0) EdgeEllipsis()
             for (i in windowStart..windowEnd) {
                 val sibling = siblings[i]
                 val active = i == currentSiblingPos
                 Box(
-                    modifier = Modifier
+                    modifier =
+                    Modifier
                         .padding(horizontal = 5.dp)
                         .size(if (active) 10.dp else 8.dp)
                         .clip(CircleShape)
                         .background(if (active) LocalTheme.current.accent else LocalTheme.current.controlBackground)
-                        .clickable { onDotClick(sibling.index) },
+                        .clickable { onDotClick(sibling.index) }
                 )
             }
             if (windowEnd < siblings.lastIndex) EdgeEllipsis()
@@ -784,7 +798,7 @@ private fun PageIndicator(
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -798,23 +812,25 @@ private fun EdgeEllipsis() {
     Text("…", color = LocalTheme.current.mutedText, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 2.dp))
 }
 
-
 @Composable
 private fun ConnectionBanner(connection: ConnectionState) {
     if (connection == ConnectionState.CONNECTED) return
-    val (label, color) = when (connection) {
-        ConnectionState.CONNECTING,
-        ConnectionState.AUTHENTICATING -> "Connecting…" to LocalTheme.current.accentSecondary
-        ConnectionState.AUTH_FAILED -> "Auth failed — check token" to LocalTheme.current.danger
-        ConnectionState.ERROR -> "Connection error — retrying" to LocalTheme.current.danger
-        else -> "Disconnected" to LocalTheme.current.controlBackground
-    }
+    val (label, color) =
+        when (connection) {
+            ConnectionState.CONNECTING,
+            ConnectionState.AUTHENTICATING
+            -> "Connecting…" to LocalTheme.current.accentSecondary
+            ConnectionState.AUTH_FAILED -> "Auth failed — check token" to LocalTheme.current.danger
+            ConnectionState.ERROR -> "Connection error — retrying" to LocalTheme.current.danger
+            else -> "Disconnected" to LocalTheme.current.controlBackground
+        }
     Box(
-        modifier = Modifier
+        modifier =
+        Modifier
             .fillMaxWidth()
             .background(color)
             .padding(12.dp),
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.Center
     ) {
         Text(text = label, color = Color.White, fontSize = 14.sp)
     }
@@ -823,10 +839,11 @@ private fun ConnectionBanner(connection: ConnectionState) {
 @Composable
 private fun ConfigNoticeBanner(text: String) {
     Box(
-        modifier = Modifier
+        modifier =
+        Modifier
             .fillMaxWidth()
             .background(LocalTheme.current.amber.copy(alpha = 0.25f))
-            .padding(10.dp),
+            .padding(10.dp)
     ) {
         Text(text = text, color = LocalTheme.current.amber, fontSize = 12.sp)
     }
@@ -835,10 +852,11 @@ private fun ConfigNoticeBanner(text: String) {
 @Composable
 private fun UnknownCard(type: String) {
     Box(
-        modifier = Modifier
+        modifier =
+        Modifier
             .fillMaxWidth()
             .background(LocalTheme.current.cardSurface)
-            .padding(14.dp),
+            .padding(14.dp)
     ) {
         Text(text = "Unknown card type: \"$type\"", color = LocalTheme.current.danger, fontSize = 13.sp)
     }

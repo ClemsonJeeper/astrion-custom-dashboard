@@ -22,8 +22,13 @@
     <uses-feature android:name="android.hardware.consumerir" android:required="false" />
     <uses-permission android:name="android.permission.TRANSMIT_IR" />
 
-    <!-- Settings permissions -->
-    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <!-- WRITE_SETTINGS is a special permission (granted via Settings.ACTION_MANAGE_WRITE_SETTINGS,
+        not the runtime dialog) — not a signature/privileged permission, so lint's
+        ProtectedPermissions check is a false positive here. Used by SettingsMenu.kt to
+        adjust screen brightness on this wall-mounted tablet. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
 
     <!-- Update permissions -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

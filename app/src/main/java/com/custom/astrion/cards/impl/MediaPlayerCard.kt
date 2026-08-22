@@ -1,12 +1,22 @@
 package com.custom.astrion.cards.impl
 
-import androidx.core.graphics.scale
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -35,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.scale
 import com.custom.astrion.R
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
@@ -82,10 +93,7 @@ class MediaPlayerCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id") ?: return
         val full = config.string("variant") == "full"
         val topButtons = (config.options["top_buttons"] as? List<Map<String, Any?>>) ?: emptyList()
@@ -93,10 +101,14 @@ class MediaPlayerCard : CardRenderer {
         val showVolumeLevel = config.bool("show_volume_level", false)
         val mediaControls =
             (config.string("media_controls") ?: DEFAULT_MEDIA_CONTROLS)
-                .split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                .split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
         val volumeControls =
             (config.string("volume_controls") ?: DEFAULT_VOLUME_CONTROLS)
-                .split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                .split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
 
         val e = ctx.entities[entityId]
         val isOff = e == null || e.state == "off" || e.isUnavailable
@@ -128,10 +140,7 @@ class MediaPlayerCard : CardRenderer {
         var art by remember(artPath) { mutableStateOf<ImageBitmap?>(null) }
         LaunchedEffect(artPath) { art = artPath?.let { ctx.client.fetchBitmap(it) } }
 
-        fun mp(
-            service: String,
-            vararg data: Pair<String, Any?>,
-        ) {
+        fun mp(service: String, vararg data: Pair<String, Any?>) {
             ctx.client.callService(ServiceCall.of("media_player", service, entityId, *data))
         }
 
@@ -148,10 +157,10 @@ class MediaPlayerCard : CardRenderer {
                 }
             Box(
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(ctx.theme.cardSurface),
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(ctx.theme.cardSurface)
             ) {
                 blurredBg?.let { bg ->
                     Image(bg, null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
@@ -172,7 +181,7 @@ class MediaPlayerCard : CardRenderer {
                 theme = ctx.theme,
                 onTap = { mp("media_play_pause") },
                 onLongPress = { showDetail = true },
-                mp = ::mp,
+                mp = ::mp
             )
             if (showDetail) {
                 MediaPlayerDetailDialog(
@@ -181,24 +190,21 @@ class MediaPlayerCard : CardRenderer {
                     e = e,
                     client = ctx.client,
                     theme = ctx.theme,
-                    onClose = { showDetail = false },
+                    onClose = { showDetail = false }
                 )
             }
         }
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun fireService(
-        ctx: CardContext,
-        b: Map<String, Any?>,
-    ) {
+    private fun fireService(ctx: CardContext, b: Map<String, Any?>) {
         val service = b["service"] as? String ?: return
         val domain = service.substringBefore('.')
         val svc = service.substringAfter('.')
         val entityId = b["entity_id"] as? String
         val data = (b["data"] as? Map<String, Any?>).orEmpty()
         ctx.client.callService(
-            ServiceCall.of(domain, svc, entityId, *data.entries.map { it.key to it.value }.toTypedArray()),
+            ServiceCall.of(domain, svc, entityId, *data.entries.map { it.key to it.value }.toTypedArray())
         )
     }
 
@@ -216,7 +222,7 @@ class MediaPlayerCard : CardRenderer {
         theme: ThemeColors,
         onTap: () -> Unit,
         onLongPress: () -> Unit,
-        mp: (String, Array<out Pair<String, Any?>>) -> Unit,
+        mp: (String, Array<out Pair<String, Any?>>) -> Unit
     ) {
         val mediaButtons = remember(e, mediaControls) { computeMediaButtons(e, mediaControls) }
         val volumeButtons = remember(e, volumeControls) { computeVolumeButtons(e, volumeControls) }
@@ -236,16 +242,16 @@ class MediaPlayerCard : CardRenderer {
 
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(theme.controlBackground)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(theme.cardSurface)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().then(gestureModifier),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 val avatarMod = Modifier.size(42.dp).clip(CircleShape)
                 if (art != null) {
@@ -260,7 +266,7 @@ class MediaPlayerCard : CardRenderer {
                             if (isOff) MdiIcons.CastOff else MdiIcons.Cast,
                             contentDescription = null,
                             tint = if (isOff) theme.iconTint else Color.White,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -272,14 +278,14 @@ class MediaPlayerCard : CardRenderer {
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         state,
                         color = theme.mutedText,
                         fontSize = 13.sp,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -288,7 +294,7 @@ class MediaPlayerCard : CardRenderer {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (activeIsVolume) {
                         if (hasVolumeSlider) {
@@ -323,66 +329,57 @@ class MediaPlayerCard : CardRenderer {
     }
 
     @Composable
-    private fun TileButton(
-        icon: ImageVector,
-        theme: ThemeColors,
-        accent: Boolean = false,
-        onClick: () -> Unit,
-    ) {
+    private fun TileButton(icon: ImageVector, theme: ThemeColors, accent: Boolean = false, onClick: () -> Unit) {
         Box(
             modifier =
-                Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (accent) theme.accentSecondary else theme.controlBackground)
-                    .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
+            Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (accent) theme.accentSecondary else theme.controlBackground)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = theme.primaryText, modifier = Modifier.size(18.dp))
         }
     }
 
     @Composable
-    private fun VolumeSlider(
-        entityId: String,
-        e: EntityState?,
-        modifier: Modifier,
-        theme: ThemeColors,
-        onCommit: (Float) -> Unit,
-    ) {
+    private fun VolumeSlider(entityId: String, e: EntityState?, modifier: Modifier, theme: ThemeColors, onCommit: (Float) -> Unit) {
         val level = (e?.attrDouble("volume_level") ?: 0.0).toFloat().coerceIn(0f, 1f)
         var dragLevel by remember(entityId) { mutableStateOf<Float?>(null) }
         val shown = dragLevel ?: level
         Box(
             modifier =
-                modifier
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(theme.insetSurface)
-                    .pointerInput(entityId) {
-                        detectHorizontalDragGestures(
-                            onDragEnd = { dragLevel?.let(onCommit); dragLevel = null },
-                            onDragCancel = { dragLevel = null },
-                        ) { change, _ ->
-                            change.consume()
-                            dragLevel = (change.position.x / size.width).coerceIn(0f, 1f)
-                        }
-                    }
-                    .pointerInput(entityId) {
-                        detectTapGestures { offset ->
-                            val f = (offset.x / size.width).coerceIn(0f, 1f)
-                            dragLevel = f
-                            onCommit(f)
+            modifier
+                .height(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(theme.insetSurface)
+                .pointerInput(entityId) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            dragLevel?.let(onCommit)
                             dragLevel = null
-                        }
-                    },
+                        },
+                        onDragCancel = { dragLevel = null }
+                    ) { change, _ ->
+                        change.consume()
+                        dragLevel = (change.position.x / size.width).coerceIn(0f, 1f)
+                    }
+                }.pointerInput(entityId) {
+                    detectTapGestures { offset ->
+                        val f = (offset.x / size.width).coerceIn(0f, 1f)
+                        dragLevel = f
+                        onCommit(f)
+                        dragLevel = null
+                    }
+                }
         ) {
             Box(
                 Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(shown.coerceIn(0.02f, 1f))
                     .clip(RoundedCornerShape(10.dp))
-                    .background(theme.accentSecondary),
+                    .background(theme.accentSecondary)
             )
         }
     }
@@ -400,7 +397,7 @@ class MediaPlayerCard : CardRenderer {
         mp: (String, Array<out Pair<String, Any?>>) -> Unit,
         topButtons: List<Map<String, Any?>>,
         mediaControls: List<String>,
-        volumeControls: List<String>,
+        volumeControls: List<String>
     ) {
         val mediaButtons = remember(e, mediaControls) { computeMediaButtons(e, mediaControls) }
         val volumeButtons = remember(e, volumeControls) { computeVolumeButtons(e, volumeControls) }
@@ -409,22 +406,27 @@ class MediaPlayerCard : CardRenderer {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (topButtons.isNotEmpty()) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     topButtons.forEach { b ->
                         Box(
                             modifier =
-                                Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(ctx.theme.controlBackground.copy(alpha = 0.4f))
-                                    .clickable { fireService(ctx, b) },
-                            contentAlignment = Alignment.Center,
+                            Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(ctx.theme.controlBackground.copy(alpha = 0.4f))
+                                .clickable { fireService(ctx, b) },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(b["name"] as? String ?: "", color = ctx.theme.primaryText, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                b["name"] as? String ?: "",
+                                color = ctx.theme.primaryText,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 }
@@ -443,7 +445,7 @@ class MediaPlayerCard : CardRenderer {
                         if (isOff) MdiIcons.CastOff else MdiIcons.Cast,
                         contentDescription = null,
                         tint = if (isOff) Color.White.copy(alpha = 0.6f) else Color.White,
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier.size(48.dp)
                     )
                 }
             }
@@ -457,7 +459,7 @@ class MediaPlayerCard : CardRenderer {
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Text(
                     artist,
@@ -466,7 +468,7 @@ class MediaPlayerCard : CardRenderer {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
 
@@ -478,7 +480,7 @@ class MediaPlayerCard : CardRenderer {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     mediaButtons.forEach { b ->
                         val big = b.action == "media_play" || b.action == "media_pause"
@@ -493,7 +495,7 @@ class MediaPlayerCard : CardRenderer {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (hasVolumeSlider) {
                         VolumeSlider(entityId, e, Modifier.weight(1f).height(44.dp), ctx.theme) { level ->
@@ -529,18 +531,18 @@ class MediaPlayerCard : CardRenderer {
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Box(
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color.White.copy(alpha = 0.2f)),
+                Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.2f))
             ) {
                 Box(
                     Modifier
                         .fillMaxHeight()
                         .fillMaxWidth(fraction.coerceAtLeast(0.01f))
                         .clip(RoundedCornerShape(2.dp))
-                        .background(theme.accentSecondary),
+                        .background(theme.accentSecondary)
                 )
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -551,21 +553,15 @@ class MediaPlayerCard : CardRenderer {
     }
 
     @Composable
-    private fun FullCircleControl(
-        icon: ImageVector,
-        size: Dp,
-        theme: ThemeColors,
-        accent: Boolean = false,
-        onClick: () -> Unit,
-    ) {
+    private fun FullCircleControl(icon: ImageVector, size: Dp, theme: ThemeColors, accent: Boolean = false, onClick: () -> Unit) {
         Box(
             modifier =
-                Modifier
-                    .size(size)
-                    .clip(CircleShape)
-                    .background(if (accent) theme.accentSecondary else theme.controlBackground.copy(alpha = 0.33f))
-                    .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
+            Modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(if (accent) theme.accentSecondary else theme.controlBackground.copy(alpha = 0.33f))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = Color.White)
         }
@@ -613,7 +609,7 @@ internal data class MpButton(
     /** True when this button reflects an already-active toggle (shuffle on,
      *  repeat != off) — [MediaPlayerCard] tints these buttons instead of
      *  swapping their icon, since only one glyph exists for each. */
-    val active: Boolean = false,
+    val active: Boolean = false
 )
 
 /** Live playback position in seconds, accounting for time elapsed since `media_position_updated_at`. */
@@ -623,7 +619,10 @@ internal fun currentMediaPosition(e: EntityState): Double {
     val updatedAt = e.attrString("media_position_updated_at") ?: return pos
     return try {
         val then = java.time.Instant.parse(updatedAt)
-        val elapsedSince = java.time.Duration.between(then, java.time.Instant.now()).toMillis() / 1000.0
+        val elapsedSince =
+            java.time.Duration
+                .between(then, java.time.Instant.now())
+                .toMillis() / 1000.0
         (pos + elapsedSince.coerceAtLeast(0.0))
     } catch (_: Exception) {
         pos
@@ -645,22 +644,17 @@ internal fun formatMediaTime(seconds: Double): String {
  * strings.xml/values-fr like [LightCard]'s state strings instead).
  */
 @Composable
-internal fun mediaStateLabel(state: String?): String {
-    return when (state) {
-        "playing" -> stringResource(R.string.media_state_playing)
-        "paused" -> stringResource(R.string.media_state_paused)
-        "idle" -> stringResource(R.string.media_state_idle)
-        "buffering" -> stringResource(R.string.media_state_buffering)
-        "on" -> stringResource(R.string.media_state_on)
-        "off", null -> stringResource(R.string.media_state_off)
-        else -> state.replaceFirstChar { it.uppercase() }
-    }
+internal fun mediaStateLabel(state: String?): String = when (state) {
+    "playing" -> stringResource(R.string.media_state_playing)
+    "paused" -> stringResource(R.string.media_state_paused)
+    "idle" -> stringResource(R.string.media_state_idle)
+    "buffering" -> stringResource(R.string.media_state_buffering)
+    "on" -> stringResource(R.string.media_state_on)
+    "off", null -> stringResource(R.string.media_state_off)
+    else -> state.replaceFirstChar { it.uppercase() }
 }
 
-internal fun computeMediaButtons(
-    e: EntityState?,
-    controls: List<String>,
-): List<MpButton> {
+internal fun computeMediaButtons(e: EntityState?, controls: List<String>): List<MpButton> {
     if (e == null) return emptyList()
     val state = e.state
     val out = mutableListOf<MpButton>()
@@ -698,17 +692,19 @@ internal fun computeMediaButtons(
 
     if (isActiveState && "repeat" in controls && e.supports(Feature.REPEAT_SET)) {
         val current = e.attrString("repeat") ?: "off"
-        val next = when (current) { "off" -> "all"; "all" -> "one"; else -> "off" }
+        val next =
+            when (current) {
+                "off" -> "all"
+                "all" -> "one"
+                else -> "off"
+            }
         out += MpButton(MdiIcons.Repeat, "repeat_set", listOf("repeat" to next), active = current != "off")
     }
 
     return out
 }
 
-internal fun computeVolumeButtons(
-    e: EntityState?,
-    controls: List<String>,
-): List<MpButton> {
+internal fun computeVolumeButtons(e: EntityState?, controls: List<String>): List<MpButton> {
     if (e == null || e.isUnavailable || e.state == "off") return emptyList()
     val out = mutableListOf<MpButton>()
     if ("mute" in controls && e.supports(Feature.VOLUME_MUTE)) {

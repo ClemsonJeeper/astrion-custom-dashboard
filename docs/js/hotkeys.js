@@ -84,6 +84,13 @@ function updateHardwareKeyHighlights() {
   const shortKeys = new Set(
     [...(dashboardData.hotkeys || []), ...((page && page.hotkeys) || [])].map((h) => h.key),
   );
+  // The parent-navigation fallback also occupies a button on this page,
+  // unless an explicit hotkey above already claims it (matches the app's
+  // own MainActivity.rebindHotkeysForCurrentPage() precedence).
+  if (page && page.parent) {
+    const parentKey = (page.parentKey || 'BACK').toUpperCase();
+    if (!shortKeys.has(parentKey)) shortKeys.add(parentKey);
+  }
   const longKeys = new Set(
     [...(dashboardData.longHotkeys || []), ...((page && page.longHotkeys) || [])].map((h) => h.key),
   );

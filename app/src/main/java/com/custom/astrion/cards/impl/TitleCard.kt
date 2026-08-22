@@ -24,11 +24,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.toColorInt
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
-import androidx.core.graphics.toColorInt
 import java.io.File
 
 /**
@@ -94,10 +94,7 @@ class TitleCard : CardRenderer {
     override val type = "title"
 
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val title = remember(config) { config.string("title") }
         val subtitle = remember(config) { config.string("subtitle") }
         if (title.isNullOrBlank() && subtitle.isNullOrBlank()) return
@@ -174,10 +171,10 @@ class TitleCard : CardRenderer {
             if (!title.isNullOrBlank() || iconBitmap != null || divider) {
                 Row(
                     modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .let { if (titleTappable) it.clickable { onTap("title") } else it },
-                    verticalAlignment = Alignment.CenterVertically,
+                    Modifier
+                        .fillMaxWidth()
+                        .let { if (titleTappable) it.clickable { onTap("title") } else it },
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (iconBitmap != null) {
                         Image(bitmap = iconBitmap, contentDescription = null, modifier = Modifier.size(22.dp))
@@ -190,7 +187,7 @@ class TitleCard : CardRenderer {
                             fontSize = 20.sp,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = alignment,
-                            modifier = if (forceStart) Modifier else Modifier.weight(1f),
+                            modifier = if (forceStart) Modifier else Modifier.weight(1f)
                         )
                     }
                     if (divider) {
@@ -206,28 +203,26 @@ class TitleCard : CardRenderer {
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     textAlign =
-                        remember(config) {
-                            when (config.string("alignment")) {
-                                "center" -> TextAlign.Center
-                                "end" -> TextAlign.End
-                                "justify" -> TextAlign.Justify
-                                else -> TextAlign.Start
-                            }
-                        },
+                    remember(config) {
+                        when (config.string("alignment")) {
+                            "center" -> TextAlign.Center
+                            "end" -> TextAlign.End
+                            "justify" -> TextAlign.Justify
+                            else -> TextAlign.Start
+                        }
+                    },
                     modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(top = if (!title.isNullOrBlank()) 2.dp else 0.dp)
-                            .let { if (subtitleTappable) it.clickable { onTap("subtitle") } else it },
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = if (!title.isNullOrBlank()) 2.dp else 0.dp)
+                        .let { if (subtitleTappable) it.clickable { onTap("subtitle") } else it }
                 )
             }
         }
     }
 
-    private fun parseHexColor(s: String): Color? {
-        return runCatching {
-            val hex = if (s.startsWith("#")) s else "#$s"
-            Color(hex.toColorInt())
-        }.getOrNull()
-    }
+    private fun parseHexColor(s: String): Color? = runCatching {
+        val hex = if (s.startsWith("#")) s else "#$s"
+        Color(hex.toColorInt())
+    }.getOrNull()
 }

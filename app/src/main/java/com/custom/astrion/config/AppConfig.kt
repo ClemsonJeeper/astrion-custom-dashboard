@@ -35,7 +35,7 @@ data class AppConfig(
      * reads from here (via ThemeColors / LocalTheme in the Compose layer).
      * Missing fields fall back to the built-in defaults, so an empty `theme`
      * block renders identically to the original look. */
-    val theme: ThemeConfig = ThemeConfig(),
+    val theme: ThemeConfig = ThemeConfig()
 )
 
 /**
@@ -53,13 +53,24 @@ data class PageConfig(
     /** Optional parent page name — makes this page a child in a navigation
      * tree (e.g. "Apple TV" with parent "Vidéo"), rather than a flat
      * top-level page. Entering a child is unchanged: any card's own
-     * `navigateToPage`, exactly like today. Leaving is new: the hardware
-     * BACK key (previously a no-op unless a page-specific hotkey bound it —
-     * see MainActivity's `dispatchKeyEvent`) now jumps to this page's
-     * parent when nothing else claims BACK first, so an AV page that binds
-     * its own BACK hotkey is never affected. null (default) = today's flat
-     * top-level page, behavior unchanged. */
+     * `navigateToPage`, exactly like today. Leaving is new: the physical
+     * button named by [parentKey] (previously a no-op unless a page-specific
+     * hotkey bound it — see MainActivity's `dispatchKeyEvent`) now jumps to
+     * this page's parent when nothing else claims that key first, so an AV
+     * page that binds its own hotkey on the same key is never affected.
+     * null (default) = today's flat top-level page, behavior unchanged. */
     val parent: String? = null,
+    /** Which physical button triggers the jump to [parent]. A HardwareKey
+     * name (case-insensitive) — same vocabulary as [HotkeyConfig.key], e.g.
+     * "HOME" or "PAGE_DOWN" instead of the hardware BACK button. Defaults to
+     * "BACK", matching the original, non-configurable behavior. Only
+     * consulted when [parent] is set; an unrecognized name is treated as if
+     * this were left at the default. Note this only changes what triggers
+     * the *parent-navigation fallback* — if [parentKey] is set to something
+     * other than "BACK", the hardware BACK button itself goes back to doing
+     * nothing on this page (today's behavior for a page with no parent at
+     * all), since it's no longer the configured "leave" button. */
+    val parentKey: String = "BACK"
 )
 
 /**
@@ -117,7 +128,7 @@ data class HotkeyConfig(
      * device with only a `PowerToggle` command and no discrete on/off.
      * Plain device-catalog ids (same ones used in an ActivityConfig's
      * `devices[].deviceId`), regardless of source. */
-    val devices: List<String> = emptyList(),
+    val devices: List<String> = emptyList()
 ) {
     /** Helper flags to quickly check hotkey action type. */
     val isPageNavigation: Boolean get() = !page.isNullOrBlank()
@@ -139,16 +150,13 @@ data class IrDeviceConfig(
     val id: String,
     val name: String = id,
     /** commandId (freeform, e.g. "power", "volume_up", "hdmi1") -> resolved IR frame. */
-    val commands: Map<String, IrStepConfig>,
+    val commands: Map<String, IrStepConfig>
 )
 
 /** One IR transmission: `freq` (Hz) + `pattern` (alternating on/off
  * durations in µs) map straight onto `ConsumerIrManager.transmit()`. */
 @Suppress("Unused")
-data class IrStepConfig(
-    val freq: Int,
-    val pattern: List<Int>,
-)
+data class IrStepConfig(val freq: Int, val pattern: List<Int>)
 
 // NOTE: a *single-action* Activity (one HA script, one existing Harmony
 // Activity — the hub already orchestrates everything for that one — or one
@@ -197,7 +205,7 @@ data class ActivityConfig(
     val volumeDeviceId: String? = null,
     val volumeUpCommand: String? = null,
     val volumeDownCommand: String? = null,
-    val muteCommand: String? = null,
+    val muteCommand: String? = null
 )
 
 /**
@@ -236,7 +244,7 @@ data class ActivityDeviceConfig(
      * *next* device's — e.g. TV on, wait 2s, then the receiver. Ignored on
      * the last device and on stop (power-off runs with no delays between
      * devices — nothing downstream needs to wait for it). */
-    val delayAfterMs: Int = 0,
+    val delayAfterMs: Int = 0
 )
 
 /**
@@ -258,5 +266,5 @@ data class ThemeConfig(
     val accentSecondary: String = "#4C6EF5",
     val amber: String = "#FFC24B",
     val danger: String = "#E06767",
-    val success: String = "#4CAF50",
+    val success: String = "#4CAF50"
 )

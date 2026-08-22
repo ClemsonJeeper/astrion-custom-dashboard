@@ -327,8 +327,21 @@
       <label>Page name</label>
       <input type="text" id="pageDialogName" placeholder="e.g., Living Room, Apple TV...">
       <label style="margin-top:10px">Parent page (optional)</label>
-      <select id="pageDialogParent"></select>
-      <div class="hint" style="margin-top:4px">Makes this a child page — navigate to it via a card's own "Page to open" (e.g. a scene_grid tile), and the hardware BACK key jumps back to the parent automatically.</div>
+      <select id="pageDialogParent" onchange="onPageDialogParentChange()"></select>
+      <div class="hint" style="margin-top:4px">Makes this a child page — navigate to it via a card's own "Page to open" (e.g. a scene_grid tile), and a physical button jumps back to the parent automatically.</div>
+      <div id="pageDialogParentKeyRow" style="display:none">
+        <label style="margin-top:10px">Return-to-parent button</label>
+        <select id="pageDialogParentKey">
+          <option>BACK</option><option>HOME</option><option>POWER</option>
+          <option>VOLUME_UP</option><option>VOLUME_DOWN</option><option>MUTE</option>
+          <option>PAGE_UP</option><option>PAGE_DOWN</option>
+          <option>UP</option><option>DOWN</option><option>LEFT</option><option>RIGHT</option><option>CENTER</option>
+          <option>VOICE</option><option>MAIN</option>
+          <option>REWIND</option><option>PLAY</option><option>STOP</option><option>FASTFORWARD</option>
+          <option>RED_BUTTON</option><option>GREEN_BUTTON</option><option>BLUE_BUTTON</option><option>YELLOW_BUTTON</option>
+        </select>
+        <div class="hint" style="margin-top:4px">Defaults to BACK. Pick a different button if BACK is already used for something else on this page, or if you'd rather reserve BACK entirely. If this page also binds its own hotkey on the chosen button, that hotkey wins and the parent-jump is skipped.</div>
+      </div>
       <label class="inline-check" style="margin-top:10px"><input type="checkbox" id="pageDialogStart"> Start page (shown on launch)</label>
       <div class="btn-row" style="margin-top:12px">
         <button onclick="savePageDialog()">Save</button>

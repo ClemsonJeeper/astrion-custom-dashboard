@@ -52,6 +52,21 @@ Two separate mechanisms, designed so the community can add a language without to
 
 ## First install
 
+### Option A: Automatic Installer (Recommended for Windows)
+
+If you are on Windows, you can download the ready-to-use automatic installer package from the [**GitHub Releases**](https://github.com/dckiller51/astrion-custom-dashboard/releases/tag/initial-installation-v0.9.0) page:
+
+1. Download and extract **`initial-installation-v0.9.0`**.
+2. Enable **Developer options** and **USB debugging** on your remote.
+3. Double-click **`install.bat`** and follow the on-screen instructions.
+4. **Restart the remote.** Some permissions and the launcher registration only take full effect after a full reboot, not just relaunching the app.
+5. On reboot, a prompt appears to choose the home screen app — select **Astrion Custom**.
+6. **Grant storage access** when prompted (needed to read/write `dashboard.json` and icons on `/sdcard/astrion/`).
+7. Open the **Settings panel** (swipe down from the top of the screen). Above the brightness slider, tap **"Allow modification"**, then select **Astrion Custom** in the system screen that opens, and go back.
+8. Open **`http://<remote-ip>:8080`** from a browser on the same network to finish setup: Home Assistant URL/token, optional Harmony Hub, and your `dashboard.json`.
+
+### Option B: Manual via ADB
+
 1. Enable **Developer options** on the remote (usually: *Settings → About device*, tap the build number several times), then enable USB debugging.
 2. `adb install app-debug.apk`
 3. **Restart the remote.** Some permissions and the launcher registration only take full effect after a full reboot, not just relaunching the app.
@@ -65,6 +80,18 @@ permissions, Home Assistant connection, and the first dashboard, see
 [Getting Started](GETTING_STARTED.md).
 
 ### Uninstalling
+## Uninstalling
+
+### Option A: Automatic Uninstaller (Windows)
+
+If you are on Windows, you can download the ready-to-use automatic uninstaller package from the [**GitHub Releases**](https://github.com/dckiller51/astrion-custom-dashboard/releases/tag/uninstall) page:
+
+1. Double-click **`uninstall.bat`**.
+2. Follow the on-screen instructions. The remote will automatically fall back to the stock **HaRemote** launcher.
+
+### Option B: Manual via ADB
+
+If you prefer using the command line:
 
 ```bash
 adb uninstall com.custom.astrion

@@ -5,6 +5,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("org.jlleitschuh.gradle.ktlint")
+    id("io.gitlab.arturbosch.detekt")
 }
 
 android {
@@ -39,6 +41,50 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    lint {
+        // Fails the build on lint errors (not just warnings) — matches
+        // ktlint/detekt both being "check" tasks that fail the CI job.
+        abortOnError = true
+        warningsAsErrors = false
+        // HTML report is the one worth opening locally; XML is what CI tools
+        // parse if you ever wire up annotations on the PR.
+        htmlReport = true
+        xmlReport = true
+        // Baseline: uncomment once you've triaged the current backlog of
+        // warnings, to lock in "no new lint issues" without fixing everything
+        // that already exists first.
+        baseline = file("lint-baseline.xml")
+    }
+}
+
+ktlint {
+    // Matches Android's 4-space/no-wildcard-import conventions instead of
+    // ktlint's plain-Kotlin defaults.
+    android.set(true)
+    version.set("1.3.1")
+    verbose.set(true)
+    outputToConsole.set(true)
+    reporters {
+        reporter(org.jlleitschuh.gradle.ktlint.reporter.ReporterType.PLAIN)
+        reporter(org.jlleitschuh.gradle.ktlint.reporter.ReporterType.CHECKSTYLE)
+    }
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom("$rootDir/config/detekt/detekt.yml")
+    // Same reasoning as lint{} above — start permissive, tighten later:
+    baseline = file("detekt-baseline.xml")
+}
+
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    reports {
+        html.required.set(true)
+        xml.required.set(true)
+        txt.required.set(false)
+        sarif.required.set(true) // lets GitHub annotate the PR diff directly
     }
 }
 

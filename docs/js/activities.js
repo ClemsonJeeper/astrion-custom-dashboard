@@ -396,43 +396,19 @@ function renderWizardHarmonyAddFields() {
     return;
   }
   container.innerHTML = `
-    <select id="wizHarmonyHub"></select>
-    <select id="wizHarmonyDevice"><option value="">— select a hub first —</option></select>
+    <div id="wizHarmonyPicker"></div>
     <div class="btn-row" style="margin-top:6px">
       <button type="button" class="secondary" onclick="addHarmonyDeviceRef()">+ Add Harmony device</button>
     </div>
   `;
-  renderHarmonyHubSelect(container, 'device', 'wizHarmonyStub');
-  // renderHarmonyHubSelect wires its own #wizHarmonyStubHub/#wizHarmonyStubDeviceSelect —
-  // swap them in for the placeholder selects above and rebind onchange to
-  // this file's handler.
-  const hubSel = document.getElementById('wizHarmonyStubHub');
-  const devSel = document.getElementById('wizHarmonyStubDeviceSelect');
-  if (hubSel) {
-    document.getElementById('wizHarmonyHub').replaceWith(hubSel);
-    hubSel.id = 'wizHarmonyHub';
-    hubSel.onchange = onWizHarmonyHubChange;
-  }
-  if (devSel) {
-    document.getElementById('wizHarmonyDevice').replaceWith(devSel);
-    devSel.id = 'wizHarmonyDevice';
-  }
-}
-
-async function onWizHarmonyHubChange() {
-  const hub = document.getElementById('wizHarmonyHub').value;
-  const deviceSel = document.getElementById('wizHarmonyDevice');
-  resetHarmonySelect(deviceSel, '— loading —');
-  if (!hub) { resetHarmonySelect(deviceSel, '— select a hub first —'); return; }
-  try {
-    const data = await loadHarmonyConfig(hub);
-    deviceSel.innerHTML = '<option value="">— select a device —</option>' +
-      (data.devices || []).map(d => `<option value="${d.id}">${d.label}</option>`).join('');
-    deviceSel.disabled = false;
-  } catch (e) {
-    deviceSel.innerHTML = '<option value="">(failed to load)</option>';
-    console.error('Failed to load Harmony config for device picker', e);
-  }
+  // Renders into its OWN sub-container (#wizHarmonyPicker), not the outer
+  // one that also holds the "+ Add Harmony device" button — renderHarmonyHubSelect
+  // sets container.innerHTML itself, which would otherwise wipe out that
+  // button (and everything else already in `container`) the moment it runs.
+  // Reuses the exact same Hub -> Device cascading picker (and its built-in
+  // onHarmonyHubChange handler) as the hotkey ('hk') and scene item ('gi')
+  // forms — no separate wiring needed here.
+  renderHarmonyHubSelect(document.getElementById('wizHarmonyPicker'), 'device', 'wizHarmony');
 }
 
 function renderWizardDeviceRefsList() {
@@ -489,13 +465,13 @@ function toggleIrDeviceRef(deviceId, checked) {
 
 function addHarmonyDeviceRef() {
   const hub = document.getElementById('wizHarmonyHub')?.value;
-  const deviceId = document.getElementById('wizHarmonyDevice')?.value;
+  const deviceId = document.getElementById('wizHarmonyDeviceSelect')?.value;
   if (!hub || !deviceId) { alert('Pick a Harmony hub and device.'); return; }
   if (wizard.deviceRefs.some(r => r.source === 'harmony' && r.hub === hub && r.deviceId === deviceId)) {
     alert('That device is already added.');
     return;
   }
-  const deviceLabel = document.getElementById('wizHarmonyDevice').selectedOptions[0]?.textContent || deviceId;
+  const deviceLabel = document.getElementById('wizHarmonyDeviceSelect').selectedOptions[0]?.textContent || deviceId;
   wizard.deviceRefs.push({ source: 'harmony', deviceId, hub, deviceLabel });
   renderWizardDeviceRefsList();
 }
