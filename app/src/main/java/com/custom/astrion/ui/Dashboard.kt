@@ -94,6 +94,11 @@ fun Dashboard(
     /** Page index requested by a hardware button; consumed via onNavHandled. */
     navTarget: Int? = null,
     onNavHandled: () -> Unit = {},
+    /** Overlay requested by a hardware button — "settings" or "activities"
+     * (case-insensitive); anything else is ignored. Consumed the same way
+     * as [navTarget]/[onNavHandled], via [onOverlayHandled]. */
+    overlayTarget: String? = null,
+    onOverlayHandled: () -> Unit = {},
     /** Called whenever the visible page changes (swipe, dot, hardware nav, or
      * a card's navigateToPage) — MainActivity uses this to rebind hardware
      * hotkeys to the newly-visible page's own bindings. */
@@ -358,6 +363,18 @@ fun Dashboard(
         var showActivities by remember { mutableStateOf(false) }
         BackHandler(enabled = showSettings) { showSettings = false }
         BackHandler(enabled = showActivities) { showActivities = false }
+
+        // Hardware-button counterpart to the two swipe gestures below (see
+        // TopStatusBar's onSwipeDownToSettings and PageIndicator's
+        // onSwipeUpToActivities) — same overlays, just also reachable from a
+        // HotkeyConfig.openOverlay binding via MainActivity.
+        LaunchedEffect(overlayTarget) {
+            when (overlayTarget?.lowercase()) {
+                "settings" -> showSettings = true
+                "activities" -> showActivities = true
+            }
+            if (overlayTarget != null) onOverlayHandled()
+        }
 
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
