@@ -75,6 +75,11 @@ If you are on Windows, you can download the ready-to-use automatic installer pac
 6. Open the **Settings panel** (swipe down from the top of the screen). Above the brightness slider, tap **"Allow modification"**, then select **Astrion Custom** in the system screen that opens, and go back.
 7. Open **`http://<remote-ip>:8080`** from a browser on the same network to finish setup: Home Assistant URL/token, optional Harmony Hub, and your `dashboard.json`.
 
+For a detailed step-by-step setup guide, including ADB access,
+permissions, Home Assistant connection, and the first dashboard, see
+[Getting Started](GETTING_STARTED.md).
+
+### Uninstalling
 ## Uninstalling
 
 ### Option A: Automatic Uninstaller (Windows)
