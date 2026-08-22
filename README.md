@@ -75,7 +75,18 @@ If you are on Windows, you can download the ready-to-use automatic installer pac
 6. Open the **Settings panel** (swipe down from the top of the screen). Above the brightness slider, tap **"Allow modification"**, then select **Astrion Custom** in the system screen that opens, and go back.
 7. Open **`http://<remote-ip>:8080`** from a browser on the same network to finish setup: Home Assistant URL/token, optional Harmony Hub, and your `dashboard.json`.
 
-### Uninstalling
+## Uninstalling
+
+### Option A: Automatic Uninstaller (Windows)
+
+If you are on Windows, you can download the ready-to-use automatic uninstaller package from the [**GitHub Releases**](https://github.com/dckiller51/astrion-custom-dashboard/releases/tag/uninstall) page:
+
+1. Double-click **`uninstall.bat`**.
+2. Follow the on-screen instructions. The remote will automatically fall back to the stock **HaRemote** launcher.
+
+### Option B: Manual via ADB
+
+If you prefer using the command line:
 
 ```bash
 adb uninstall com.custom.astrion
