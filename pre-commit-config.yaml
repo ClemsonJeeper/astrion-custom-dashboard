@@ -1,0 +1,16 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ktlint-format
+        name: ktlint (auto-format)
+        entry: ./gradlew ktlintFormat
+        language: system
+        pass_filenames: false
+        files: '\.kts?$'
+
+      - id: detekt
+        name: detekt
+        entry: ./gradlew detekt
+        language: system
+        pass_filenames: false
+        files: '\.kts?$'

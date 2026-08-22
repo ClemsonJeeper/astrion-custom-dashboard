@@ -1,5 +1,212 @@
 // ---- Preview ----------------------------------------------------------------
 
+// Live HA entity states, populated by loadHaStates() in device.js when the
+// editor is served by the app (http://<device-ip>:8080/builder/). null until
+// the fetch completes (or fails / not device mode) — renderers fall back to
+// the static *_MOCK examples then. Shape: { entity_id: { state, friendly_name,
+// attributes: {...} } }.
+let haStates = null;
+
+// Returns the live EntityState object for an entity_id, or null when no live
+// data is available (no HA connection, unknown entity, or not device mode).
+function haEntity(entityId) {
+  if (!entityId || !haStates) return null;
+  return haStates[entityId] || null;
+}
+
+// Live friendly_name for an entity, falling back to prettyEntityName() when we
+// have the entity but HA didn't send a friendly_name. null when no live data.
+function haFriendlyName(entityId) {
+  const e = haEntity(entityId);
+  if (!e) return null;
+  return e.friendly_name || prettyEntityName(entityId);
+}
+
+// Numeric attribute helper for live entities (mirrors HaModels.attrDouble).
+function haAttrNum(entityId, key) {
+  const e = haEntity(entityId);
+  if (!e || !e.attributes) return null;
+  const v = e.attributes[key];
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+// String attribute helper for live entities.
+function haAttrStr(entityId, key) {
+  const e = haEntity(entityId);
+  if (!e || !e.attributes) return null;
+  const v = e.attributes[key];
+  return v == null ? null : String(v);
+}
+
+// ---- Entity ID autocomplete for the card edit form --------------------------
+//
+// Attaches a custom dropdown to an <input> that lists matching HA entities
+// (filtered by domain) from the live /ha-states data. The user types to
+// narrow the list, clicks (or arrow-keys + Enter) to accept. Falls back to a
+// plain text input when haStates is null (no HA connection, or the editor is
+// opened from GitHub Pages instead of the device's own /builder/).
+//
+// `domain` filters candidates to entity_ids starting with "<domain>." — pass
+// null to offer every entity (used by scene_grid/button_grid where the entity
+// can be scene.*, script.*, media_player.*, …). Pass an array of strings to
+// match multiple domains (e.g. ['select', 'input_select'] for the select card).
+
+function attachEntityAutocomplete(inputEl, domain) {
+  if (!inputEl || !haStates) return;
+
+  const domains = Array.isArray(domain) ? domain : (domain ? [domain] : null);
+  const prefixes = domains ? domains.map(d => d + '.') : null;
+  const items = Object.keys(haStates)
+    .filter(id => !prefixes || prefixes.some(p => id.startsWith(p)))
+    .map(id => ({
+      id,
+      name: haStates[id].friendly_name || id,
+      lower: id.toLowerCase(),
+      nameLower: (haStates[id].friendly_name || id).toLowerCase(),
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  let debounceTimer = null;
+  let suppressOpen = false; // set by accept() so the input event it dispatches doesn't immediately reopen
+
+  // Singleton: only one dropdown exists at a time across all inputs. Closing
+  // the previous (if any) on open prevents stray invisible dropdowns from
+  // accumulating when focus moves between fields.
+  if (!_eaState.globalListenersAttached) {
+    _eaState.globalListenersAttached = true;
+    // Capture phase so we also catch scrolls originating inside scrolling
+    // containers (the card-edit modal has its own internal scroll, which
+    // doesn't bubble to window).
+    document.addEventListener('scroll', () => {
+      if (_eaState.dropdown && _eaState.input) {
+        const r = _eaState.input.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > window.innerHeight) _eaClose();
+ else _eaPosition();
+      }
+    }, { passive: true, capture: true });
+    window.addEventListener('resize', () => { if (_eaState.dropdown) _eaPosition(); });
+  }
+
+  function closeDropdown() { _eaClose(); }
+
+  function openDropdown(query) {
+    _eaClose();
+    const q = (query || '').toLowerCase();
+    const matches = q
+      ? items.filter(it => it.lower.includes(q) || it.nameLower.includes(q))
+      : items;
+    if (matches.length === 0) return;
+
+    const dd = document.createElement('div');
+    dd.className = 'ea-dropdown';
+
+    const maxShow = 60;
+    matches.slice(0, maxShow).forEach((it) => {
+      const row = document.createElement('div');
+      row.className = 'ea-item';
+      row.dataset.id = it.id;
+      row.innerHTML =
+        `<span class="ea-id">${it.id}</span>` +
+        `<span class="ea-name">${it.name}</span>`;
+      row.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        accept(it.id);
+      });
+      dd.appendChild(row);
+    });
+    if (matches.length > maxShow) {
+      const more = document.createElement('div');
+      more.className = 'ea-more';
+      more.textContent = (matches.length - maxShow) + ' more — keep typing to narrow';
+      dd.appendChild(more);
+    }
+
+    document.body.appendChild(dd);
+    _eaState.dropdown = dd;
+    _eaState.input = inputEl;
+    _eaState.selectedIdx = -1;
+    _eaPosition();
+  }
+
+  function accept(id) {
+    inputEl.value = id;
+    closeDropdown();
+    suppressOpen = true;
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  inputEl.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    if (suppressOpen) { suppressOpen = false; return; }
+    debounceTimer = setTimeout(() => openDropdown(inputEl.value), 80);
+  });
+  inputEl.addEventListener('focus', () => openDropdown(inputEl.value));
+  inputEl.addEventListener('blur', () => setTimeout(() => {
+    // Only close if focus has actually left this input — clicking a dropdown
+    // item triggers a brief blur before mousedown, but preventDefault on the
+    // item's mousedown keeps focus here, so this blur closes only on a real
+    // focus shift to something else.
+    if (_eaState.input === inputEl) _eaClose();
+  }, 150));
+  inputEl.addEventListener('keydown', (e) => {
+    if (!_eaState.dropdown || _eaState.input !== inputEl) return;
+    if (e.key === 'Escape') { closeDropdown(); return; }
+    const opts = _eaState.dropdown.querySelectorAll('.ea-item');
+    if (opts.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _eaHighlight(Math.min(_eaState.selectedIdx + 1, opts.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _eaHighlight(Math.max(_eaState.selectedIdx - 1, 0));
+    } else if (e.key === 'Enter' && _eaState.selectedIdx >= 0) {
+      e.preventDefault();
+      accept(opts[_eaState.selectedIdx].dataset.id);
+    } else if (e.key === 'Tab' && _eaState.selectedIdx >= 0) {
+      accept(opts[_eaState.selectedIdx].dataset.id);
+    }
+  });
+}
+
+// Module-level singleton state for the autocomplete dropdown. Only one
+// dropdown is ever alive at a time; these keep the global listeners
+// (scroll/resize) and the open/close/position/highlight helpers shared so
+// switching fields doesn't orphan dropdowns or double-register listeners.
+const _eaState = { dropdown: null, input: null, selectedIdx: -1, globalListenersAttached: false };
+
+function _eaClose() {
+  if (_eaState.dropdown) { _eaState.dropdown.remove(); _eaState.dropdown = null; }
+  _eaState.input = null;
+  _eaState.selectedIdx = -1;
+}
+
+// Uses position:fixed (viewport-relative) so it matches getBoundingClientRect
+// regardless of page or modal scroll — the old position:absolute version
+// drifted off-screen once the page was scrolled, leaving invisible divs that
+// stretched the document and produced phantom scrollbars.
+function _eaPosition() {
+  if (!_eaState.dropdown || !_eaState.input) return;
+  const rect = _eaState.input.getBoundingClientRect();
+  _eaState.dropdown.style.left = rect.left + 'px';
+  _eaState.dropdown.style.top = (rect.bottom + 2) + 'px';
+  _eaState.dropdown.style.width = rect.width + 'px';
+}
+
+function _eaHighlight(idx) {
+  if (!_eaState.dropdown) return;
+  const opts = _eaState.dropdown.querySelectorAll('.ea-item');
+  opts.forEach(o => o.classList.remove('ea-selected'));
+  if (idx >= 0 && idx < opts.length) {
+    opts[idx].classList.add('ea-selected');
+    opts[idx].scrollIntoView({ block: 'nearest' });
+    _eaState.selectedIdx = idx;
+  } else {
+    _eaState.selectedIdx = -1;
+  }
+}
+
 function renderTabs() {
   const tabsContainer = document.getElementById('tabs');
   tabsContainer.innerHTML = '';
@@ -241,11 +448,12 @@ function renderPreview() {
         </div>`;
     } else if (card.type === 'fan') {
       const o = card.options || {};
-      const presetModes = (o.preset_modes && o.preset_modes.length ? o.preset_modes : FAN_MOCK.preset_modes).filter(m => m.toLowerCase() !== 'off');
+      const mock = liveMock(o.entity_id, FAN_MOCK);
+      const presetModes = (o.preset_modes && o.preset_modes.length ? o.preset_modes : mock.preset_modes).filter(m => m.toLowerCase() !== 'off');
       const style = o.style || 'auto';
       const useStep = style === 'step';
       const useFull = !useStep && (style === 'full' || (style !== 'simple' && (presetModes.length > 0 || true))); // mock always reports `oscillating`
-      const usingExample = !(o.preset_modes && o.preset_modes.length);
+      const usingExample = !(o.preset_modes && o.preset_modes.length) && !haEntity(o.entity_id);
       let bodyHtml;
       if (useStep) {
         const stepName = o.name ? `<div class="fs-step-name">${o.name}</div>` : '';
@@ -254,7 +462,7 @@ function renderPreview() {
             ${stepName}
             <div class="fs-step-row">
               <div class="fs-step-btn">−</div>
-              <div class="fs-step-pct">${FAN_MOCK.state === 'on' ? FAN_MOCK.percentage + '%' : 'Off'}</div>
+              <div class="fs-step-pct">${mock.state === 'on' ? mock.percentage + '%' : 'Off'}</div>
               <div class="fs-step-btn">+</div>
             </div>
           </div>`;
@@ -262,8 +470,8 @@ function renderPreview() {
         bodyHtml = `
           <div class="preview-fan-simple">
             <div>
-              <div class="fs-name">${o.name || o.entity_id || FAN_MOCK.friendly_name}</div>
-              <div class="fs-state">${FAN_MOCK.state === 'on' ? FAN_MOCK.percentage + '%' : 'Off'}</div>
+              <div class="fs-name">${o.name || haFriendlyName(o.entity_id) || mock.friendly_name}</div>
+              <div class="fs-state">${mock.state === 'on' ? mock.percentage + '%' : 'Off'}</div>
             </div>
             <div style="display:flex; gap:8px;">
               <div class="fx-pct-btn">−</div>
@@ -274,87 +482,101 @@ function renderPreview() {
         const showCaptions = o.show_captions !== false;
         const presetRows = climateBalancedRows(presetModes, 4).map(row => `
           <div class="fx-row">
-            ${row.map(m => `<div class="fx-chip ${FAN_MOCK.state === 'on' && m.toLowerCase() === FAN_MOCK.preset_mode.toLowerCase() ? 'fx-chip-selected' : ''}">${m}</div>`).join('')}
+            ${row.map(m => `<div class="fx-chip ${mock.state === 'on' && m.toLowerCase() === (mock.preset_mode || '').toLowerCase() ? 'fx-chip-selected' : ''}">${m}</div>`).join('')}
           </div>`).join('');
         bodyHtml = `
           <div class="preview-fan">
             <div class="fx-header">
-              <span class="fx-name">${o.name || o.entity_id || FAN_MOCK.friendly_name}</span>
-              <div class="fx-power ${FAN_MOCK.state === 'off' ? 'is-off' : ''}">${mdiSvg(MDI.power)}</div>
+              <span class="fx-name">${o.name || haFriendlyName(o.entity_id) || mock.friendly_name}</span>
+              <div class="fx-power ${mock.state === 'off' ? 'is-off' : ''}">${mdiSvg(MDI.power)}</div>
             </div>
             ${presetModes.length ? `${showCaptions ? '<div class="fx-caption">Preset</div>' : ''}${presetRows}` : `
               <div class="fx-pct-row">
                 <div class="fx-pct-btn">−</div>
-                <div class="fx-pct">${FAN_MOCK.percentage}%</div>
+                <div class="fx-pct">${mock.percentage}%</div>
                 <div class="fx-pct-btn">+</div>
               </div>`}
             ${showCaptions ? '<div class="fx-caption">Oscillate</div>' : ''}
-            <div class="fx-row"><div class="fx-chip ${FAN_MOCK.oscillating ? 'fx-chip-selected' : ''}" style="flex:1">${fanOscillateLabel(FAN_MOCK.oscillating)}</div></div>
+            <div class="fx-row"><div class="fx-chip ${mock.oscillating ? 'fx-chip-selected' : ''}" style="flex:1">${fanOscillateLabel(mock.oscillating)}</div></div>
           </div>`;
       }
       cardEl.innerHTML = `
         <div class="card">
           <div class="card-title"><span>fan</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
           ${bodyHtml}
-          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'fan.entity'} · Layout: ${style}${usingExample ? ' · example data (' + FAN_MOCK.friendly_name + ')' : ''}</div>
+          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'fan.entity'} · Layout: ${style}${usingExample ? ' · example data (' + mock.friendly_name + ')' : (haEntity(o.entity_id) ? ' · live HA data' : '')}</div>
         </div>`;
     } else if (card.type === 'vacuum') {
       const o = card.options || {};
+      const mock = liveMock(o.entity_id, VACUUM_MOCK);
       const rooms = o.rooms || [];
       cardEl.innerHTML = `
         <div class="card">
           <div class="card-title"><span>vacuum</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
           <div class="preview-vacuum">
             <div class="vc-header">
-              <span class="vc-name">${o.name || o.entity_id || VACUUM_MOCK.friendly_name}</span>
-              <span>${vacuumStateLabel(VACUUM_MOCK.state)}</span>
+              <span class="vc-name">${o.name || haFriendlyName(o.entity_id) || mock.friendly_name}</span>
+              <span>${vacuumStateLabel(mock.state)}</span>
             </div>
-            <div class="hint" style="margin-top:4px">Cleaning mode: ${vacuumPrettyLabel(VACUUM_MOCK.fan_speed)} (of ${VACUUM_MOCK.fan_speed_list.map(vacuumPrettyLabel).join(', ')})</div>
+            <div class="hint" style="margin-top:4px">Cleaning mode: ${vacuumPrettyLabel(mock.fan_speed)} (of ${(mock.fan_speed_list || []).map(vacuumPrettyLabel).join(', ')})</div>
             <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'vacuum.entity'}${o.map_image ? ' · Map: ' + o.map_image : ' · No map image'}${o.map_rotation ? ' · Rotated ' + o.map_rotation + '°' : ''} · ${o.map_height ?? 200}px</div>
             ${rooms.length ? `<div class="vc-rooms">${rooms.map(r => `<div class="vc-room">${r.name} (${r.id})</div>`).join('')}</div>` : '<div class="hint" style="margin-top:6px">No rooms configured — start/pause/dock/locate controls only.</div>'}
-            <div class="hint" style="margin-top:4px">example data (${VACUUM_MOCK.friendly_name})</div>
+            <div class="hint" style="margin-top:4px">${haEntity(o.entity_id) ? 'live HA data' : 'example data'} (${mock.friendly_name})</div>
           </div>
         </div>`;
     } else if (card.type === 'climate') {
       const o = card.options || {};
-      const hvacModes = (o.hvac_modes && o.hvac_modes.length ? o.hvac_modes : CLIMATE_MOCK.hvac_modes).filter(m => m !== 'off');
-      const fanModes = (o.fan_modes && o.fan_modes.length ? o.fan_modes : CLIMATE_MOCK.fan_modes);
-      const swingModes = (o.swing_modes && o.swing_modes.length ? o.swing_modes : CLIMATE_MOCK.swing_modes);
+      const mock = liveMock(o.entity_id, CLIMATE_MOCK);
+      const hvacModes = (o.hvac_modes && o.hvac_modes.length ? o.hvac_modes : (mock.hvac_modes || [])).filter(m => m !== 'off');
+      const fanModes = (o.fan_modes && o.fan_modes.length ? o.fan_modes : (mock.fan_modes || []));
+      const swingModes = (o.swing_modes && o.swing_modes.length ? o.swing_modes : (mock.swing_modes || []));
       const hvacStyle = o.hvac_mode_style === 'label' ? 'label' : 'icons';
       const fanStyle = o.fan_mode_style === 'icons' ? 'icons' : 'label';
       const swingStyle = o.swing_mode_style === 'icons' ? 'icons' : 'label';
-      const usingExample = !(o.hvac_modes && o.hvac_modes.length) && !(o.fan_modes && o.fan_modes.length) && !(o.swing_modes && o.swing_modes.length);
+      const usingExample = !(o.hvac_modes && o.hvac_modes.length) && !(o.fan_modes && o.fan_modes.length) && !(o.swing_modes && o.swing_modes.length) && !haEntity(o.entity_id);
       const showCaptions = o.show_captions !== false;
+      // heat_cool mode uses a temp range (target_temp_low..target_temp_high)
+      // instead of a single setpoint — temperature is null in that mode.
+      // Check the live entity directly: liveMock skips nulls, so the mock's
+      // default temperature (24) would mask the range otherwise.
+      const live = haEntity(o.entity_id);
+      const liveTempNull = live && live.attributes && 'temperature' in live.attributes && live.attributes.temperature == null;
+      const isRange = liveTempNull ? (mock.target_temp_high != null && mock.target_temp_low != null) : (mock.temperature == null && mock.target_temp_high != null && mock.target_temp_low != null);
+      const tempDisplay = isRange
+        ? `${mock.target_temp_low}-${mock.target_temp_high}°`
+        : (mock.temperature != null ? `${mock.temperature}°` : '—');
+      const tempClass = isRange ? 'cc-temp cc-temp-range' : 'cc-temp';
       cardEl.innerHTML = `
         <div class="card">
           <div class="card-title"><span>climate</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
           <div class="preview-climate">
             <div class="cc-header">
-              <span class="cc-name">${o.name || o.entity_id || 'Climate'}</span>
-              <div class="cc-power ${CLIMATE_MOCK.state === 'off' ? 'is-off' : ''}">${mdiSvg(MDI.power)}</div>
+              <span class="cc-name">${o.name || haFriendlyName(o.entity_id) || 'Climate'}</span>
+              <div class="cc-power ${mock.state === 'off' ? 'is-off' : ''}">${mdiSvg(MDI.power)}</div>
             </div>
             <div class="cc-temp-row">
               <div class="cc-stepper">−</div>
               <div class="cc-temp-col">
-                <div class="cc-temp">${CLIMATE_MOCK.temperature}°</div>
-                <div class="cc-current">Now ${CLIMATE_MOCK.current_temperature}°</div>
+                <div class="${tempClass}">${tempDisplay}</div>
+                <div class="cc-current">Now ${mock.current_temperature != null ? mock.current_temperature + '°' : ''}</div>
               </div>
               <div class="cc-stepper">+</div>
             </div>
-            ${hvacModes.length ? `${showCaptions ? '<div class="cc-caption">Mode</div>' : ''}${climateChipRowsHtml(hvacModes, CLIMATE_MOCK.state, hvacStyle, hvacStyle === 'icons' ? 5 : 3, climateHvacLabel, climateHvacIcon)}` : ''}
-            ${fanModes.length ? `${showCaptions ? '<div class="cc-caption">Fan</div>' : ''}${climateChipRowsHtml(fanModes, CLIMATE_MOCK.fan_mode, fanStyle, fanStyle === 'icons' ? 5 : 3, climateFanLabel, climateFanIcon)}` : ''}
-            ${swingModes.length ? `${showCaptions ? '<div class="cc-caption">Swing</div>' : ''}${climateChipRowsHtml(swingModes, CLIMATE_MOCK.swing_mode, swingStyle, swingStyle === 'icons' ? 5 : 3, climateSwingLabel, climateSwingIcon)}` : ''}
+            ${hvacModes.length ? `${showCaptions ? '<div class="cc-caption">Mode</div>' : ''}${climateChipRowsHtml(hvacModes, mock.state, hvacStyle, hvacStyle === 'icons' ? 5 : 3, climateHvacLabel, climateHvacIcon)}` : ''}
+            ${fanModes.length ? `${showCaptions ? '<div class="cc-caption">Fan</div>' : ''}${climateChipRowsHtml(fanModes, mock.fan_mode, fanStyle, fanStyle === 'icons' ? 5 : 3, climateFanLabel, climateFanIcon)}` : ''}
+            ${swingModes.length ? `${showCaptions ? '<div class="cc-caption">Swing</div>' : ''}${climateChipRowsHtml(swingModes, mock.swing_mode, swingStyle, swingStyle === 'icons' ? 5 : 3, climateSwingLabel, climateSwingIcon)}` : ''}
           </div>
-          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'climate.entity'}${usingExample ? ' · no overrides set — showing example modes (your real device\'s modes render live in the app)' : ''}</div>
+          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'climate.entity'}${haEntity(o.entity_id) ? ' · live HA data' : (usingExample ? ' · no overrides set — showing example modes (your real device\'s modes render live in the app)' : '')}</div>
         </div>`;
     } else if (card.type === 'cover') {
       const o = card.options || {};
-      const name = o.name || o.entity_id || COVER_MOCK.friendly_name;
-      const position = COVER_MOCK.current_position; // 0..100
-      const tilt = COVER_MOCK.current_tilt_position; // 0..100
-      const isOpen = position != null ? position >= 100 : COVER_MOCK.state === 'open';
-      const isClosed = position != null ? position <= 0 : COVER_MOCK.state === 'closed';
-      const stateLabel = coverPositionLabel(position, COVER_MOCK.state);
+      const mock = liveMock(o.entity_id, COVER_MOCK);
+      const name = o.name || haFriendlyName(o.entity_id) || mock.friendly_name;
+      const position = mock.current_position; // 0..100
+      const tilt = mock.current_tilt_position; // 0..100
+      const isOpen = position != null ? position >= 100 : mock.state === 'open';
+      const isClosed = position != null ? position <= 0 : mock.state === 'closed';
+      const stateLabel = coverPositionLabel(position, mock.state);
       const layout = (o.layout === 'horizontal' || o.layout === 'vertical') ? o.layout : 'default';
       // Only 2 icon variants exist (fully open / fully closed shutter) — show
       // "closed" only when truly closed (0%); anything else reads as "open"
@@ -440,7 +662,7 @@ function renderPreview() {
         <div class="card">
           <div class="card-title"><span>cover</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
           ${bodyHtml}
-          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'cover.entity'} · Layout: ${layout} · Controls: ${enabledControls.join(', ') || 'none'} · example data (${COVER_MOCK.friendly_name}, ${position}% open${ctrlTilt ? `, tilt ${tilt}%` : ''})</div>
+          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'cover.entity'} · Layout: ${layout} · Controls: ${enabledControls.join(', ') || 'none'} · ${haEntity(o.entity_id) ? 'live HA data' : 'example data'} (${mock.friendly_name}, ${position}% open${ctrlTilt ? `, tilt ${tilt}%` : ''})</div>
         </div>`;
     } else if (card.type === 'select') {
       const o = card.options || {};
@@ -502,9 +724,10 @@ function renderPreview() {
         </div>`;
     } else if (card.type === 'light') {
       const o = card.options || {};
-      const name = o.name || o.entity_id || LIGHT_MOCK.friendly_name;
-      const isOn = LIGHT_MOCK.state === 'on';
-      const brightnessPct = LIGHT_MOCK.brightness != null ? Math.round((LIGHT_MOCK.brightness / 255) * 100) : null;
+      const mock = liveMock(o.entity_id, LIGHT_MOCK);
+      const name = o.name || haFriendlyName(o.entity_id) || mock.friendly_name;
+      const isOn = mock.state === 'on';
+      const brightnessPct = mock.brightness != null ? Math.round((mock.brightness / 255) * 100) : null;
       const useLightColor = o.use_light_color === true;
       const showBrightness = o.show_brightness !== false;
       const layout = (o.layout === 'horizontal' || o.layout === 'vertical') ? o.layout : 'default';
@@ -514,7 +737,7 @@ function renderPreview() {
       // follows the light's rgb_color only when "use_light_color" is set,
       // otherwise the plain amber "on" look. This mock reports color_temp/xy
       // (no rgb_color of its own — see kelvinToPreviewRgb in mocks.js).
-      const [r, g, b] = LIGHT_MOCK.rgb_color || kelvinToPreviewRgb(LIGHT_MOCK.color_temp_kelvin);
+      const [r, g, b] = mock.rgb_color || kelvinToPreviewRgb(mock.color_temp_kelvin);
       const lightColorCss = (isOn && useLightColor) ? `rgb(${r},${g},${b})` : null;
       const iconPath = isOn ? MDI.lightbulbOn : MDI.lightbulbOff;
       const iconBg = !isOn ? 'var(--control)' : (lightColorCss ? `rgba(${r},${g},${b},0.22)` : 'var(--amber)');
@@ -524,7 +747,7 @@ function renderPreview() {
       // Mirrors LightCard.kt: if none of the 3 flags are set at all, fall
       // back to "brightness control only" so untouched configs preview
       // exactly as they always have.
-      const supportedModes = LIGHT_MOCK.supported_color_modes || [];
+      const supportedModes = mock.supported_color_modes || [];
       const supportsColor = supportedModes.some(m => ['hs', 'rgb', 'rgbw', 'rgbww', 'xy'].includes(m));
       const supportsColorTemp = supportedModes.includes('color_temp');
       const hasLightCtrlOpts = ('show_brightness_control' in o) || ('show_color_temp_control' in o) || ('show_color_control' in o);
@@ -552,7 +775,7 @@ function renderPreview() {
         </div>`;
       const colorTempSliderHtml = `
         <div class="pc-slider" style="background:linear-gradient(90deg,#FFB366,#FFF3E0,#9EC8FF)">
-          <div class="pc-slider-label" style="color:#241A00">${LIGHT_MOCK.color_temp_kelvin}K</div>
+          <div class="pc-slider-label" style="color:#241A00">${mock.color_temp_kelvin}K</div>
         </div>`;
       const colorSwatchesHtml = `
         <div class="pl-color-row">
@@ -603,18 +826,18 @@ function renderPreview() {
         <div class="card">
           <div class="card-title"><span>light</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
           ${bodyHtml}
-          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'light.entity'} · Layout: ${layout}${useLightColor ? ' · icon tinted with light colour' : ''} · Controls: ${enabledControls.join(', ') || 'none'}${collapsible ? ' (hidden while off)' : ''} · example data (${LIGHT_MOCK.friendly_name}, ${brightnessPct}%)</div>
+          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'light.entity'} · Layout: ${layout}${useLightColor ? ' · icon tinted with light colour' : ''} · Controls: ${enabledControls.join(', ') || 'none'}${collapsible ? ' (hidden while off)' : ''} · ${haEntity(o.entity_id) ? 'live HA data' : 'example data'} (${mock.friendly_name}, ${brightnessPct}%)</div>
         </div>`;
     } else if (card.type === 'media_player') {
       const o = card.options || {};
-      const mock = MEDIA_MOCK;
+      const mock = liveMock(o.entity_id, MEDIA_MOCK);
       const full = o.variant === 'full';
       const useMediaInfo = o.use_media_info !== false;
       const showVolumeLevel = o.show_volume_level === true;
       const mediaControls = (o.media_controls || 'previous,play_pause,next').split(',').map(s => s.trim()).filter(Boolean);
       const volumeControls = (o.volume_controls || 'mute,buttons').split(',').map(s => s.trim()).filter(Boolean);
 
-      const title = useMediaInfo ? (mock.media_title || o.name || mock.friendly_name) : (o.name || mock.friendly_name);
+      const title = useMediaInfo ? (mock.media_title || o.name || haFriendlyName(o.entity_id) || mock.friendly_name) : (o.name || haFriendlyName(o.entity_id) || mock.friendly_name);
       const subtitle = useMediaInfo ? (mock.media_artist || mock.app_name) : null;
       let stateLine = subtitle || mediaStateLabel(mock.state);
       if (showVolumeLevel) stateLine += ` ⸱ ${Math.round((mock.volume_level || 0) * 100)}%`;
@@ -680,7 +903,7 @@ function renderPreview() {
         <div class="card">
           <div class="card-title"><span>media_player (${full ? 'full' : 'compact'})</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
           ${bodyHtml}
-          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'media_player.entity'} · example data (${mock.friendly_name}, ${mock.state}) · long-press the compact tile in-app opens the detail dialog</div>
+          <div class="hint" style="margin-top:6px">Entity: ${o.entity_id || 'media_player.entity'} · ${haEntity(o.entity_id) ? 'live HA data' : 'example data'} (${mock.friendly_name}, ${mock.state}) · long-press the compact tile in-app opens the detail dialog</div>
         </div>`;
     } else if (card.type === 'button_grid' || card.type === 'scene_grid') {
       const isScene = card.type === 'scene_grid';
@@ -688,6 +911,8 @@ function renderPreview() {
       const cols = card.options?.columns || 2;
       const isRow = isScene && card.options?.layout === 'row';
       const showLabels = card.options?.show_labels !== false;
+      const iconFill = isScene && card.options?.icon_fill === true;
+      const tileHeight = isScene ? (card.options?.tile_height || (iconFill ? 120 : 0)) : 0;
       // Mirrors SceneGridCard.kt: once ANY scene in the grid has an icon,
       // every tile in that grid uses the taller icon layout (74dp) so they
       // stay a uniform height — even tiles with no icon of their own get a
@@ -700,12 +925,17 @@ function renderPreview() {
         if (isScene) {
           const bg = parseHexColorCss(item.color) || (typeof themeValues === 'function' ? themeValues().controlBackground : '#2C4C58');
           const textColor = textColorForBg(bg);
-          const iconCell = hasIconGrid
-            ? (src
-                ? `<img class="st-icon" src="${src}" alt="" onerror="onSceneIconError(this)">`
-                : `<div class="st-icon-spacer"></div>`)
-            : '';
-          return `<div class="preview-scene-tile ${hasIconGrid ? 'has-icon' : 'no-icon'}" style="background:${bg}; color:${textColor}">
+          const isFillTile = iconFill && src && !showLabels;
+          const tileClass = isFillTile ? 'fill' : (hasIconGrid ? 'has-icon' : 'no-icon');
+          const heightStyle = tileHeight ? `height:${tileHeight}px;` : '';
+          const iconCell = isFillTile
+            ? `<img class="st-icon" src="${src}" alt="" onerror="onSceneIconError(this)">`
+            : (hasIconGrid
+                ? (src
+                    ? `<img class="st-icon" src="${src}" alt="" onerror="onSceneIconError(this)">`
+                    : `<div class="st-icon-spacer"></div>`)
+                : '');
+          return `<div class="preview-scene-tile ${tileClass}" style="background:${bg}; color:${textColor};${heightStyle}">
             ${iconCell}
             ${showLabels ? `<div class="st-label">${label}</div>` : ''}
           </div>`;
@@ -765,7 +995,7 @@ function renderPreview() {
       cardEl.className = 'card';
       cardEl.innerHTML = `
         <div class="card-title"><span>${card.type}</span><span><span class="remove" style="color:#00E5FF" onclick="editCard(${idx})">✎</span> <span class="remove" onclick="removeCard(${idx})">✕</span></span></div>
-        <div><strong>${card.options?.name || card.options?.entity_id || card.type}</strong><br>
+        <div><strong>${card.options?.name || haFriendlyName(card.options?.entity_id) || card.options?.entity_id || card.type}</strong><br>
         <small style="color:#888">${card.options?.entity_id || card.options?.remote_entity || ''}</small></div>`;
     }
     contentContainer.appendChild(cardEl);

@@ -23,7 +23,7 @@ data class EntityState(
     val state: String,
     val attributes: JsonObject,
     val lastChanged: String? = null,
-    val lastUpdated: String? = null,
+    val lastUpdated: String? = null
 ) {
     val domain: String get() = entityId.substringBefore('.')
 
@@ -43,27 +43,24 @@ data class EntityState(
     fun attrString(key: String): String? = (attributes[key] as? JsonPrimitive)?.contentOrNull
 
     /** Attribute as Double, or null. Handles ints and numeric strings too. */
-    fun attrDouble(key: String): Double? =
-        (attributes[key] as? JsonPrimitive)?.let { prim ->
-            prim.doubleOrNull ?: prim.contentOrNull?.toDoubleOrNull()
-        }
+    fun attrDouble(key: String): Double? = (attributes[key] as? JsonPrimitive)?.let { prim ->
+        prim.doubleOrNull ?: prim.contentOrNull?.toDoubleOrNull()
+    }
 
     /** Attribute as Int, or null. */
     fun attrInt(key: String): Int? = attrDouble(key)?.toInt()
 
     /** Attribute as Boolean, or null. Handles boolean primitives and boolean strings ("true"/"false"). */
-    fun attrBoolean(key: String): Boolean? =
-        (attributes[key] as? JsonPrimitive)?.let { prim ->
-            prim.booleanOrNull ?: prim.contentOrNull?.toBooleanStrictOrNull()
-        }
+    fun attrBoolean(key: String): Boolean? = (attributes[key] as? JsonPrimitive)?.let { prim ->
+        prim.booleanOrNull ?: prim.contentOrNull?.toBooleanStrictOrNull()
+    }
 
     /** Attribute as a list of strings (e.g. media_player source lists, hvac_modes). */
-    fun attrStringList(key: String): List<String> =
-        try {
-            attributes[key]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
-        } catch (_: Exception) {
-            emptyList()
-        }
+    fun attrStringList(key: String): List<String> = try {
+        attributes[key]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+    } catch (_: Exception) {
+        emptyList()
+    }
 
     val isOn: Boolean get() = state == "on"
     val isUnavailable: Boolean get() = state == "unavailable" || state == "unknown"
@@ -81,7 +78,7 @@ enum class ConnectionState {
     AUTHENTICATING,
     CONNECTED,
     AUTH_FAILED,
-    ERROR,
+    ERROR
 }
 
 /**
@@ -92,7 +89,7 @@ data class ServiceCall(
     val domain: String,
     val service: String,
     val entityId: String? = null,
-    val data: Map<String, JsonElement> = emptyMap(),
+    val data: Map<String, JsonElement> = emptyMap()
 ) {
     companion object {
         /**
@@ -100,12 +97,7 @@ data class ServiceCall(
          * wrapping them as JSON primitives. Keeps card code readable:
          *   ServiceCall.of("light", "turn_on", "light.kitchen", "brightness_pct" to 60)
          */
-        fun of(
-            domain: String,
-            service: String,
-            entityId: String? = null,
-            vararg data: Pair<String, Any?>,
-        ): ServiceCall {
+        fun of(domain: String, service: String, entityId: String? = null, vararg data: Pair<String, Any?>): ServiceCall {
             val mapped =
                 buildMap {
                     for ((k, v) in data) {
@@ -125,10 +117,7 @@ data class ServiceCall(
         }
 
         /** Overload convenience when no entityId is specified directly. */
-        fun of(
-            domain: String,
-            service: String,
-            vararg data: Pair<String, Any?>,
-        ): ServiceCall = of(domain, service, entityId = null, data = data)
+        fun of(domain: String, service: String, vararg data: Pair<String, Any?>): ServiceCall =
+            of(domain, service, entityId = null, data = data)
     }
 }

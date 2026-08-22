@@ -5,6 +5,19 @@ function updateHotkeyActionInputs() {
   const container = document.getElementById('dynamicHotkeyInputs');
   if (action === 'page') {
     container.innerHTML = `<label>Target page name</label><input type="text" id="hkPage" placeholder="e.g., Media">`;
+  } else if (action === 'openOverlay') {
+    container.innerHTML = `
+      <label>Overlay</label>
+      <select id="hkOverlay">
+        <option value="settings">Settings (same as swipe down from the top bar)</option>
+        <option value="activities">Active Activities (same as swipe up from the page dots)</option>
+      </select>
+    `;
+  } else if (action === 'openCurrentActivity') {
+    container.innerHTML = `
+      <label>Room</label><input type="text" id="hkActivityRoom" placeholder="e.g., Living Room">
+      <div class="hint" style="margin-top:4px">Jumps straight to the page of whichever Activity is currently active in this room — no picker. Does nothing if that room has nothing active right now. Must match a room name used by a tracked Activity (a composed Activity, or a scene_grid tile / hotkey with "track": true) exactly.</div>
+    `;
   } else if (action === 'service') {
     container.innerHTML = `
       <label>Service (domain.service)</label><input type="text" id="hkService" placeholder="e.g., light.toggle">
@@ -31,6 +44,8 @@ function updateHotkeyActionInputs() {
 
 function describeHotkey(h) {
   if (h.page) return `→ page "${h.page}"`;
+  if (h.openOverlay) return `→ open ${h.openOverlay === 'activities' ? 'Active Activities' : 'Settings'}`;
+  if (h.openCurrentActivityRoom) return `→ current Activity in "${h.openCurrentActivityRoom}"`;
   if (h.service) return `→ ${h.service}${h.entityId ? ' (' + h.entityId + ')' : ''}`;
   if (h.harmonyCommand) return `→ Harmony ${h.harmonyDevice || '?'} / ${h.harmonyCommand}`;
   if (h.harmonyActivity) return `→ Harmony activity ${h.harmonyActivity}`;
@@ -84,6 +99,13 @@ function updateHardwareKeyHighlights() {
   const shortKeys = new Set(
     [...(dashboardData.hotkeys || []), ...((page && page.hotkeys) || [])].map((h) => h.key),
   );
+  // The parent-navigation fallback also occupies a button on this page,
+  // unless an explicit hotkey above already claims it (matches the app's
+  // own MainActivity.rebindHotkeysForCurrentPage() precedence).
+  if (page && page.parent) {
+    const parentKey = (page.parentKey || 'BACK').toUpperCase();
+    if (!shortKeys.has(parentKey)) shortKeys.add(parentKey);
+  }
   const longKeys = new Set(
     [...(dashboardData.longHotkeys || []), ...((page && page.longHotkeys) || [])].map((h) => h.key),
   );
@@ -107,12 +129,16 @@ async function editHotkey(scope, listType, i) {
   document.getElementById('hkScope').value = scope;
   document.getElementById('hkType').value = listType;
   document.getElementById('hkKey').value = h.key;
-  const action = h.page ? 'page' : h.service ? 'service' : h.harmonyCommand ? 'harmonyCommand' : 'harmonyActivity';
+  const action = h.page ? 'page' : h.openOverlay ? 'openOverlay' : h.openCurrentActivityRoom ? 'openCurrentActivity' : h.service ? 'service' : h.harmonyCommand ? 'harmonyCommand' : 'harmonyActivity';
   document.getElementById('hkAction').value = action;
   updateHotkeyActionInputs();
 
   if (action === 'page') {
     document.getElementById('hkPage').value = h.page || '';
+  } else if (action === 'openOverlay') {
+    document.getElementById('hkOverlay').value = h.openOverlay || 'settings';
+  } else if (action === 'openCurrentActivity') {
+    document.getElementById('hkActivityRoom').value = h.openCurrentActivityRoom || '';
   } else if (action === 'service') {
     document.getElementById('hkService').value = h.service || '';
     document.getElementById('hkEntityId').value = h.entityId || '';
@@ -168,6 +194,12 @@ function addHotkey() {
   let hkObj = { key };
   if (action === 'page') {
     hkObj.page = document.getElementById('hkPage').value.trim();
+  } else if (action === 'openOverlay') {
+    hkObj.openOverlay = document.getElementById('hkOverlay').value;
+  } else if (action === 'openCurrentActivity') {
+    const room = document.getElementById('hkActivityRoom').value.trim();
+    if (!room) { alert('Enter a room name.'); return; }
+    hkObj.openCurrentActivityRoom = room;
   } else if (action === 'service') {
     hkObj.service = document.getElementById('hkService').value.trim();
     const entityId = document.getElementById('hkEntityId').value.trim();

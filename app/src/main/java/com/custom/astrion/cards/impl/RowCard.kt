@@ -28,14 +28,11 @@ class RowCard : CardRenderer {
 
     @Suppress("UNCHECKED_CAST")
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val children = (config.options["cards"] as? List<Map<String, Any?>>) ?: emptyList()
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             children.forEach { child ->
                 val childType = child["type"] as? String ?: return@forEach

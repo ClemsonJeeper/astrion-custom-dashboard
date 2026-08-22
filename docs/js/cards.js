@@ -196,7 +196,7 @@ function updateCardFormInputs() {
     const label = type === 'button_grid' ? 'Button' : 'Scene';
     container.innerHTML = `
       <label>Columns</label><input type="number" id="optColumns" value="2" min="1">
-      ${type === 'scene_grid' ? `<label><input type="checkbox" id="optShowLabels" checked> Show name under icon (when any scene has one — applies to the whole grid)</label>` : ''}
+      ${type === 'scene_grid' ? `<label><input type="checkbox" id="optShowLabels" checked> Show name under icon (when any scene has one — applies to the whole grid)</label><label><input type="checkbox" id="optIconFill"> Fill tile with icon (hide name recommended; icon scales to fill tile height)</label><label>Tile height (dp, optional)</label><input type="number" id="optTileHeight" min="40" max="300" placeholder="120 when fill on, 74 otherwise">` : ''}
       <div id="gridItemsList"></div>
       <div class="section-box" style="margin-top:8px">
         <label>${label} name</label><input type="text" id="giName" placeholder="e.g., ${type === 'button_grid' ? 'Netflix' : 'Movie Night'}">
@@ -282,6 +282,12 @@ function updateCardFormInputs() {
         <button type="button" class="secondary" onclick="addVacuumRoom()">+ Add room to this card</button>
       </div>
       <div class="hint">Add every room, then click "Add card to page" once below. The vacuum's state ("Cleaning", "Docked"...) is translated automatically via assets/ha_labels/&lt;lang&gt;.json.</div>
+
+      <label style="margin-top:10px">Room-clean service (optional — defaults to Roborock/Xiaomi's <code>vacuum.send_command</code>)</label>
+      <input type="text" id="optRoomCleanDomain" placeholder="Domain, e.g. dreame_vacuum">
+      <input type="text" id="optRoomCleanService" placeholder="Service, e.g. vacuum_clean_segment" style="margin-top:6px">
+      <input type="text" id="optRoomCleanParameter" placeholder="Field for the room ID, e.g. segments" style="margin-top:6px">
+      <div class="hint">Only needed if your vacuum's HA integration doesn't understand <code>app_segment_clean</code> — e.g. Dreame uses its own <code>dreame_vacuum.vacuum_clean_segment</code> service with a <code>segments</code> field instead. Leave all three blank to keep the default. Fill in all three together, or none.</div>
     `;
     window._pendingVacuumRooms = window._pendingVacuumRooms || [];
     renderVacuumRoomsList();
@@ -294,6 +300,27 @@ function updateCardFormInputs() {
       <div class="hint">This card type isn't fully modeled in the builder yet — paste the options object directly.</div>
     `;
   }
+
+  // Attach live entity autocomplete to whichever entity_id fields this card
+  // type created. Only attaches when /ha-states data is available (device mode
+  // + HA connected); otherwise the inputs stay plain text fields.
+  const mainDomain = type === 'clock_weather' ? 'weather'
+    : type === 'source_select' ? null
+    : type === 'select' ? ['select', 'input_select']
+    : type;
+  ['optEntityId', 'optRemoteEntity', 'optMediaEntity', 'optMuteEntity',
+    'optCalendarEntity', 'optMapImage', 'giEntityId'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const dom = id === 'optEntityId' ? mainDomain
+      : id === 'optRemoteEntity' ? 'remote'
+      : id === 'optMediaEntity' ? 'media_player'
+      : id === 'optMuteEntity' ? 'media_player'
+      : id === 'optCalendarEntity' ? 'calendar'
+      : id === 'optMapImage' ? 'image'
+      : null; // giEntityId — any domain (scene.*, script.*, media_player.*, …)
+    attachEntityAutocomplete(el, dom);
+  });
 }
 
 // media_player card: top_buttons only make sense on the "full" variant
@@ -715,7 +742,11 @@ function fillCardForm(card) {
     document.getElementById('optShowCaptions').checked = o.show_captions !== false;
   } else if (type === 'button_grid' || type === 'scene_grid') {
     document.getElementById('optColumns').value = o.columns || 2;
-    if (type === 'scene_grid') document.getElementById('optShowLabels').checked = o.show_labels !== false;
+    if (type === 'scene_grid') {
+      document.getElementById('optShowLabels').checked = o.show_labels !== false;
+      document.getElementById('optIconFill').checked = o.icon_fill === true;
+      document.getElementById('optTileHeight').value = o.tile_height || '';
+    }
     window._pendingGridItems = JSON.parse(JSON.stringify(o.buttons || o.scenes || []));
     renderGridItemsList(type);
   } else if (type === 'apple_tv_remote') {
@@ -738,6 +769,10 @@ function fillCardForm(card) {
     document.getElementById('optMapHeight').value = o.map_height ?? 200;
     window._pendingVacuumRooms = JSON.parse(JSON.stringify(o.rooms || []));
     renderVacuumRoomsList();
+    const rca = o.room_clean_action || {};
+    document.getElementById('optRoomCleanDomain').value = rca.domain || '';
+    document.getElementById('optRoomCleanService').value = rca.service || '';
+    document.getElementById('optRoomCleanParameter').value = rca.parameter || '';
   } else {
     const customField = document.getElementById('optCustomType');
     if (customField) customField.value = type;
@@ -908,6 +943,9 @@ function addCardToPage() {
     newCard.options.columns = parseInt(document.getElementById('optColumns').value, 10) || 2;
     newCard.options.scenes = window._pendingGridItems || [];
     if (!document.getElementById('optShowLabels').checked) newCard.options.show_labels = false;
+    if (document.getElementById('optIconFill').checked) newCard.options.icon_fill = true;
+    var _th = parseInt(document.getElementById('optTileHeight').value, 10);
+    if (_th) newCard.options.tile_height = _th;
     window._pendingGridItems = [];
   } else if (type === 'apple_tv_remote') {
     if (harmonyAvailable) {
@@ -945,6 +983,16 @@ function addCardToPage() {
     newCard.options.map_height = isNaN(mapHeight) ? 200 : mapHeight;
     newCard.options.rooms = window._pendingVacuumRooms || [];
     window._pendingVacuumRooms = [];
+    const rcaDomain = document.getElementById('optRoomCleanDomain').value.trim();
+    const rcaService = document.getElementById('optRoomCleanService').value.trim();
+    const rcaParameter = document.getElementById('optRoomCleanParameter').value.trim();
+    if (rcaDomain || rcaService || rcaParameter) {
+      if (!rcaDomain || !rcaService || !rcaParameter) {
+        alert('Fill in all three room-clean service fields (domain, service, and field name), or leave all three blank.');
+        return;
+      }
+      newCard.options.room_clean_action = { domain: rcaDomain, service: rcaService, parameter: rcaParameter };
+    }
   } else {
     if (type === 'custom') newCard.type = document.getElementById('optCustomType').value.trim() || 'custom';
     try {

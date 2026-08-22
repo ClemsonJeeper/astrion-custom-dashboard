@@ -2,7 +2,12 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -18,7 +23,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,10 +49,7 @@ class SourceSelectCard : CardRenderer {
     override val type = "source_select"
 
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id") ?: return
         val e = ctx.entities[entityId]
         val name = config.string("name") ?: e?.friendlyName ?: entityId
@@ -60,13 +61,13 @@ class SourceSelectCard : CardRenderer {
         Box {
             Row(
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(ctx.theme.controlBackground)
-                        .clickable(enabled = sources.isNotEmpty()) { expanded = true }
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(ctx.theme.controlBackground)
+                    .clickable(enabled = sources.isNotEmpty()) { expanded = true }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(name, color = ctx.theme.mutedText, fontSize = 11.sp)
@@ -75,13 +76,13 @@ class SourceSelectCard : CardRenderer {
                         color = ctx.theme.primaryText,
                         fontSize = 15.sp,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Icon(
                     Icons.Filled.ArrowDropDown,
                     contentDescription = null,
-                    tint = if (sources.isEmpty()) ctx.theme.mutedText else ctx.theme.iconTint,
+                    tint = if (sources.isEmpty()) ctx.theme.mutedText else ctx.theme.iconTint
                 )
             }
 
@@ -89,9 +90,9 @@ class SourceSelectCard : CardRenderer {
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 modifier =
-                    Modifier
-                        .background(ctx.theme.controlBackground)
-                        .widthIn(max = 400.dp),
+                Modifier
+                    .background(ctx.theme.controlBackground)
+                    .widthIn(max = 400.dp)
             ) {
                 sources.forEach { s ->
                     DropdownMenuItem(
@@ -101,15 +102,15 @@ class SourceSelectCard : CardRenderer {
                                 color = if (s == current) ctx.theme.accent else ctx.theme.primaryText,
                                 fontSize = 14.sp,
                                 maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
+                                overflow = TextOverflow.Ellipsis
                             )
                         },
                         onClick = {
                             expanded = false
                             ctx.client.callService(
-                                ServiceCall.of("media_player", "select_source", entityId, "source" to s),
+                                ServiceCall.of("media_player", "select_source", entityId, "source" to s)
                             )
-                        },
+                        }
                     )
                 }
             }

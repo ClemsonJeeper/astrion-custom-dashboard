@@ -29,7 +29,7 @@ data class ThemeColors(
     val accentSecondary: Color,
     val amber: Color,
     val danger: Color,
-    val success: Color,
+    val success: Color
 ) {
     companion object {
         /** The app's original hardcoded palette — used when no theme is
@@ -72,7 +72,7 @@ fun ThemeConfig.toColors(): ThemeColors {
         accentSecondary = parseHexColor(accentSecondary, parseHexColor(d.accentSecondary, Color.White)),
         amber = parseHexColor(amber, parseHexColor(d.amber, Color.White)),
         danger = parseHexColor(danger, parseHexColor(d.danger, Color.White)),
-        success = parseHexColor(success, parseHexColor(d.success, Color.White)),
+        success = parseHexColor(success, parseHexColor(d.success, Color.White))
     )
 }
 

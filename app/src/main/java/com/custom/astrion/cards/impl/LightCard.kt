@@ -47,9 +47,9 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.icons.MdiIcons
+import kotlin.math.roundToInt
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
-import kotlin.math.roundToInt
 
 /**
  * Light card — styled after Home Assistant's Mushroom light card, including
@@ -104,10 +104,7 @@ class LightCard : CardRenderer {
     override val type = "light"
 
     @Composable
-    override fun Render(
-        config: CardConfig,
-        ctx: CardContext,
-    ) {
+    override fun Render(config: CardConfig, ctx: CardContext) {
         val entityId = config.string("entity_id") ?: return
         val e = ctx.entities[entityId]
         val name = config.string("name") ?: e?.friendlyName ?: entityId
@@ -168,11 +165,13 @@ class LightCard : CardRenderer {
         // historical default (brightness control only) so existing
         // dashboards keep rendering exactly as before.
         val opts = config.options
-        val hasExplicitControls = opts.containsKey("show_brightness_control") ||
-            opts.containsKey("show_color_temp_control") ||
-            opts.containsKey("show_color_control")
+        val hasExplicitControls =
+            opts.containsKey("show_brightness_control") ||
+                opts.containsKey("show_color_temp_control") ||
+                opts.containsKey("show_color_control")
         val showBrightnessControl = config.bool("show_brightness_control", !hasExplicitControls)
         val colorModes = e?.attrStringList("supported_color_modes") ?: emptyList()
+
         @Suppress("SpellCheckingInspection")
         val supportsColor = colorModes.any { it in listOf("hs", "rgb", "rgbw", "rgbww", "xy") }
         val supportsColorTemp = colorModes.contains("color_temp")
@@ -180,11 +179,12 @@ class LightCard : CardRenderer {
         val showColorControl = config.bool("show_color_control", false) && supportsColor
         val collapsibleControls = config.bool("collapsible_controls", false)
 
-        val controls = buildList {
-            if (showBrightnessControl) add(LightControl.BRIGHTNESS)
-            if (showColorTempControl) add(LightControl.COLOR_TEMP)
-            if (showColorControl) add(LightControl.COLOR)
-        }
+        val controls =
+            buildList {
+                if (showBrightnessControl) add(LightControl.BRIGHTNESS)
+                if (showColorTempControl) add(LightControl.COLOR_TEMP)
+                if (showColorControl) add(LightControl.COLOR)
+            }
         val controlsVisible = controls.isNotEmpty() && (!collapsibleControls || isOn)
 
         val minKelvin = e?.attrInt("min_color_temp_kelvin") ?: 2000
@@ -198,7 +198,7 @@ class LightCard : CardRenderer {
             Modifier.pointerInput(entityId) {
                 detectTapGestures(
                     onTap = { ctx.client.toggle(entityId) },
-                    onLongPress = { showDetail = true },
+                    onLongPress = { showDetail = true }
                 )
             }
 
@@ -221,8 +221,8 @@ class LightCard : CardRenderer {
                     "light",
                     "turn_on",
                     entityId,
-                    mapOf("rgb_color" to JsonArray(listOf(JsonPrimitive(r), JsonPrimitive(g), JsonPrimitive(b)))),
-                ),
+                    mapOf("rgb_color" to JsonArray(listOf(JsonPrimitive(r), JsonPrimitive(g), JsonPrimitive(b))))
+                )
             )
         }
 
@@ -236,24 +236,26 @@ class LightCard : CardRenderer {
                 Row(
                     modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier,
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Box(Modifier.weight(1f, fill = fillWidth)) {
                         when (resolvedActive) {
-                            LightControl.BRIGHTNESS -> PercentSlider(
-                                entityId = "$entityId-brightness",
-                                value = brightnessPct ?: 0,
-                                color = barColor,
-                                theme = ctx.theme,
-                                onCommit = { pct -> commitBrightness(pct / 100f) },
-                            )
-                            LightControl.COLOR_TEMP -> ColorTempSlider(
-                                entityId = "$entityId-ctemp",
-                                minKelvin = minKelvin,
-                                maxKelvin = maxKelvin,
-                                kelvin = currentKelvin,
-                                onCommit = ::commitKelvin,
-                            )
+                            LightControl.BRIGHTNESS ->
+                                PercentSlider(
+                                    entityId = "$entityId-brightness",
+                                    value = brightnessPct ?: 0,
+                                    color = barColor,
+                                    theme = ctx.theme,
+                                    onCommit = { pct -> commitBrightness(pct / 100f) }
+                                )
+                            LightControl.COLOR_TEMP ->
+                                ColorTempSlider(
+                                    entityId = "$entityId-ctemp",
+                                    minKelvin = minKelvin,
+                                    maxKelvin = maxKelvin,
+                                    kelvin = currentKelvin,
+                                    onCommit = ::commitKelvin
+                                )
                             LightControl.COLOR -> ColorSwatchRow(onPick = ::commitRgb)
                             null -> {}
                         }
@@ -269,7 +271,17 @@ class LightCard : CardRenderer {
         }
 
         when (config.string("layout")) {
-            "horizontal" -> HorizontalLayout(name, stateLabel, icon, iconBg, iconTint, controlsSlot, ctx.theme, modifier = tileGestureModifier)
+            "horizontal" ->
+                HorizontalLayout(
+                    name,
+                    stateLabel,
+                    icon,
+                    iconBg,
+                    iconTint,
+                    controlsSlot,
+                    ctx.theme,
+                    modifier = tileGestureModifier
+                )
             "vertical" -> VerticalLayout(name, stateLabel, icon, iconBg, iconTint, controlsSlot, ctx.theme, modifier = tileGestureModifier)
             else -> DefaultLayout(name, stateLabel, icon, iconBg, iconTint, controlsSlot, ctx.theme, modifier = tileGestureModifier)
         }
@@ -281,7 +293,7 @@ class LightCard : CardRenderer {
                 e = e,
                 client = ctx.client,
                 theme = ctx.theme,
-                onClose = { showDetail = false },
+                onClose = { showDetail = false }
             )
         }
     }
@@ -292,19 +304,14 @@ private enum class LightControl { BRIGHTNESS, COLOR_TEMP, COLOR }
 // ---- shared pieces ---------------------------------------------------------
 
 @Composable
-private fun LightIcon(
-    icon: ImageVector,
-    bg: Color,
-    tint: Color,
-    size: Dp = 42.dp,
-) {
+private fun LightIcon(icon: ImageVector, bg: Color, tint: Color, size: Dp = 42.dp) {
     Box(
         modifier =
-            Modifier
-                .size(size)
-                .clip(RoundedCornerShape(12.dp))
-                .background(bg),
-        contentAlignment = Alignment.Center,
+        Modifier
+            .size(size)
+            .clip(RoundedCornerShape(12.dp))
+            .background(bg),
+        contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = tint)
     }
@@ -316,7 +323,7 @@ private fun NameState(
     stateLabel: String,
     theme: ThemeColors,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
-    textAlign: TextAlign = TextAlign.Start,
+    textAlign: TextAlign = TextAlign.Start
 ) {
     Column(horizontalAlignment = horizontalAlignment) {
         Text(
@@ -325,7 +332,7 @@ private fun NameState(
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
-            textAlign = textAlign,
+            textAlign = textAlign
         )
         Text(stateLabel, color = theme.mutedText, fontSize = 13.sp, textAlign = textAlign)
     }
@@ -335,12 +342,13 @@ private fun NameState(
 @Composable
 private fun CycleControlButton(theme: ThemeColors, onClick: () -> Unit) {
     Box(
-        modifier = Modifier
+        modifier =
+        Modifier
             .size(36.dp)
             .clip(CircleShape)
             .background(theme.controlBackground)
             .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.Center
     ) {
         Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = theme.iconTint)
     }
@@ -353,13 +361,7 @@ private fun CycleControlButton(theme: ThemeColors, onClick: () -> Unit) {
  * where it tracks the finger for immediate feedback until release commits it.
  */
 @Composable
-private fun PercentSlider(
-    entityId: String,
-    value: Int,
-    color: Color,
-    theme: ThemeColors,
-    onCommit: (Int) -> Unit,
-) {
+private fun PercentSlider(entityId: String, value: Int, color: Color, theme: ThemeColors, onCommit: (Int) -> Unit) {
     // Uses -1f as a sentinel to denote 'no active drag', avoiding Float autoboxing.
     var dragFraction by remember(entityId) { mutableFloatStateOf(-1f) }
     val liveFraction = (value / 100f).coerceIn(0f, 1f)
@@ -367,48 +369,47 @@ private fun PercentSlider(
 
     Box(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(36.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(theme.insetSurface)
-                .pointerInput(entityId) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            if (dragFraction >= 0f) {
-                                onCommit((dragFraction * 100).roundToInt())
-                            }
-                            dragFraction = -1f
-                        },
-                        onDragCancel = { dragFraction = -1f },
-                    ) { change, _ ->
-                        dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
-                    }
-                }
-                .pointerInput(entityId) {
-                    detectTapGestures { offset ->
-                        val f = (offset.x / size.width).coerceIn(0f, 1f)
-                        dragFraction = f
-                        onCommit((f * 100).roundToInt())
+        Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(theme.insetSurface)
+            .pointerInput(entityId) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (dragFraction >= 0f) {
+                            onCommit((dragFraction * 100).roundToInt())
+                        }
                         dragFraction = -1f
-                    }
-                },
-        contentAlignment = Alignment.Center,
+                    },
+                    onDragCancel = { dragFraction = -1f }
+                ) { change, _ ->
+                    dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                }
+            }.pointerInput(entityId) {
+                detectTapGestures { offset ->
+                    val f = (offset.x / size.width).coerceIn(0f, 1f)
+                    dragFraction = f
+                    onCommit((f * 100).roundToInt())
+                    dragFraction = -1f
+                }
+            },
+        contentAlignment = Alignment.Center
     ) {
         Box(
             modifier =
-                Modifier
-                    .align(Alignment.CenterStart)
-                    .fillMaxHeight()
-                    .fillMaxWidth(shownFraction.coerceIn(0.02f, 1f))
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(color),
+            Modifier
+                .align(Alignment.CenterStart)
+                .fillMaxHeight()
+                .fillMaxWidth(shownFraction.coerceIn(0.02f, 1f))
+                .clip(RoundedCornerShape(18.dp))
+                .background(color)
         )
         Text(
             "${(shownFraction * 100).roundToInt()}%",
             color = theme.primaryText,
             fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
@@ -418,56 +419,49 @@ private fun PercentSlider(
  * `color_temp_kelvin` between the entity's own min/max_color_temp_kelvin.
  */
 @Composable
-private fun ColorTempSlider(
-    entityId: String,
-    minKelvin: Int,
-    maxKelvin: Int,
-    kelvin: Int,
-    onCommit: (Int) -> Unit,
-) {
+private fun ColorTempSlider(entityId: String, minKelvin: Int, maxKelvin: Int, kelvin: Int, onCommit: (Int) -> Unit) {
     val range = (maxKelvin - minKelvin).coerceAtLeast(1)
     var dragFraction by remember(entityId) { mutableFloatStateOf(-1f) }
     val liveFraction = ((kelvin - minKelvin).toFloat() / range).coerceIn(0f, 1f)
     val shownFraction = if (dragFraction >= 0f) dragFraction else liveFraction
+
     fun fractionToKelvin(f: Float) = (minKelvin + f * range).roundToInt()
 
     Box(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(36.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(Color(0xFFFFB366), Color(0xFFFFF3E0), Color(0xFF9EC8FF)),
-                    ),
+        Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                Brush.horizontalGradient(
+                    listOf(Color(0xFFFFB366), Color(0xFFFFF3E0), Color(0xFF9EC8FF))
                 )
-                .pointerInput(entityId) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            if (dragFraction >= 0f) onCommit(fractionToKelvin(dragFraction))
-                            dragFraction = -1f
-                        },
-                        onDragCancel = { dragFraction = -1f },
-                    ) { change, _ ->
-                        dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
-                    }
-                }
-                .pointerInput(entityId) {
-                    detectTapGestures { offset ->
-                        val f = (offset.x / size.width).coerceIn(0f, 1f)
-                        dragFraction = f
-                        onCommit(fractionToKelvin(f))
+            ).pointerInput(entityId) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (dragFraction >= 0f) onCommit(fractionToKelvin(dragFraction))
                         dragFraction = -1f
-                    }
-                },
-        contentAlignment = Alignment.Center,
+                    },
+                    onDragCancel = { dragFraction = -1f }
+                ) { change, _ ->
+                    dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                }
+            }.pointerInput(entityId) {
+                detectTapGestures { offset ->
+                    val f = (offset.x / size.width).coerceIn(0f, 1f)
+                    dragFraction = f
+                    onCommit(fractionToKelvin(f))
+                    dragFraction = -1f
+                }
+            },
+        contentAlignment = Alignment.Center
     ) {
         Text(
             "${fractionToKelvin(shownFraction)}K",
             color = Color(0xFF241A00),
             fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
@@ -477,19 +471,24 @@ private fun ColorTempSlider(
 private fun ColorSwatchRow(onPick: (Int, Int, Int) -> Unit) {
     val swatches =
         listOf(
-            Triple(244, 67, 54), Triple(255, 152, 0), Triple(255, 235, 59),
-            Triple(76, 175, 80), Triple(0, 188, 212), Triple(33, 150, 243),
-            Triple(156, 39, 176), Triple(255, 255, 255),
+            Triple(244, 67, 54),
+            Triple(255, 152, 0),
+            Triple(255, 235, 59),
+            Triple(76, 175, 80),
+            Triple(0, 188, 212),
+            Triple(33, 150, 243),
+            Triple(156, 39, 176),
+            Triple(255, 255, 255)
         )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         swatches.forEach { (r, g, b) ->
             Box(
                 modifier =
-                    Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Color(r, g, b))
-                        .clickable { onPick(r, g, b) },
+                Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color(r, g, b))
+                    .clickable { onPick(r, g, b) }
             )
         }
     }
@@ -506,16 +505,16 @@ private fun DefaultLayout(
     iconTint: Color,
     controls: @Composable (fillWidth: Boolean) -> Unit,
     theme: ThemeColors,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     Column(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(theme.controlBackground)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(theme.cardSurface)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().then(modifier)) {
             LightIcon(icon, iconBg, iconTint)
@@ -539,16 +538,16 @@ private fun HorizontalLayout(
     iconTint: Color,
     controls: @Composable (fillWidth: Boolean) -> Unit,
     theme: ThemeColors,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     Row(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(theme.controlBackground)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(theme.cardSurface)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.then(modifier)) { LightIcon(icon, iconBg, iconTint) }
         Spacer(Modifier.width(12.dp))
@@ -568,20 +567,20 @@ private fun VerticalLayout(
     iconTint: Color,
     controls: @Composable (fillWidth: Boolean) -> Unit,
     theme: ThemeColors,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     Column(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(theme.controlBackground)
-                .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(theme.cardSurface)
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth().then(modifier),
+            modifier = Modifier.fillMaxWidth().then(modifier)
         ) {
             LightIcon(icon, iconBg, iconTint, size = 48.dp)
             Spacer(Modifier.height(8.dp))
