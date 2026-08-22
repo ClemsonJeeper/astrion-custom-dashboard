@@ -111,12 +111,13 @@ class CoverCard : CardRenderer {
         val showOpenIcon = !isClosed
         val coverIcon = if (showOpenIcon) MdiIcons.WindowShutterOpen else MdiIcons.WindowShutterClosed
 
-        val stateLabel = when {
-            position == 100 -> stringResource(R.string.cover_open)
-            position == 0 -> stringResource(R.string.cover_closed)
-            position != null -> stringResource(R.string.cover_position_open, position)
-            else -> HaLabels.coverState(rawState)
-        }
+        val stateLabel =
+            when {
+                position == 100 -> stringResource(R.string.cover_open)
+                position == 0 -> stringResource(R.string.cover_closed)
+                position != null -> stringResource(R.string.cover_position_open, position)
+                else -> HaLabels.coverState(rawState)
+            }
 
         fun call(service: String) {
             ctx.client.callService(ServiceCall(domain = "cover", service = service, entityId = entityId))
@@ -136,18 +137,20 @@ class CoverCard : CardRenderer {
         // historical default (buttons only) so existing dashboards keep
         // rendering exactly as before.
         val opts = config.options
-        val hasExplicitControls = opts.containsKey("show_buttons_control") ||
-            opts.containsKey("show_position_control") ||
-            opts.containsKey("show_tilt_position_control")
+        val hasExplicitControls =
+            opts.containsKey("show_buttons_control") ||
+                opts.containsKey("show_position_control") ||
+                opts.containsKey("show_tilt_position_control")
         val showButtons = config.bool("show_buttons_control", !hasExplicitControls)
         val showPosition = config.bool("show_position_control", false) && position != null
         val showTilt = config.bool("show_tilt_position_control", false) && tilt != null
 
-        val controls = buildList {
-            if (showButtons) add(CoverControl.BUTTONS)
-            if (showPosition) add(CoverControl.POSITION)
-            if (showTilt) add(CoverControl.TILT)
-        }
+        val controls =
+            buildList {
+                if (showButtons) add(CoverControl.BUTTONS)
+                if (showPosition) add(CoverControl.POSITION)
+                if (showTilt) add(CoverControl.TILT)
+            }
 
         // Long-press anywhere on the tile opens the detail dialog — same
         // gesture LightCard uses to open LightDetailDialog.
@@ -167,32 +170,35 @@ class CoverCard : CardRenderer {
                 Row(
                     modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier,
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Box(Modifier.weight(1f, fill = fillWidth)) {
                         when (resolvedActive) {
-                            CoverControl.BUTTONS -> ControlsRow(
-                                isOpen,
-                                isClosed,
-                                ::call,
-                                theme = ctx.theme,
-                                modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier,
-                                arrangement = if (fillWidth) Arrangement.SpaceEvenly else Arrangement.spacedBy(8.dp),
-                            )
-                            CoverControl.POSITION -> PercentSlider(
-                                entityId = "$entityId-position",
-                                value = position ?: 0,
-                                color = ctx.theme.accent,
-                                theme = ctx.theme,
-                                onCommit = ::setPosition,
-                            )
-                            CoverControl.TILT -> PercentSlider(
-                                entityId = "$entityId-tilt",
-                                value = tilt ?: 0,
-                                color = ctx.theme.success,
-                                theme = ctx.theme,
-                                onCommit = ::setTiltPosition,
-                            )
+                            CoverControl.BUTTONS ->
+                                ControlsRow(
+                                    isOpen,
+                                    isClosed,
+                                    ::call,
+                                    theme = ctx.theme,
+                                    modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier,
+                                    arrangement = if (fillWidth) Arrangement.SpaceEvenly else Arrangement.spacedBy(8.dp)
+                                )
+                            CoverControl.POSITION ->
+                                PercentSlider(
+                                    entityId = "$entityId-position",
+                                    value = position ?: 0,
+                                    color = ctx.theme.accent,
+                                    theme = ctx.theme,
+                                    onCommit = ::setPosition
+                                )
+                            CoverControl.TILT ->
+                                PercentSlider(
+                                    entityId = "$entityId-tilt",
+                                    value = tilt ?: 0,
+                                    color = ctx.theme.success,
+                                    theme = ctx.theme,
+                                    onCommit = ::setTiltPosition
+                                )
                             null -> {}
                         }
                     }
@@ -219,7 +225,7 @@ class CoverCard : CardRenderer {
                 e = e,
                 client = ctx.client,
                 theme = ctx.theme,
-                onClose = { showDetail = false },
+                onClose = { showDetail = false }
             )
         }
     }
@@ -232,11 +238,12 @@ private enum class CoverControl { BUTTONS, POSITION, TILT }
 @Composable
 private fun CoverIcon(icon: ImageVector, theme: ThemeColors, size: Dp = 42.dp) {
     Box(
-        modifier = Modifier
+        modifier =
+        Modifier
             .size(size)
             .clip(RoundedCornerShape(12.dp))
             .background(theme.controlBackground),
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = theme.iconTint)
     }
@@ -248,7 +255,7 @@ private fun NameState(
     stateLabel: String,
     theme: ThemeColors,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
-    textAlign: TextAlign = TextAlign.Start,
+    textAlign: TextAlign = TextAlign.Start
 ) {
     Column(horizontalAlignment = horizontalAlignment) {
         Text(
@@ -257,7 +264,7 @@ private fun NameState(
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
-            textAlign = textAlign,
+            textAlign = textAlign
         )
         Text(stateLabel, color = theme.mutedText, fontSize = 13.sp, textAlign = textAlign)
     }
@@ -271,7 +278,7 @@ private fun ControlsRow(
     call: (String) -> Unit,
     theme: ThemeColors,
     modifier: Modifier = Modifier,
-    arrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp),
+    arrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp)
 ) {
     Row(modifier = modifier, horizontalArrangement = arrangement) {
         CircleBtn(MdiIcons.CoverUp, theme, enabled = !isOpen) { call("open_cover") }
@@ -281,20 +288,16 @@ private fun ControlsRow(
 }
 
 @Composable
-private fun CircleBtn(
-    icon: ImageVector,
-    theme: ThemeColors,
-    enabled: Boolean = true,
-    onClick: () -> Unit,
-) {
+private fun CircleBtn(icon: ImageVector, theme: ThemeColors, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
-        modifier = Modifier
+        modifier =
+        Modifier
             .size(44.dp)
             .clip(CircleShape)
             .background(theme.controlBackground)
             .alpha(if (enabled) 1f else 0.35f)
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = theme.iconTint)
     }
@@ -304,12 +307,13 @@ private fun CircleBtn(
 @Composable
 private fun CycleControlButton(theme: ThemeColors, onClick: () -> Unit) {
     Box(
-        modifier = Modifier
+        modifier =
+        Modifier
             .size(36.dp)
             .clip(CircleShape)
             .background(theme.controlBackground)
             .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.Center
     ) {
         Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = theme.iconTint)
     }
@@ -321,20 +325,15 @@ private fun CycleControlButton(theme: ThemeColors, onClick: () -> Unit) {
  * live percentage as a centered label, Mushroom-slider-style.
  */
 @Composable
-private fun PercentSlider(
-    entityId: String,
-    value: Int,
-    color: Color,
-    theme: ThemeColors,
-    onCommit: (Int) -> Unit,
-) {
+private fun PercentSlider(entityId: String, value: Int, color: Color, theme: ThemeColors, onCommit: (Int) -> Unit) {
     // Uses -1f as a sentinel to denote 'no active drag', avoiding Float autoboxing.
     var dragFraction by remember(entityId) { mutableFloatStateOf(-1f) }
     val liveFraction = (value / 100f).coerceIn(0f, 1f)
     val shownFraction = if (dragFraction >= 0f) dragFraction else liveFraction
 
     Box(
-        modifier = Modifier
+        modifier =
+        Modifier
             .fillMaxWidth()
             .height(36.dp)
             .clip(RoundedCornerShape(18.dp))
@@ -347,12 +346,11 @@ private fun PercentSlider(
                         }
                         dragFraction = -1f
                     },
-                    onDragCancel = { dragFraction = -1f },
+                    onDragCancel = { dragFraction = -1f }
                 ) { change, _ ->
                     dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
                 }
-            }
-            .pointerInput(entityId) {
+            }.pointerInput(entityId) {
                 detectTapGestures { offset ->
                     val f = (offset.x / size.width).coerceIn(0f, 1f)
                     dragFraction = f
@@ -360,21 +358,22 @@ private fun PercentSlider(
                     dragFraction = -1f
                 }
             },
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.Center
     ) {
         Box(
-            modifier = Modifier
+            modifier =
+            Modifier
                 .align(Alignment.CenterStart)
                 .fillMaxHeight()
                 .fillMaxWidth(shownFraction.coerceIn(0.02f, 1f))
                 .clip(RoundedCornerShape(18.dp))
-                .background(color),
+                .background(color)
         )
         Text(
             "${(shownFraction * 100).roundToInt()}%",
             color = theme.primaryText,
             fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
@@ -388,15 +387,16 @@ private fun DefaultLayout(
     icon: ImageVector,
     controls: @Composable (fillWidth: Boolean) -> Unit,
     theme: ThemeColors,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier
+        modifier =
+        Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(theme.controlBackground)
+            .background(theme.cardSurface)
             .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().then(modifier)) {
             CoverIcon(icon, theme)
@@ -416,15 +416,16 @@ private fun HorizontalLayout(
     icon: ImageVector,
     controls: @Composable (fillWidth: Boolean) -> Unit,
     theme: ThemeColors,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier =
+        Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(theme.controlBackground)
+            .background(theme.cardSurface)
             .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.then(modifier)) { CoverIcon(icon, theme) }
         Spacer(Modifier.width(12.dp))
@@ -442,15 +443,16 @@ private fun VerticalLayout(
     icon: ImageVector,
     controls: @Composable (fillWidth: Boolean) -> Unit,
     theme: ThemeColors,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier
+        modifier =
+        Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(theme.controlBackground)
+            .background(theme.cardSurface)
             .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().then(modifier)) {
             CoverIcon(icon, theme, size = 48.dp)

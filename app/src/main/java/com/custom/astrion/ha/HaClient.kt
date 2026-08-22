@@ -4,6 +4,11 @@ import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,11 +35,6 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * Minimal, dependency-light Home Assistant WebSocket client.
@@ -61,7 +61,7 @@ class HaClient(
     // e.g. "http://10.0.1.10:8123" or "https://ha.example.com"
     private val baseUrl: String,
     // long-lived access token
-    private val token: String,
+    private val token: String
 ) {
     companion object {
         private const val TAG = "HaClient"
@@ -80,14 +80,16 @@ class HaClient(
     private val idCounter = AtomicInteger(1)
 
     private val http =
-        OkHttpClient.Builder()
+        OkHttpClient
+            .Builder()
             .pingInterval(20, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .build()
 
     // Separate, sanely-timed client for one-shot HTTP GETs (album art).
     private val imageHttp =
-        OkHttpClient.Builder()
+        OkHttpClient
+            .Builder()
             .callTimeout(10, TimeUnit.SECONDS)
             .build()
 
@@ -95,7 +97,8 @@ class HaClient(
     // or read timeout so the never-ending multipart response isn't torn down,
     // but a real connect timeout so a dead HA doesn't hang the reader forever.
     private val streamHttp =
-        OkHttpClient.Builder()
+        OkHttpClient
+            .Builder()
             .connectTimeout(8, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .callTimeout(0, TimeUnit.MILLISECONDS)
@@ -164,6 +167,7 @@ class HaClient(
                 }
                 put("target", target)
             }
+        Log.d(TAG, "callService: ${call.domain}.${call.service} entity=${call.entityId} data=${call.data}")
         send(msg)
     }
 
@@ -178,21 +182,25 @@ class HaClient(
      * `path` may be absolute or an HA-relative path like /api/media_player_proxy/…;
      * the bearer token is attached so proxied/authenticated art loads too.
      */
-    suspend fun fetchBitmap(path: String): ImageBitmap? =
-        withContext(Dispatchers.IO) {
-            try {
-                val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
-                val req = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
-                imageHttp.newCall(req).execute().use { resp ->
-                    if (!resp.isSuccessful) return@withContext null
-                    val bytes = resp.body?.bytes() ?: return@withContext null
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "fetchBitmap failed for $path", e)
-                null
+    suspend fun fetchBitmap(path: String): ImageBitmap? = withContext(Dispatchers.IO) {
+        try {
+            val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
+            val req =
+                Request
+                    .Builder()
+                    .url(url)
+                    .header("Authorization", "Bearer $token")
+                    .build()
+            imageHttp.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext null
+                val bytes = resp.body?.bytes() ?: return@withContext null
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchBitmap failed for $path", e)
+            null
         }
+    }
 
     /**
      * Fetch a URL/HA-relative path as raw bytes, with the bearer token attached.
@@ -200,20 +208,24 @@ class HaClient(
      * body — used to proxy a single camera frame through the config server so
      * the editor preview can show a real still without the HA token.
      */
-    suspend fun fetchBytes(path: String): ByteArray? =
-        withContext(Dispatchers.IO) {
-            try {
-                val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
-                val req = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
-                imageHttp.newCall(req).execute().use { resp ->
-                    if (!resp.isSuccessful) return@withContext null
-                    resp.body?.bytes()
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "fetchBytes failed for $path", e)
-                null
+    suspend fun fetchBytes(path: String): ByteArray? = withContext(Dispatchers.IO) {
+        try {
+            val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
+            val req =
+                Request
+                    .Builder()
+                    .url(url)
+                    .header("Authorization", "Bearer $token")
+                    .build()
+            imageHttp.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext null
+                resp.body?.bytes()
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchBytes failed for $path", e)
+            null
         }
+    }
 
     /**
      * Open an authenticated streaming GET (e.g. HA's MJPEG
@@ -227,7 +239,12 @@ class HaClient(
         if (baseUrl.isBlank()) return null
         return try {
             val url = if (path.startsWith("http")) path else baseUrl.trimEnd('/') + path
-            val req = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
+            val req =
+                Request
+                    .Builder()
+                    .url(url)
+                    .header("Authorization", "Bearer $token")
+                    .build()
             streamHttp.newCall(req).execute()
         } catch (e: Exception) {
             Log.w(TAG, "openStream failed for $path", e)
@@ -240,11 +257,7 @@ class HaClient(
      * command. Returns the `result` object (title + children), or null on timeout.
      * Pass a null contentId/type to browse the root.
      */
-    suspend fun browseMedia(
-        entityId: String,
-        contentId: String? = null,
-        contentType: String? = null,
-    ): JsonObject? {
+    suspend fun browseMedia(entityId: String, contentId: String? = null, contentType: String? = null): JsonObject? {
         val id = idCounter.getAndIncrement()
         val deferred = CompletableDeferred<JsonObject>()
         pending[id] = deferred
@@ -267,10 +280,7 @@ class HaClient(
      * exposes `forecast` as an attribute). Returns the forecast array
      * (each item: datetime, condition, temperature, templow), or null.
      */
-    suspend fun getForecast(
-        entityId: String,
-        forecastType: String = "daily",
-    ): JsonArray? {
+    suspend fun getForecast(entityId: String, forecastType: String = "daily"): JsonArray? {
         val id = idCounter.getAndIncrement()
         val deferred = CompletableDeferred<JsonObject>()
         pending[id] = deferred
@@ -287,24 +297,25 @@ class HaClient(
         send(msg)
         val reply = withTimeoutOrNull(RESPONSE_TIMEOUT) { deferred.await() }
         pending.remove(id)
-        val response = reply?.get("result")?.jsonObject?.get("response")?.jsonObject ?: return null
+        val response =
+            reply
+                ?.get("result")
+                ?.jsonObject
+                ?.get("response")
+                ?.jsonObject ?: return null
         return response[entityId]?.jsonObject?.get("forecast")?.jsonArray
     }
 
     /** Play a specific media item on a player. */
-    fun playMedia(
-        entityId: String,
-        contentId: String,
-        contentType: String,
-    ) {
+    fun playMedia(entityId: String, contentId: String, contentType: String) {
         callService(
             ServiceCall.of(
                 "media_player",
                 "play_media",
                 entityId,
                 "media_content_id" to contentId,
-                "media_content_type" to contentType,
-            ),
+                "media_content_type" to contentType
+            )
         )
     }
 
@@ -312,18 +323,12 @@ class HaClient(
 
     private val listener =
         object : WebSocketListener() {
-            override fun onOpen(
-                webSocket: WebSocket,
-                response: Response,
-            ) {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.i(TAG, "Socket open, waiting for auth_required")
                 _connection.value = ConnectionState.AUTHENTICATING
             }
 
-            override fun onMessage(
-                webSocket: WebSocket,
-                text: String,
-            ) {
+            override fun onMessage(webSocket: WebSocket, text: String) {
                 try {
                     val obj = json.parseToJsonElement(text).jsonObject
                     when (obj["type"]?.jsonPrimitive?.content) {
@@ -345,21 +350,13 @@ class HaClient(
                 }
             }
 
-            override fun onFailure(
-                webSocket: WebSocket,
-                t: Throwable,
-                response: Response?,
-            ) {
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 Log.e(TAG, "Socket failure", t)
                 _connection.value = ConnectionState.ERROR
                 scheduleReconnect()
             }
 
-            override fun onClosed(
-                webSocket: WebSocket,
-                code: Int,
-                reason: String,
-            ) {
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 Log.w(TAG, "Socket closed $code $reason")
                 if (_connection.value != ConnectionState.DISCONNECTED) scheduleReconnect()
             }
@@ -436,7 +433,17 @@ class HaClient(
 
     /** Result of get_states arrives as an array in the `result` field. */
     private fun onResult(obj: JsonObject) {
-        val result = obj["result"]?.jsonArray ?: return
+        // Service-call results have `result: null` or `result: {}` (not an
+        // array) — nothing to seed from, just check success and return.
+        val resultEl = obj["result"] ?: return
+        if (resultEl !is JsonArray) {
+            val success = obj["success"]?.jsonPrimitive?.content
+            if (success == "false") {
+                Log.w(TAG, "Service call failed: ${obj["error"]}")
+            }
+            return
+        }
+        val result = resultEl
         for (el in result) {
             val e = el.jsonObject
             val entityId = e["entity_id"]?.jsonPrimitive?.content ?: continue
@@ -446,7 +453,7 @@ class HaClient(
                     state = e["state"]?.jsonPrimitive?.content ?: "unknown",
                     attributes = e["attributes"]?.jsonObject ?: JsonObject(emptyMap()),
                     lastChanged = e["last_changed"]?.jsonPrimitive?.content,
-                    lastUpdated = e["last_updated"]?.jsonPrimitive?.content,
+                    lastUpdated = e["last_updated"]?.jsonPrimitive?.content
                 )
         }
         // Seed is important — publish immediately so the first frame has data.
@@ -464,7 +471,7 @@ class HaClient(
                 state = newState["state"]?.jsonPrimitive?.content ?: "unknown",
                 attributes = newState["attributes"]?.jsonObject ?: JsonObject(emptyMap()),
                 lastChanged = newState["last_changed"]?.jsonPrimitive?.content,
-                lastUpdated = newState["last_updated"]?.jsonPrimitive?.content,
+                lastUpdated = newState["last_updated"]?.jsonPrimitive?.content
             )
         entitiesDirty = true // published by the coalescing publisher loop
     }

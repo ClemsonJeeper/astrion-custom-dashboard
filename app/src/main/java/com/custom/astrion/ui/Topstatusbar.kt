@@ -36,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -69,32 +68,32 @@ fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
 
     Row(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(30.dp)
-                .padding(horizontal = 14.dp)
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragStart = { dragAccumulated = 0f },
-                        onDragEnd = { dragAccumulated = 0f },
-                        onVerticalDrag = { change, dragAmount ->
-                            change.consume()
-                            dragAccumulated += dragAmount
-                            if (dragAccumulated > triggerPx) {
-                                onSwipeDownToSettings()
-                                dragAccumulated = 0f
-                            }
-                        },
-                    )
-                },
-        verticalAlignment = Alignment.CenterVertically,
+        Modifier
+            .fillMaxWidth()
+            .height(30.dp)
+            .padding(horizontal = 14.dp)
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragStart = { dragAccumulated = 0f },
+                    onDragEnd = { dragAccumulated = 0f },
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        dragAccumulated += dragAmount
+                        if (dragAccumulated > triggerPx) {
+                            onSwipeDownToSettings()
+                            dragAccumulated = 0f
+                        }
+                    }
+                )
+            },
+        verticalAlignment = Alignment.CenterVertically
     ) {
         // Box overlay: clock centered to the full bar width, Wi-Fi and
         // battery absolutely positioned to the edges so their widths don't
         // shift the clock off true center.
         Box(
             modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center,
+            contentAlignment = Alignment.Center
         ) {
             Text(time, color = LocalTheme.current.primaryText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
 
@@ -102,14 +101,14 @@ fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
                 imageVector = if (wifiConnected) Icons.Filled.Wifi else Icons.Filled.WifiOff,
                 contentDescription = null,
                 tint = LocalTheme.current.mutedText,
-                modifier = Modifier.size(16.dp).align(Alignment.CenterStart),
+                modifier = Modifier.size(16.dp).align(Alignment.CenterStart)
             )
 
             Row(
                 modifier = Modifier.align(Alignment.CenterEnd),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                BatteryGlyph(percent = batteryPct, charging = charging)
+                batteryGlyph(percent = batteryPct, charging = charging)
                 Spacer(Modifier.padding(end = 2.dp))
                 Text("$batteryPct%", color = LocalTheme.current.mutedText, fontSize = 12.sp)
             }
@@ -120,10 +119,7 @@ fun TopStatusBar(onSwipeDownToSettings: () -> Unit) {
 /** Simple hand-drawn battery glyph (outline + fill + nub) — avoids depending
  * on the extended Material icon pack, which may not be on the classpath. */
 @Composable
-private fun BatteryGlyph(
-    percent: Int,
-    charging: Boolean,
-) {
+private fun batteryGlyph(percent: Int, charging: Boolean) {
     val theme = LocalTheme.current
     val fillColor =
         when {
@@ -140,19 +136,19 @@ private fun BatteryGlyph(
             color = theme.mutedText,
             topLeft = Offset(0f, 0f),
             size = Size(bodyWidth, size.height),
-            style = Stroke(width = strokeWidth),
+            style = Stroke(width = strokeWidth)
         )
         drawRoundRect(
             color = theme.mutedText,
             topLeft = Offset(bodyWidth + 1.dp.toPx(), size.height * 0.25f),
-            size = Size(nubWidth - 1.dp.toPx(), size.height * 0.5f),
+            size = Size(nubWidth - 1.dp.toPx(), size.height * 0.5f)
         )
         val inset = strokeWidth + 1.dp.toPx()
         val fillWidth = ((bodyWidth - inset * 2) * (percent / 100f)).coerceAtLeast(0f)
         drawRoundRect(
             color = fillColor,
             topLeft = Offset(inset, inset),
-            size = Size(fillWidth, size.height - inset * 2),
+            size = Size(fillWidth, size.height - inset * 2)
         )
     }
 }
@@ -172,7 +168,9 @@ private fun rememberTickingTime(context: Context): String {
 }
 
 private fun formatNow(context: Context): String {
-    val is24 = android.text.format.DateFormat.is24HourFormat(context)
+    val is24 =
+        android.text.format.DateFormat
+            .is24HourFormat(context)
     val pattern = if (is24) "HH:mm" else "h:mm a"
     return SimpleDateFormat(pattern, Locale.getDefault()).format(Date())
 }
@@ -202,15 +200,13 @@ private fun rememberWifiConnected(context: Context): Boolean {
                     connected = hasWifi(null)
                 }
 
-                override fun onCapabilitiesChanged(
-                    network: Network,
-                    capabilities: NetworkCapabilities,
-                ) {
+                override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
                     connected = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
                 }
             }
         val request =
-            NetworkRequest.Builder()
+            NetworkRequest
+                .Builder()
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 .build()
         cm?.registerNetworkCallback(request, callback)
@@ -226,10 +222,7 @@ private fun rememberBatteryState(context: Context): Pair<Int, Boolean> {
     DisposableEffect(Unit) {
         val receiver =
             object : BroadcastReceiver() {
-                override fun onReceive(
-                    ctx: Context?,
-                    intent: Intent?,
-                ) {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
                     if (intent == null) return
                     val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
                     val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)

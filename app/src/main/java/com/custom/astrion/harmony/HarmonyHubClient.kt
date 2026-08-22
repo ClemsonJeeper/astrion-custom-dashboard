@@ -1,6 +1,11 @@
 package com.custom.astrion.harmony
 
 import android.util.Log
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.toJavaDuration
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,11 +25,6 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicInteger
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.toJavaDuration
 
 /** One remote-control command exposed by a [HarmonyDevice] (e.g. "VolumeUp"). */
 data class HarmonyCommand(val name: String, val label: String)
@@ -46,7 +46,9 @@ data class HarmonyConfig(val devices: List<HarmonyDevice>, val activities: List<
  */
 sealed class HarmonyActivityState {
     abstract val activityId: String
+
     data class Starting(override val activityId: String) : HarmonyActivityState()
+
     data class Active(override val activityId: String) : HarmonyActivityState()
 }
 
@@ -65,7 +67,7 @@ class HarmonyHubClient(
     private val hubIp: String,
     private var hubId: String,
     private val onConnected: () -> Unit = {},
-    private val onError: (String) -> Unit = {},
+    private val onError: (String) -> Unit = {}
 ) {
     private companion object {
         const val TAG = "HarmonyHubClient"
@@ -75,7 +77,8 @@ class HarmonyHubClient(
     }
 
     private val client =
-        OkHttpClient.Builder()
+        OkHttpClient
+            .Builder()
             .readTimeout(0.seconds.toJavaDuration())
             .callTimeout(10.seconds.toJavaDuration())
             // Sends a WS ping every 20s — most embedded WS servers (this hub
@@ -136,7 +139,8 @@ class HarmonyHubClient(
         val url = "ws://$hubIp:8088/?domain=svcs.myharmony.com&hubId=$hubId"
         Log.d(TAG, "connect() -> $url")
         val request =
-            Request.Builder()
+            Request
+                .Builder()
                 .url(url)
                 .addHeader("Origin", "http://sl.dhg.myharmony.com")
                 .build()
@@ -145,47 +149,29 @@ class HarmonyHubClient(
             client.newWebSocket(
                 request,
                 object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) {
+                    override fun onOpen(webSocket: WebSocket, response: Response) {
                         Log.d(TAG, "onOpen: handshake HTTP ${response.code}")
                         _connected.value = true
                         onConnected()
                     }
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
+                    override fun onMessage(webSocket: WebSocket, text: String) {
                         Log.d(TAG, "onMessage: $text")
                         routeMessage(text)
                     }
 
-                    override fun onClosing(
-                        webSocket: WebSocket,
-                        code: Int,
-                        reason: String,
-                    ) {
+                    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                         Log.w(TAG, "onClosing: code=$code reason=$reason")
                         _connected.value = false
                     }
 
-                    override fun onClosed(
-                        webSocket: WebSocket,
-                        code: Int,
-                        reason: String,
-                    ) {
+                    override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                         Log.w(TAG, "onClosed: code=$code reason=$reason")
                         _connected.value = false
                         scheduleReconnect()
                     }
 
-                    override fun onFailure(
-                        webSocket: WebSocket,
-                        t: Throwable,
-                        response: Response?,
-                    ) {
+                    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                         val detail =
                             buildString {
                                 append(t.javaClass.simpleName)
@@ -203,7 +189,7 @@ class HarmonyHubClient(
                         onError(detail)
                         scheduleReconnect()
                     }
-                },
+                }
             )
     }
 
@@ -356,10 +342,7 @@ class HarmonyHubClient(
         Log.d(TAG, "send() returned: $sent")
     }
 
-    fun sendCommand(
-        deviceId: String,
-        command: String,
-    ) {
+    fun sendCommand(deviceId: String, command: String) {
         val timestamp = System.currentTimeMillis()
         val action =
             JSONObject().apply {
@@ -378,11 +361,7 @@ class HarmonyHubClient(
         }
     }
 
-    private fun sendHoldAction(
-        status: String,
-        action: JSONObject,
-        timestamp: Long,
-    ) {
+    private fun sendHoldAction(status: String, action: JSONObject, timestamp: Long) {
         val params =
             JSONObject().apply {
                 put("status", status)
@@ -451,11 +430,12 @@ class HarmonyHubClient(
         Log.d(TAG, "getConfig(): $envelope")
         socket.send(envelope.toString())
 
-        val reply = try {
-            withTimeoutOrNull(CONFIG_TIMEOUT) { deferred.await() }
-        } finally {
-            pending.remove(id)
-        }
+        val reply =
+            try {
+                withTimeoutOrNull(CONFIG_TIMEOUT) { deferred.await() }
+            } finally {
+                pending.remove(id)
+            }
 
         if (reply == null) {
             Log.w(TAG, "getConfig() timed out")
@@ -499,7 +479,7 @@ class HarmonyHubClient(
                     HarmonyDevice(
                         id = d.optString("id"),
                         label = d.optString("label", d.optString("name", d.optString("id"))),
-                        commands = commands,
+                        commands = commands
                     )
                 }
             }
@@ -510,7 +490,7 @@ class HarmonyHubClient(
                     val a = arr.getJSONObject(i)
                     HarmonyActivity(
                         id = a.optString("id"),
-                        label = a.optString("label", a.optString("name", a.optString("id"))),
+                        label = a.optString("label", a.optString("name", a.optString("id")))
                     )
                 }
             }

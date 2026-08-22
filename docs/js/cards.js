@@ -155,13 +155,18 @@ function updateCardFormInputs() {
       <select id="optFanStyle">
         <option value="auto">Auto (detect from entity)</option>
         <option value="simple">Simple (percentage tile)</option>
+        <option value="step">Step (increase/decrease fan speed)</option>
         <option value="full">Full (presets + oscillate)</option>
       </select>
       <label>Preset modes override (optional, comma-separated, in display order — normally read from the entity)</label><input type="text" id="optFanPresetModes" placeholder="Level 1,Level 2,Level 3,Level 4">
-      <label>Percentage step (simple layout / no-preset fallback)</label><input type="number" id="optFanStep" value="20" min="1" max="100">
+      <div id="fanStepWrap">
+        <label>Percentage step (simple/full layouts)</label><input type="number" id="optFanStep" value="20" min="1" max="100">
+      </div>
       <label><input type="checkbox" id="optFanShowCaptions" checked> Show captions ("Preset"/"Oscillate") above chip rows</label>
-      <div class="hint">"Auto" shows the full layout (power button, presets, oscillate toggle) whenever the entity reports preset_modes or an oscillating attribute; otherwise it falls back to the simple percentage tile. Force one or the other with Layout above.</div>
+      <div class="hint">"Auto" shows the full layout (power button, presets, oscillate toggle) whenever the entity reports preset_modes or an oscillating attribute; otherwise it falls back to the simple percentage tile. "Step" uses HA's increase/decrease speed services. Force one with Layout above.</div>
     `;
+    document.getElementById('optFanStyle').addEventListener('change', updateFanStepVisibility);
+    updateFanStepVisibility();
   } else if (type === 'climate') {
     container.innerHTML = `
       <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room AC">
@@ -277,6 +282,12 @@ function updateCardFormInputs() {
         <button type="button" class="secondary" onclick="addVacuumRoom()">+ Add room to this card</button>
       </div>
       <div class="hint">Add every room, then click "Add card to page" once below. The vacuum's state ("Cleaning", "Docked"...) is translated automatically via assets/ha_labels/&lt;lang&gt;.json.</div>
+
+      <label style="margin-top:10px">Room-clean service (optional — defaults to Roborock/Xiaomi's <code>vacuum.send_command</code>)</label>
+      <input type="text" id="optRoomCleanDomain" placeholder="Domain, e.g. dreame_vacuum">
+      <input type="text" id="optRoomCleanService" placeholder="Service, e.g. vacuum_clean_segment" style="margin-top:6px">
+      <input type="text" id="optRoomCleanParameter" placeholder="Field for the room ID, e.g. segments" style="margin-top:6px">
+      <div class="hint">Only needed if your vacuum's HA integration doesn't understand <code>app_segment_clean</code> — e.g. Dreame uses its own <code>dreame_vacuum.vacuum_clean_segment</code> service with a <code>segments</code> field instead. Leave all three blank to keep the default. Fill in all three together, or none.</div>
     `;
     window._pendingVacuumRooms = window._pendingVacuumRooms || [];
     renderVacuumRoomsList();
@@ -319,6 +330,16 @@ function updateMediaTopButtonsVisibility() {
   const field = document.getElementById('mediaTopButtonsField');
   if (!variantEl || !field) return;
   field.style.display = variantEl.value === 'full' ? '' : 'none';
+}
+
+// fan card: percentage step only applies to simple/full layouts — the
+// "step" style uses HA's increase_speed/decrease_speed services, so there's
+// no numeric step to configure.
+function updateFanStepVisibility() {
+  const styleEl = document.getElementById('optFanStyle');
+  const wrap = document.getElementById('fanStepWrap');
+  if (!styleEl || !wrap) return;
+  wrap.style.display = styleEl.value === 'step' ? 'none' : '';
 }
 
 let editingGridItem = null; // index of the button/scene being edited within _pendingGridItems, or null
@@ -704,9 +725,10 @@ function fillCardForm(card) {
   } else if (type === 'fan') {
     document.getElementById('optName').value = o.name || '';
     document.getElementById('optEntityId').value = o.entity_id || '';
-    document.getElementById('optFanStyle').value = ['simple', 'full'].includes(o.style) ? o.style : 'auto';
+    document.getElementById('optFanStyle').value = ['simple', 'step', 'full'].includes(o.style) ? o.style : 'auto';
     document.getElementById('optFanPresetModes').value = (o.preset_modes || []).join(',');
     document.getElementById('optFanStep').value = o.step ?? 20;
+    updateFanStepVisibility();
     document.getElementById('optFanShowCaptions').checked = o.show_captions !== false;
   } else if (type === 'climate') {
     document.getElementById('optName').value = o.name || '';
@@ -743,6 +765,10 @@ function fillCardForm(card) {
     document.getElementById('optMapHeight').value = o.map_height ?? 200;
     window._pendingVacuumRooms = JSON.parse(JSON.stringify(o.rooms || []));
     renderVacuumRoomsList();
+    const rca = o.room_clean_action || {};
+    document.getElementById('optRoomCleanDomain').value = rca.domain || '';
+    document.getElementById('optRoomCleanService').value = rca.service || '';
+    document.getElementById('optRoomCleanParameter').value = rca.parameter || '';
   } else {
     const customField = document.getElementById('optCustomType');
     if (customField) customField.value = type;
@@ -950,6 +976,16 @@ function addCardToPage() {
     newCard.options.map_height = isNaN(mapHeight) ? 200 : mapHeight;
     newCard.options.rooms = window._pendingVacuumRooms || [];
     window._pendingVacuumRooms = [];
+    const rcaDomain = document.getElementById('optRoomCleanDomain').value.trim();
+    const rcaService = document.getElementById('optRoomCleanService').value.trim();
+    const rcaParameter = document.getElementById('optRoomCleanParameter').value.trim();
+    if (rcaDomain || rcaService || rcaParameter) {
+      if (!rcaDomain || !rcaService || !rcaParameter) {
+        alert('Fill in all three room-clean service fields (domain, service, and field name), or leave all three blank.');
+        return;
+      }
+      newCard.options.room_clean_action = { domain: rcaDomain, service: rcaService, parameter: rcaParameter };
+    }
   } else {
     if (type === 'custom') newCard.type = document.getElementById('optCustomType').value.trim() || 'custom';
     try {
