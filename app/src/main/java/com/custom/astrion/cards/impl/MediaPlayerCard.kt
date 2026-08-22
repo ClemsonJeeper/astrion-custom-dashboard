@@ -245,7 +245,7 @@ class MediaPlayerCard : CardRenderer {
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
-                .background(theme.controlBackground)
+                .background(theme.cardSurface)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
