@@ -27,7 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -154,7 +153,7 @@ class SceneGridCard : CardRenderer {
                         showLabel = showLabels,
                         iconFill = iconFill,
                         tileHeight = tileHeight,
-                        modifier = Modifier.width(104.dp),
+                        modifier = Modifier.width(104.dp)
                     ) { onTap(scene) }
                 }
             }
@@ -171,7 +170,7 @@ class SceneGridCard : CardRenderer {
                                 showLabel = showLabels,
                                 iconFill = iconFill,
                                 tileHeight = tileHeight,
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f)
                             ) { onTap(scene) }
                         }
                         repeat(columns - chunk.size) { Spacer(Modifier.weight(1f)) }
@@ -211,7 +210,6 @@ class SceneGridCard : CardRenderer {
                 }
             }
 
-        if (hasIcon) {
         if (hasIcon) {
             if (iconFill && bitmap != null && !showLabel) {
                 Box(
@@ -261,35 +259,6 @@ class SceneGridCard : CardRenderer {
                             fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.Center,
                             maxLines = 1
-                        )
-                    }
-                }
-            }
-        } else {
-                Column(
-                    modifier = modifier
-                        .height(tileHeight.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(color)
-                        .clickable(onClick = onClick)
-                        .padding(6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    if (bitmap != null) {
-                        Image(bitmap = bitmap, contentDescription = name, modifier = Modifier.size(28.dp))
-                    } else {
-                        Spacer(Modifier.size(28.dp))
-                    }
-                    if (showLabel) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = name,
-                            color = textColor,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
                         )
                     }
                 }
