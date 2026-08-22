@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -151,8 +152,7 @@ class SceneGridCard : CardRenderer {
                         iconPath = iconOf(scene),
                         hasIcon = hasIcon,
                         showLabel = showLabels,
-                        iconFill = iconFill,
-                        tileHeight = tileHeight,
+                        layout = TileLayout(iconFill, tileHeight),
                         modifier = Modifier.width(104.dp)
                     ) { onTap(scene) }
                 }
@@ -168,8 +168,7 @@ class SceneGridCard : CardRenderer {
                                 iconPath = iconOf(scene),
                                 hasIcon = hasIcon,
                                 showLabel = showLabels,
-                                iconFill = iconFill,
-                                tileHeight = tileHeight,
+                                layout = TileLayout(iconFill, tileHeight),
                                 modifier = Modifier.weight(1f)
                             ) { onTap(scene) }
                         }
@@ -187,6 +186,11 @@ class SceneGridCard : CardRenderer {
 
     private fun luminance(c: Color): Float = 0.2126f * c.red + 0.7152f * c.green + 0.0722f * c.blue
 
+    /** [SceneButton]'s icon-fill layout knobs, bundled into one parameter so
+     * adding this feature didn't push the function over detekt's parameter-
+     * count threshold. */
+    private data class TileLayout(val iconFill: Boolean, val tileHeight: Int)
+
     @Composable
     private fun SceneButton(
         name: String,
@@ -194,8 +198,7 @@ class SceneGridCard : CardRenderer {
         iconPath: String?,
         hasIcon: Boolean,
         showLabel: Boolean,
-        iconFill: Boolean,
-        tileHeight: Int,
+        layout: TileLayout,
         modifier: Modifier,
         onClick: () -> Unit
     ) {
@@ -211,24 +214,8 @@ class SceneGridCard : CardRenderer {
             }
 
         if (hasIcon) {
-            if (iconFill && bitmap != null && !showLabel) {
-                Box(
-                    modifier =
-                    modifier
-                        .height(tileHeight.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(color)
-                        .clickable(onClick = onClick)
-                        .padding(6.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        bitmap = bitmap,
-                        contentDescription = name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.FillHeight
-                    )
-                }
+            if (layout.iconFill && bitmap != null && !showLabel) {
+                FillIconTile(bitmap, name, layout.tileHeight, color, modifier, onClick)
             } else {
                 // Every tile in the grid uses this branch once any one of them has
                 // an icon, even tiles with no icon of their own — a blank 28dp
@@ -237,7 +224,7 @@ class SceneGridCard : CardRenderer {
                 Column(
                     modifier =
                     modifier
-                        .height(tileHeight.dp)
+                        .height(layout.tileHeight.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(color)
                         .clickable(onClick = onClick)
@@ -282,6 +269,38 @@ class SceneGridCard : CardRenderer {
                     textAlign = TextAlign.Center
                 )
             }
+        }
+    }
+
+    /** The `layout.iconFill` branch of [SceneButton], split out purely to
+     * keep that function under detekt's line-count threshold — behavior
+     * unchanged. Only reached when there's a real [bitmap] and no label
+     * (see the caller), so both are non-null/false by the time this runs. */
+    @Composable
+    private fun FillIconTile(
+        bitmap: ImageBitmap,
+        name: String,
+        tileHeight: Int,
+        color: Color,
+        modifier: Modifier,
+        onClick: () -> Unit
+    ) {
+        Box(
+            modifier =
+            modifier
+                .height(tileHeight.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(color)
+                .clickable(onClick = onClick)
+                .padding(6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.FillHeight
+            )
         }
     }
 }
