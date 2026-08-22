@@ -295,6 +295,7 @@ function updateCardFormInputs() {
   // + HA connected); otherwise the inputs stay plain text fields.
   const mainDomain = type === 'clock_weather' ? 'weather'
     : type === 'source_select' ? null
+    : type === 'select' ? ['select', 'input_select']
     : type;
   ['optEntityId', 'optRemoteEntity', 'optMediaEntity', 'optMuteEntity',
     'optCalendarEntity', 'optMapImage', 'giEntityId'].forEach(id => {

@@ -50,14 +50,16 @@ function haAttrStr(entityId, key) {
 //
 // `domain` filters candidates to entity_ids starting with "<domain>." — pass
 // null to offer every entity (used by scene_grid/button_grid where the entity
-// can be scene.*, script.*, media_player.*, …).
+// can be scene.*, script.*, media_player.*, …). Pass an array of strings to
+// match multiple domains (e.g. ['select', 'input_select'] for the select card).
 
 function attachEntityAutocomplete(inputEl, domain) {
   if (!inputEl || !haStates) return;
 
-  const prefix = domain ? domain + '.' : '';
+  const domains = Array.isArray(domain) ? domain : (domain ? [domain] : null);
+  const prefixes = domains ? domains.map(d => d + '.') : null;
   const items = Object.keys(haStates)
-    .filter(id => !prefix || id.startsWith(prefix))
+    .filter(id => !prefixes || prefixes.some(p => id.startsWith(p)))
     .map(id => ({
       id,
       name: haStates[id].friendly_name || id,

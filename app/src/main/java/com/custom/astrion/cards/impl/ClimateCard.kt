@@ -146,8 +146,8 @@ class ClimateCard : CardRenderer {
         // deadband intact. HA's set_temperature service accepts
         // target_temp_high/target_temp_low for range mode.
         fun shiftRange(delta: Double) {
-            val lo = (targetLow!! + delta).coerceIn(minT ?: targetLow, maxT ?: targetLow)
-            val hi = (targetHigh!! + delta).coerceIn(minT ?: targetHigh, maxT ?: targetHigh)
+            val lo = (targetLow!! + delta).coerceIn(minT ?: Double.NEGATIVE_INFINITY, maxT ?: Double.POSITIVE_INFINITY)
+            val hi = (targetHigh!! + delta).coerceIn(minT ?: Double.NEGATIVE_INFINITY, maxT ?: Double.POSITIVE_INFINITY)
             ctx.client.callService(
                 ServiceCall.of("climate", "set_temperature", entityId,
                     "target_temp_low" to lo, "target_temp_high" to hi),
