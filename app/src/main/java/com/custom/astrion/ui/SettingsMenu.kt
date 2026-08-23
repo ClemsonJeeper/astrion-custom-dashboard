@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.SettingsSuggest
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Icon
@@ -27,11 +28,13 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,8 +48,12 @@ import androidx.compose.ui.unit.sp
 import com.custom.astrion.R
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.ha.ConnectionState
+import com.custom.astrion.update.UpdateChecker
 import java.net.Inet4Address
 import java.net.NetworkInterface
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Settings panel in the style of HaRemote (their SettingActivity /
@@ -65,6 +72,19 @@ import java.net.NetworkInterface
 fun SettingsMenu(ctx: CardContext) {
     val context = LocalContext.current
     val activity = context as? Activity
+    val scope = rememberCoroutineScope()
+    var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
+
+    // Checked once each time the Settings panel is opened — not on a
+    // background timer, to avoid polling GitHub while the app just sits on
+    // the dashboard. Always compares against the official /releases/latest,
+    // so this never fires for a newer beta build, only a newer official one.
+    LaunchedEffect(Unit) {
+        val result = withContext(Dispatchers.IO) { UpdateChecker.checkForUpdate() }
+        if (result is UpdateChecker.CheckResult.Available) {
+            updateInfo = result.info
+        }
+    }
 
     Column(
         modifier =
@@ -81,6 +101,19 @@ fun SettingsMenu(ctx: CardContext) {
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold
         )
+
+        updateInfo?.let { info ->
+            SettingRow(icon = Icons.Filled.SystemUpdate, label = "Mise à jour disponible : v${info.version}") {
+                scope.launch(Dispatchers.IO) {
+                    val file = UpdateChecker.download(context, info.apkUrl)
+                    if (file != null) {
+                        withContext(Dispatchers.Main) {
+                            UpdateChecker.promptInstall(context, file)
+                        }
+                    }
+                }
+            }
+        }
 
         localIpAddress()?.let { ip ->
             Text(

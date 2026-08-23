@@ -3,15 +3,18 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.0.2] - 2026-08-xx
+## [1.0.2] - 2026-08-23
 
 ### Added
 
-- **Bêta locale (`dev-latest`).** New `push-beta.ps1` script publishes the current debug build straight from a local Android Studio build to a rolling GitHub pre-release (`dev-latest`), alongside pushing `dev` — no CI involved, avoids the debug-keystore instability a fresh CI runner would introduce between builds. `app/build.gradle.kts`'s `debug` build type now applies `applicationIdSuffix = ".debug"` and `versionNameSuffix = "-beta"`, so the beta installs as a separate app (`com.custom.astrion.debug`) alongside the official release — no signature conflict, no need to uninstall either one to test the other. New toggle switch in the web editor (`docs/index.html`, both on GitHub Pages and the device's own `/builder/`) shows the latest beta version and a direct APK download link, fetched live from the `dev-latest` release via the GitHub API.
+- **Bêta locale (`dev-latest`).** New `push-beta.ps1` script publishes the current debug build straight from a local Android Studio build to a rolling GitHub pre-release (`dev-latest`), alongside pushing `dev` — no CI involved, avoids the debug-keystore instability a fresh CI runner would introduce between builds. `app/build.gradle.kts`'s `debug` build type now applies `applicationIdSuffix = ".debug"` and `versionNameSuffix = "-beta"`, so the beta installs as a separate app (`com.custom.astrion.debug`) alongside the official release — no signature conflict, no need to uninstall either one to test the other. New toggle switch in the web editor (`docs/index.html`, both on GitHub Pages and the device's own `/builder/`) shows both the current official release and, when switched on, the latest beta version, each with a direct APK download link fetched live from GitHub.
+- **In-app update indicator.** `SettingsMenu` now checks GitHub Releases each time the Settings panel is opened and shows a tappable "Update available" row when a newer official build exists — downloads and launches the system installer directly, no browser needed. Always compares against `/releases/latest` (never pre-releases), so this only ever notifies about official releases, on both official and beta installs.
 
 ### Fixed
 
 - **Hotkey `openOverlay` / `openCurrentActivityRoom` silently ignored.** `DashboardLoader.parseHotkey()` never read these two fields from `dashboard.json`, so any hotkey configured with `openOverlay: "settings"`, `openOverlay: "activities"`, or `openCurrentActivityRoom: "<room>"` loaded with both fields `null` — the physical button did nothing, neither opening the overlay nor jumping to the active Activity's page, even though the web editor generated valid JSON for both. `encodeHotkeys()` had the same gap on the write side. Both fields are now parsed and re-encoded like every other `HotkeyConfig` field.
+- **"Hotkeys active on this page" badge showed nothing for `openOverlay`/`openCurrentActivityRoom` hotkeys.** `preview.js`'s `renderPreview()` used its own local `describe()`, never updated for these two actions, instead of `hotkeys.js`'s `describeHotkey()`. The JSON was already correct — only the badge's text was blank.
+- **`UpdateChecker.isNewer()` false-positive on beta builds.** The `-beta` suffix added by `versionNameSuffix` broke the numeric version comparison (`"1.0.3-beta"` → the `3` was silently dropped, comparing as `1.0` instead of `1.0.3`), causing the update checker to report "update available" almost constantly on beta installs even when already up to date or ahead. Now strips any `-suffix` before comparing.
 
 ## [1.0.0] - 2026-08-22
 
