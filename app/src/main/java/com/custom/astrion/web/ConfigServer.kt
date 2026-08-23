@@ -500,23 +500,50 @@ class ConfigServer(
     // ---- inline icons (no external requests — this page must work with zero
     // internet access beyond the optional Google Fonts, which degrade gracefully) --
 
-    private fun svgWifi() =
-        """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.5a17 17 0 0 1 20 0"/><path d="M5.5 12.5a12 12 0 0 1 13 0"/><path d="M9 16.5a7 7 0 0 1 6 0"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/></svg>"""
+    private fun svgWifi() = """
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M2 8.5a17 17 0 0 1 20 0"/>
+      <path d="M5.5 12.5a12 12 0 0 1 13 0"/>
+      <path d="M9 16.5a7 7 0 0 1 6 0"/>
+      <circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/>
+    </svg>
+    """.trimIndent()
 
-    private fun svgRemote() =
-        """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="7" r="1.4" fill="currentColor" stroke="none"/><path d="M9.5 12h5M9.5 15.5h5M9.5 19h2"/></svg>"""
+    private fun svgRemote() = """
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="7" y="2" width="10" height="20" rx="3"/>
+      <circle cx="12" cy="7" r="1.4" fill="currentColor" stroke="none"/>
+      <path d="M9.5 12h5M9.5 15.5h5M9.5 19h2"/>
+    </svg>
+    """.trimIndent()
 
-    private fun svgWand() =
-        """<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 16 8"/><path d="M14.5 9.5 18 6"/><path d="M19 4v2M22 5h-2M4 3v2M3 4h2M19.5 15v2M20.5 16h-2"/></svg>"""
+    private fun svgWand() = """
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 20 16 8"/>
+      <path d="M14.5 9.5 18 6"/>
+      <path d="M19 4v2M22 5h-2M4 3v2M3 4h2M19.5 15v2M20.5 16h-2"/>
+    </svg>
+    """.trimIndent()
 
-    private fun svgDownload() =
-        """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>"""
+    private fun svgDownload() = """
+    <svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>
+    </svg>
+    """.trimIndent()
 
-    private fun svgUpload() =
-        """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V8M7 13l5-5 5 5M4 4h16"/></svg>"""
+    private fun svgUpload() = """
+    <svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 20V8M7 13l5-5 5 5M4 4h16"/>
+    </svg>
+    """.trimIndent()
 
-    private fun svgImage() =
-        """<svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.4" fill="currentColor" stroke="none"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg>"""
+    private fun svgImage() = """
+    <svg class="icon" style="width:13px;height:13px;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2"/>
+      <circle cx="8.5" cy="9.5" r="1.4" fill="currentColor" stroke="none"/>
+      <path d="m4 17 5-5 4 4 3-3 4 4"/>
+    </svg>
+    """.trimIndent()
 
     /** One repeatable hub row — also used (with blank values) as the JS `+` template. */
     private fun hubRowHtml(hub: HarmonyHubConfig): String {

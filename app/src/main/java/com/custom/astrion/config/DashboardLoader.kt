@@ -168,6 +168,8 @@ object DashboardLoader {
         val track = obj["track"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
         val room = obj["room"]?.jsonPrimitive?.content
         val devices = obj["devices"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+        val openOverlay = obj["openOverlay"]?.jsonPrimitive?.content
+        val openCurrentActivityRoom = obj["openCurrentActivityRoom"]?.jsonPrimitive?.content
         return HotkeyConfig(
             key,
             page,
@@ -182,7 +184,9 @@ object DashboardLoader {
             irCommand,
             track,
             room,
-            devices
+            devices,
+            openOverlay,
+            openCurrentActivityRoom
         )
     }
 
@@ -408,6 +412,8 @@ object DashboardLoader {
                     if (hk.track) put("track", true)
                     hk.room?.let { put("room", it) }
                     if (hk.devices.isNotEmpty()) put("devices", buildJsonArray { hk.devices.forEach { add(JsonPrimitive(it)) } })
+                    hk.openOverlay?.let { put("openOverlay", it) }
+                    hk.openCurrentActivityRoom?.let { put("openCurrentActivityRoom", it) }
                 }
             )
         }
