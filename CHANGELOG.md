@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.1] - 2026-08-xx
+
+### Fixed
+
+- **Hotkey `openOverlay` / `openCurrentActivityRoom` silently ignored.** `DashboardLoader.parseHotkey()` never read these two fields from `dashboard.json`, so any hotkey configured with `openOverlay: "settings"`, `openOverlay: "activities"`, or `openCurrentActivityRoom: "<room>"` loaded with both fields `null` — the physical button did nothing, neither opening the overlay nor jumping to the active Activity's page, even though the web editor generated valid JSON for both. `encodeHotkeys()` had the same gap on the write side. Both fields are now parsed and re-encoded like every other `HotkeyConfig` field.
+
 ## [1.0.0] - 2026-08-22
 
 ### Added
