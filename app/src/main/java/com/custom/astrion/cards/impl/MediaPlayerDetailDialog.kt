@@ -2,7 +2,6 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +45,7 @@ import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.icons.MdiIcons
+import com.custom.astrion.ui.tapClickable
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -180,7 +180,7 @@ fun MediaPlayerDetailDialog(
                         .size(44.dp)
                         .clip(CircleShape)
                         .background(if (on) theme.accentSecondary else theme.controlBackground)
-                        .clickable { mp(if (on) "turn_off" else "turn_on") },
+                        .tapClickable { mp(if (on) "turn_off" else "turn_on") },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(MdiIcons.Power, contentDescription = "Toggle", tint = Color.White)
@@ -277,7 +277,7 @@ private fun Circle(icon: ImageVector, size: androidx.compose.ui.unit.Dp, theme: 
             .size(size)
             .clip(CircleShape)
             .background(if (accent) theme.accentSecondary else theme.controlBackground)
-            .clickable(onClick = onClick),
+            .tapClickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = Color.White)

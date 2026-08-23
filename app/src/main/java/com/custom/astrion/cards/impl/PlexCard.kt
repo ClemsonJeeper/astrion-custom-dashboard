@@ -3,7 +3,6 @@ package com.custom.astrion.cards.impl
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +36,7 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ThemeColors
+import com.custom.astrion.ui.tapClickable
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
@@ -208,7 +208,7 @@ class PlexCard : CardRenderer {
             modifier =
             Modifier
                 .width(104.dp)
-                .clickable(onClick = onClick)
+                .tapClickable(onClick = onClick)
         ) {
             val posterUrl =
                 item.thumb?.let {

@@ -1,7 +1,6 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +46,7 @@ import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.icons.MdiIcons
+import com.custom.astrion.ui.tapClickable
 import kotlin.math.roundToInt
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
@@ -347,7 +347,7 @@ private fun CycleControlButton(theme: ThemeColors, onClick: () -> Unit) {
             .size(36.dp)
             .clip(CircleShape)
             .background(theme.controlBackground)
-            .clickable(onClick = onClick),
+            .tapClickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = theme.iconTint)
@@ -488,7 +488,7 @@ private fun ColorSwatchRow(onPick: (Int, Int, Int) -> Unit) {
                     .size(28.dp)
                     .clip(CircleShape)
                     .background(Color(r, g, b))
-                    .clickable { onPick(r, g, b) }
+                    .tapClickable { onPick(r, g, b) }
             )
         }
     }

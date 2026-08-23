@@ -1,7 +1,6 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +40,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.tapClickable
 
 /**
  * Generic picker for any `input_select.*` or `select.*` entity — an
@@ -185,7 +185,7 @@ private fun SelectMenuControl(current: String?, options: List<String>, fillWidth
                 .height(36.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .background(Color(0xFF152B33))
-                .clickable(enabled = options.isNotEmpty()) { expanded = true }
+                .tapClickable(enabled = options.isNotEmpty()) { expanded = true }
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween

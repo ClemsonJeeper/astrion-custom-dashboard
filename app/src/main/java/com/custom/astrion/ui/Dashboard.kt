@@ -2,10 +2,10 @@ package com.custom.astrion.ui
 
 import android.content.Context
 import android.hardware.ConsumerIrManager
+import android.media.AudioManager
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
@@ -107,6 +108,12 @@ fun Dashboard(
     setWakeOnMotionEnabled: (Boolean) -> Unit = {},
     configServerEnabled: Boolean = true,
     setConfigServerEnabled: (Boolean) -> Unit = {},
+    /** Whether tappable elements play the same "tap" sound the device's own
+     * Android UI menus do. Provided to descendants via [LocalTapFeedback] so a
+     * single toggle gates every [Modifier.tapClickable] in the dashboard
+     * without each card reading the preference itself. */
+    tapFeedbackEnabled: Boolean = true,
+    setTapFeedbackEnabled: (Boolean) -> Unit = {},
     /** Fired once per [ActivityRuntime] instance (i.e. once per config
      * load) so MainActivity can hold a live reference for ConfigServer's
      * `/activities*` routes — ActivityRuntime is created here, inside
@@ -127,7 +134,26 @@ fun Dashboard(
     }
     val connection by connectionState
     val theme = remember(config.theme) { config.theme.toColors() }
+
+    // The tap-feedback lambda fired by every Modifier.tapClickable below.
+    // Plays the system touch sound (Effect_Tick.ogg) via
+    // AudioManager.playSoundEffect — the same sound native Android UI menus
+    // play on touch. Compose's clickable doesn't call this by default, so
+    // we fire it ourselves. Gated by tapFeedbackEnabled so the settings
+    // switch silences it app-wide.
+    val feedbackContext = LocalContext.current
+    val tapFeedback: () -> Unit = remember(feedbackContext, tapFeedbackEnabled) {
+        if (tapFeedbackEnabled) {
+            {
+                val am = feedbackContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                am?.playSoundEffect(AudioManager.FX_KEY_CLICK)
+            }
+        } else {
+            {}
+        }
+    }
     ProvideTheme(theme) {
+        CompositionLocalProvider(LocalTapFeedback provides tapFeedback) {
         // Status dot reflects the first configured hub — good enough for a single
         // glance indicator; a per-hub breakdown isn't worth the UI space here.
         val harmonyConnected by (harmonyRegistry.client()?.connected ?: remember { MutableStateFlow(false) }).collectAsState()
@@ -333,6 +359,8 @@ fun Dashboard(
                 setWakeOnMotionEnabled = setWakeOnMotionEnabled,
                 configServerEnabled = configServerEnabled,
                 setConfigServerEnabled = setConfigServerEnabled,
+                tapFeedbackEnabled = tapFeedbackEnabled,
+                setTapFeedbackEnabled = setTapFeedbackEnabled,
                 harmonyConnected = harmonyConnected,
                 irDevices = irDevicesById,
                 sendIrCommand = ::sendIrCommand,
@@ -428,6 +456,7 @@ fun Dashboard(
                 )
             }
         }
+        }
     }
 }
 
@@ -463,7 +492,7 @@ private fun SettingsOverlay(ctx: CardContext, onClose: () -> Unit) {
                     modifier =
                     Modifier
                         .clip(RoundedCornerShape(10.dp))
-                        .clickable { onClose() }
+                        .tapClickable { onClose() }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
@@ -541,7 +570,7 @@ private fun ActivitiesOverlay(
                     modifier =
                     Modifier
                         .clip(RoundedCornerShape(10.dp))
-                        .clickable { onClose() }
+                        .tapClickable { onClose() }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
@@ -575,7 +604,7 @@ private fun ActivitiesOverlay(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
                             .background(LocalTheme.current.insetSurface)
-                            .clickable(enabled = activity.page != null) {
+                            .tapClickable(enabled = activity.page != null) {
                                 activity.page?.let {
                                     ctx.navigateToPage(it)
                                     onClose()
@@ -599,7 +628,7 @@ private fun ActivitiesOverlay(
                             modifier =
                             Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { onStop(room) }
+                                .tapClickable { onStop(room) }
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
@@ -763,7 +792,7 @@ private fun PageIndicator(
                 modifier =
                 Modifier
                     .clip(RoundedCornerShape(10.dp))
-                    .clickable { onNavigateToParent() }
+                    .tapClickable { onNavigateToParent() }
                     .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
                     .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -800,7 +829,7 @@ private fun PageIndicator(
                         .size(if (active) 10.dp else 8.dp)
                         .clip(CircleShape)
                         .background(if (active) LocalTheme.current.accent else LocalTheme.current.controlBackground)
-                        .clickable { onDotClick(sibling.index) }
+                        .tapClickable { onDotClick(sibling.index) }
                 )
             }
             if (windowEnd < siblings.lastIndex) EdgeEllipsis()
