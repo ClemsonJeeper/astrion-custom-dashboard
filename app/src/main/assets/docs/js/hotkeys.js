@@ -1,5 +1,24 @@
 // ---- Hotkeys --------------------------------------------------------------
 
+async function toggleBetaBadge() {
+  const on = document.getElementById('betaToggle').checked;
+  const badge = document.getElementById('betaBadge');
+  if (!on) { badge.style.display = 'none'; return; }
+  badge.textContent = 'Chargement…';
+  badge.style.display = 'inline-block';
+  try {
+    const res = await fetch('https://api.github.com/repos/dckiller51/astrion-custom-dashboard/releases/tags/dev-latest');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const asset = (data.assets || []).find(a => a.name.endsWith('.apk'));
+    badge.innerHTML = `🧪 ${data.name || data.tag_name}` +
+      (asset ? ` — <a href="${asset.browser_download_url}">télécharger l'APK</a>` : '');
+  } catch (e) {
+    badge.textContent = 'Bêta indisponible';
+    console.log('Beta release fetch failed', e);
+  }
+}
+
 function updateHotkeyActionInputs() {
   const action = document.getElementById('hkAction').value;
   const container = document.getElementById('dynamicHotkeyInputs');

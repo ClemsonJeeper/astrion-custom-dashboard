@@ -3,7 +3,11 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.0.1] - 2026-08-xx
+## [1.0.2] - 2026-08-xx
+
+### Added
+
+- **Bêta locale (`dev-latest`).** New `push-beta.ps1` script publishes the current debug build straight from a local Android Studio build to a rolling GitHub pre-release (`dev-latest`), alongside pushing `dev` — no CI involved, avoids the debug-keystore instability a fresh CI runner would introduce between builds. `app/build.gradle.kts`'s `debug` build type now applies `applicationIdSuffix = ".debug"` and `versionNameSuffix = "-beta"`, so the beta installs as a separate app (`com.custom.astrion.debug`) alongside the official release — no signature conflict, no need to uninstall either one to test the other. New toggle switch in the web editor (`docs/index.html`, both on GitHub Pages and the device's own `/builder/`) shows the latest beta version and a direct APK download link, fetched live from the `dev-latest` release via the GitHub API.
 
 ### Fixed
 
