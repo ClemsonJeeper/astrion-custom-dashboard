@@ -12,6 +12,15 @@
 <div class="subtitle">Build your dashboard visually, no hand-written JSON required. Matches the exact schema the app reads.</div>
 <div id="deviceModeBanner" class="note" style="display:none"></div>
 
+<div class="beta-toggle-row" style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+  <label class="beta-switch">
+    <input type="checkbox" id="betaToggle" onchange="toggleBetaBadge()">
+    <span class="beta-slider"></span>
+  </label>
+  <span>Version bêta (dev)</span>
+  <span id="betaBadge" style="display:none"></span>
+</div>
+
 <div class="layout">
   <!-- LEFT PANE -->
   <div class="editor-pane">
