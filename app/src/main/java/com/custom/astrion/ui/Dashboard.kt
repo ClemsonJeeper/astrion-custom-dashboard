@@ -107,6 +107,13 @@ fun Dashboard(
     setWakeOnMotionEnabled: (Boolean) -> Unit = {},
     configServerEnabled: Boolean = true,
     setConfigServerEnabled: (Boolean) -> Unit = {},
+    /** Live screen-on/off state from MainActivity's ACTION_SCREEN_ON/OFF
+     * receiver — threaded through to [CardContext.screenOn] so cards that do
+     * continuous background work while composed (e.g. CameraCard's live
+     * stream) can pause it while the screen is off. See MainActivity's
+     * `screenStateReceiver` doc for why this can't just be "the Activity
+     * stopped". */
+    screenOn: Boolean = true,
     /** Fired once per [ActivityRuntime] instance (i.e. once per config
      * load) so MainActivity can hold a live reference for ConfigServer's
      * `/activities*` routes — ActivityRuntime is created here, inside
@@ -339,7 +346,8 @@ fun Dashboard(
                 activities = activitiesById,
                 startActivity = startActivity,
                 activityRuntime = activityRuntime,
-                theme = theme
+                theme = theme,
+                screenOn = screenOn
             )
 
         // Hardware-button navigation: jump straight to the requested page, then

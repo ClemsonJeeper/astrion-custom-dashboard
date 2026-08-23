@@ -118,11 +118,22 @@ class CameraCard : CardRenderer {
         var live by remember(entityId, mode) { mutableStateOf(false) }
         var showMaximized by remember { mutableStateOf(false) }
 
-        LaunchedEffect(entityId, mode) {
+        LaunchedEffect(entityId, mode, ctx.screenOn) {
             if (entityId.isNullOrBlank()) {
                 error = true
                 return@LaunchedEffect
             }
+
+            // Screen off: don't stream or poll — this card has no viewer to
+            // show frames to, and both modes would otherwise happily burn CPU
+            // (JPEG decode) and keep the WiFi radio out of deep sleep all
+            // night on whatever page was left on screen (this is exactly what
+            // drained a full charge overnight before this check existed).
+            // The last decoded `frame` is left in place so the card resumes
+            // showing something immediately once the screen — and this
+            // LaunchedEffect, re-keyed on ctx.screenOn flipping back to true —
+            // comes back.
+            if (!ctx.screenOn) return@LaunchedEffect
 
             // A blocking input.read() on a silent MJPEG stream won't notice
             // coroutine cancellation on its own, so when this effect is disposed

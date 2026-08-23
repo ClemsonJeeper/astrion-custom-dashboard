@@ -86,7 +86,17 @@ class CardContext(
     /** Resolved theme colors for this dashboard. Cards read from here instead
      * of hardcoded Color literals. Defaults to the original palette so cards
      * render correctly even without a provider (e.g. in previews/tests). */
-    val theme: ThemeColors = com.custom.astrion.ui.ThemeColors.Default
+    val theme: ThemeColors = com.custom.astrion.ui.ThemeColors.Default,
+    /** False while the device's screen is off. This is a HOME launcher
+     * activity, so it's never stopped just because the screen turns off (see
+     * MainActivity's motion-wake) — Compose keeps recomposing and running
+     * LaunchedEffects regardless. Cards that do continuous background work
+     * while composed (e.g. CameraCard's live MJPEG stream / snapshot
+     * polling) should key off this and pause that work while it's false,
+     * rather than silently burning CPU and radio all night on whatever page
+     * was showing when the screen last timed out. Defaults to true so
+     * existing cards/tests that don't pass this keep working as before. */
+    val screenOn: Boolean = true
 )
 
 /**
