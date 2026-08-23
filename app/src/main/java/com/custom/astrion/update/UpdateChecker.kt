@@ -100,7 +100,10 @@ object UpdateChecker {
     /** Minimal x.y.z comparison against current BuildConfig.VERSION_NAME — good enough for plain semver-ish tags like "1.4.0". */
     private fun isNewer(remote: String): Boolean {
         val r = remote.split(".").mapNotNull { it.toIntOrNull() }
-        val l = BuildConfig.VERSION_NAME.split(".").mapNotNull { it.toIntOrNull() }
+        // substringBefore("-") strips any suffix (e.g. the debug build's
+        // "-beta" from versionNameSuffix) so the numeric comparison below
+        // isn't silently truncated — see CHANGELOG 1.0.3 for the bug this fixes.
+        val l = BuildConfig.VERSION_NAME.substringBefore("-").split(".").mapNotNull { it.toIntOrNull() }
         for (i in 0 until maxOf(r.size, l.size)) {
             val rv = r.getOrElse(i) { 0 }
             val lv = l.getOrElse(i) { 0 }

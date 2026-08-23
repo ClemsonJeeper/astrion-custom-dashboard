@@ -12,6 +12,16 @@
 <div class="subtitle">Build your dashboard visually, no hand-written JSON required. Matches the exact schema the app reads.</div>
 <div id="deviceModeBanner" class="note" style="display:none"></div>
 
+<div class="release-info-row" style="display:flex;align-items:center;gap:16px;margin-top:6px;flex-wrap:wrap;">
+  <span id="stableBadge"></span>
+  <label class="beta-switch">
+    <input type="checkbox" id="betaToggle" onchange="toggleBetaBadge()">
+    <span class="beta-slider"></span>
+  </label>
+  <span>Aussi la bêta (dev)</span>
+  <span id="betaBadge" style="display:none"></span>
+</div>
+
 <div class="layout">
   <!-- LEFT PANE -->
   <div class="editor-pane">
@@ -392,6 +402,6 @@
 <script src="js/export.js"></script>
 <script src="js/preview.js"></script>
 <script src="js/device.js"></script>
-<script>initEditor();</script>
+<script>initEditor(); loadStableBadge();</script>
 </body>
 </html>

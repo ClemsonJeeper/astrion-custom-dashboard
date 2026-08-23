@@ -4,6 +4,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
   .layout { display: flex; gap: 20px; align-items: flex-start; }
   .editor-pane, .preview-pane { flex: 1; background: #1e1e1e; border: 1px solid #333; border-radius: 12px; padding: 20px; min-width: 0; }
   .preview-pane { position: sticky; top: 20px; background: #181818; }
+  .beta-switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+  .beta-switch input { opacity: 0; width: 0; height: 0; }
+  .beta-slider { position: absolute; inset: 0; background-color: #555; transition: .2s; border-radius: 22px; cursor: pointer; }
+  .beta-slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: #fff; transition: .2s; border-radius: 50%; }
+  .beta-switch input:checked + .beta-slider { background-color: #00E5FF; }
+  .beta-switch input:checked + .beta-slider:before { transform: translateX(18px); }
   h2 { color: #00E5FF; font-size: 1.05rem; margin: 24px 0 10px; }
   h2:first-child { margin-top: 0; }
   label { font-size: 0.8rem; color: #aaa; display: block; margin: 8px 0 4px; }
