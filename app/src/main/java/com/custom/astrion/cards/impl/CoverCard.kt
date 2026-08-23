@@ -2,7 +2,6 @@ package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -53,6 +52,7 @@ import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.icons.MdiIcons
+import com.custom.astrion.ui.tapClickable
 import kotlin.math.roundToInt
 
 /**
@@ -378,7 +378,7 @@ private fun CircleBtn(icon: ImageVector, theme: ThemeColors, enabled: Boolean = 
             .clip(CircleShape)
             .background(theme.controlBackground)
             .alpha(if (enabled) 1f else 0.35f)
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+            .then(if (enabled) Modifier.tapClickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = theme.iconTint)
@@ -394,7 +394,7 @@ private fun CycleControlButton(theme: ThemeColors, onClick: () -> Unit) {
             .size(36.dp)
             .clip(CircleShape)
             .background(theme.controlBackground)
-            .clickable(onClick = onClick),
+            .tapClickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = theme.iconTint)

@@ -59,6 +59,13 @@ class CardContext(
      * has no further reason to stay open. */
     val configServerEnabled: Boolean = true,
     val setConfigServerEnabled: (Boolean) -> Unit = {},
+    /** Current state of the tap-feedback feature, and a way to toggle it —
+     * used by the settings page. When on, tappable elements emit the same
+     * little "tap" notice the device's own Android UI menus do (via
+     * [com.custom.astrion.ui.LocalTapFeedback] + Modifier.tapClickable);
+     * when off they stay silent. See TapFeedback.kt for details. */
+    val tapFeedbackEnabled: Boolean = true,
+    val setTapFeedbackEnabled: (Boolean) -> Unit = {},
     /** Live connection state of the direct Harmony hub link — for a status
      * indicator on the settings page (HA's own state is on ctx.client.connection). */
     val harmonyConnected: Boolean = false,

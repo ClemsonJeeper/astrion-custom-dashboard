@@ -3,7 +3,6 @@ package com.custom.astrion.cards.impl
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,6 +28,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.tapClickable
 import java.io.File
 
 /**
@@ -173,7 +173,7 @@ class TitleCard : CardRenderer {
                     modifier =
                     Modifier
                         .fillMaxWidth()
-                        .let { if (titleTappable) it.clickable { onTap("title") } else it },
+                        .let { if (titleTappable) it.tapClickable { onTap("title") } else it },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (iconBitmap != null) {
@@ -215,7 +215,7 @@ class TitleCard : CardRenderer {
                     Modifier
                         .fillMaxWidth()
                         .padding(top = if (!title.isNullOrBlank()) 2.dp else 0.dp)
-                        .let { if (subtitleTappable) it.clickable { onTap("subtitle") } else it }
+                        .let { if (subtitleTappable) it.tapClickable { onTap("subtitle") } else it }
                 )
             }
         }

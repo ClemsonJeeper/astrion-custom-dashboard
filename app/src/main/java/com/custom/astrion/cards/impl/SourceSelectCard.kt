@@ -1,7 +1,6 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +29,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.tapClickable
 
 /**
  * Source picker for a media_player: a compact row showing the current source,
@@ -65,7 +65,7 @@ class SourceSelectCard : CardRenderer {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(ctx.theme.controlBackground)
-                    .clickable(enabled = sources.isNotEmpty()) { expanded = true }
+                    .tapClickable(enabled = sources.isNotEmpty()) { expanded = true }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

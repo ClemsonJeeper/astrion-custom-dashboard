@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Icon
@@ -141,6 +141,7 @@ fun SettingsMenu(ctx: CardContext) {
 
         WakeOnMotionRow(ctx)
         ConfigServerRow(ctx)
+        TapFeedbackRow(ctx)
     }
 }
 
@@ -304,6 +305,31 @@ private fun ConfigServerRow(ctx: CardContext) {
 }
 
 @Composable
+private fun TapFeedbackRow(ctx: CardContext) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(Icons.Filled.TouchApp, contentDescription = null, tint = LocalTheme.current.mutedText)
+            Text(stringResource(R.string.tap_feedback), color = LocalTheme.current.primaryText, fontSize = 14.sp)
+            Spacer(Modifier.weight(1f))
+            Switch(
+                checked = ctx.tapFeedbackEnabled,
+                onCheckedChange = { ctx.setTapFeedbackEnabled(it) },
+                colors = SwitchDefaults.colors(checkedTrackColor = LocalTheme.current.accent)
+            )
+        }
+        Text(
+            stringResource(R.string.tap_feedback_hint),
+            color = LocalTheme.current.mutedText,
+            fontSize = 11.sp
+        )
+    }
+}
+
+@Composable
 private fun SettingRow(icon: ImageVector?, label: String, onClick: () -> Unit) {
     Row(
         modifier =
@@ -311,7 +337,7 @@ private fun SettingRow(icon: ImageVector?, label: String, onClick: () -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(LocalTheme.current.controlBackground)
-            .clickable(onClick = onClick)
+            .tapClickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)

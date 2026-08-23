@@ -3,7 +3,6 @@ package com.custom.astrion.cards.impl
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -57,6 +56,7 @@ import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.icons.MdiIcons
+import com.custom.astrion.ui.tapClickable
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 
@@ -388,7 +388,7 @@ class MediaPlayerCard : CardRenderer {
                 .size(36.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(if (accent) theme.accentSecondary else theme.controlBackground)
-                .clickable(onClick = onClick),
+                .tapClickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = theme.primaryText, modifier = Modifier.size(18.dp))
@@ -470,7 +470,7 @@ class MediaPlayerCard : CardRenderer {
                                 .height(44.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(ctx.theme.controlBackground.copy(alpha = 0.4f))
-                                .clickable { fireService(ctx, b) },
+                                .tapClickable { fireService(ctx, b) },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -622,7 +622,7 @@ class MediaPlayerCard : CardRenderer {
                 .size(size)
                 .clip(CircleShape)
                 .background(if (accent) theme.accentSecondary else theme.controlBackground.copy(alpha = 0.33f))
-                .clickable(onClick = onClick),
+                .tapClickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = Color.White)

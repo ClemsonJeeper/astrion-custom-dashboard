@@ -17,6 +17,8 @@
     <string name="config_server_toggle">Serveur de configuration local</string>
     <string name="config_server_toggle_hint">Désactive aussi /builder/, l\'upload d\'icônes et l\'envoi/téléchargement de dashboard.json. Réactive-le ici pour reconfigurer.</string>
     <string name="config_server_off_hint">Serveur de configuration local désactivé</string>
+    <string name="tap_feedback">Retour tactile</string>
+    <string name="tap_feedback_hint">Léger clic sonore quand vous tapotez une scène, un bouton ou un point — identique aux menus Android de l\'appareil.</string>
     <string name="brightness">Luminosité</string>
     <string name="allow_brightness_write">Autoriser la modification (appuyer)</string>
 

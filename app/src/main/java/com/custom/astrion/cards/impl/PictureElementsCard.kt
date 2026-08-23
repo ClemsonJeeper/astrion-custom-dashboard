@@ -10,7 +10,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -55,6 +54,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.tapClickable
 import java.io.File
 import kotlin.math.PI
 import kotlin.math.cos
@@ -147,7 +147,7 @@ class PictureElementsCard : CardRenderer {
                         .size(iconBox)
                         .clip(CircleShape)
                         .background(bg)
-                        .clickable {
+                        .tapClickable {
                             when {
                                 entityId != null -> ctx.client.toggle(entityId)
                                 service != null -> {
@@ -227,7 +227,7 @@ class PictureElementsCard : CardRenderer {
             modifier =
             Modifier
                 .offset(x = x, y = y)
-                .clickable(onClick = onOpen)
+                .tapClickable(onClick = onOpen)
         ) {
             RoboVacIcon(vac = vac, docked = docked, moving = active)
         }
