@@ -2,7 +2,10 @@ package com.custom.astrion
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.hardware.ConsumerIrManager
 import android.hardware.Sensor
@@ -87,6 +90,26 @@ class MainActivity : ComponentActivity() {
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
 
+    /** Live screen-on/off state, fed to Compose (see [composeContent]) so
+     * cards that do continuous background work while composed — e.g.
+     * CameraCard's live MJPEG stream / snapshot polling — can pause it while
+     * the screen is off instead of quietly burning CPU + radio all night on
+     * whatever page was showing when the screen last timed out. This is a
+     * HOME launcher activity, so the Activity itself is never stopped just
+     * because the screen turns off (that's the whole point of motion-wake),
+     * meaning Compose keeps recomposing/running LaunchedEffects unless
+     * something explicit like this tells cards to stand down. */
+    private var screenOn by mutableStateOf(true)
+    private val screenStateReceiver =
+        object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_SCREEN_OFF -> screenOn = false
+                    Intent.ACTION_SCREEN_ON -> screenOn = true
+                }
+            }
+        }
+
     private lateinit var client: HaClient
 
     /** Owns one HarmonyHubClient per configured Harmony hub. */
@@ -167,6 +190,13 @@ class MainActivity : ComponentActivity() {
 
         wakeOnMotionEnabled = prefs.getBoolean("wake_on_motion_enabled", true)
         setupMotionWake()
+        registerReceiver(
+            screenStateReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+            }
+        )
 
         initClientsAndServer()
         configServerEnabled = prefs.getBoolean("config_server_enabled", true)
@@ -252,6 +282,7 @@ class MainActivity : ComponentActivity() {
                 setWakeOnMotionEnabled = { enabled -> setWakeOnMotion(enabled) },
                 configServerEnabled = configServerEnabled,
                 setConfigServerEnabled = { enabled -> updateConfigServerEnabled(enabled) },
+                screenOn = screenOn,
                 onActivityRuntimeReady = { activityRuntime = it },
                 onStartActivityReady = { fn -> startActivityFn = fn },
                 onStopActivityReady = { fn -> stopActivityFn = fn }
@@ -576,6 +607,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         Log.i("MainActivity", "onDestroy — activity instance ${this.hashCode()}")
         sensorManager?.unregisterListener(motionListener)
+        runCatching { unregisterReceiver(screenStateReceiver) }
         client.disconnect()
         harmonyRegistry.disconnectAll()
         runCatching { configServer.stop() }
