@@ -12,6 +12,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -162,6 +163,13 @@ class MainActivity : ComponentActivity() {
      * :8080 admin surface. */
     private var configServerEnabled by mutableStateOf(true)
 
+    /** Backing state for the settings page's "Tap feedback" switch —
+     * persisted, and toggled live via setTapFeedbackEnabled() without a
+     * restart. Defaults to true so the remote gives the same little "tap"
+     * notice its own Android UI menus do when you touch a scene, button,
+     * dot, etc. Plays the system touch sound (AudioManager.FX_KEY_CLICK). */
+    private var tapFeedbackEnabled by mutableStateOf(true)
+
     private val storagePermission =
         registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
@@ -200,6 +208,7 @@ class MainActivity : ComponentActivity() {
 
         initClientsAndServer()
         configServerEnabled = prefs.getBoolean("config_server_enabled", true)
+        tapFeedbackEnabled = prefs.getBoolean("tap_feedback_enabled", true)
         if (configServerEnabled) startConfigServer()
         lifecycleScope.launch { harmonyRegistry.connectAll() }
 
@@ -283,6 +292,8 @@ class MainActivity : ComponentActivity() {
                 configServerEnabled = configServerEnabled,
                 setConfigServerEnabled = { enabled -> updateConfigServerEnabled(enabled) },
                 screenOn = screenOn,
+                tapFeedbackEnabled = tapFeedbackEnabled,
+                setTapFeedbackEnabled = { enabled -> setTapFeedback(enabled) },
                 onActivityRuntimeReady = { activityRuntime = it },
                 onStartActivityReady = { fn -> startActivityFn = fn },
                 onStopActivityReady = { fn -> stopActivityFn = fn }
@@ -496,12 +507,14 @@ class MainActivity : ComponentActivity() {
                         val r =
                             Runnable {
                                 longFired = true
+                                fireButtonTap()
                                 longH.invoke()
                             }
                         pendingLong = r
                         keyHandler.postDelayed(r, LONG_PRESS_MS)
                     }
                 } else {
+                    fireButtonTap()
                     shortH?.invoke()
                 }
                 return true
@@ -510,7 +523,10 @@ class MainActivity : ComponentActivity() {
                 if (longH != null && code == activeLongKey) {
                     cancelPendingLong()
                     activeLongKey = -1
-                    if (!longFired) shortH?.invoke()
+                    if (!longFired) {
+                        fireButtonTap()
+                        shortH?.invoke()
+                    }
                 }
                 return true
             }
@@ -583,6 +599,26 @@ class MainActivity : ComponentActivity() {
         } else {
             runCatching { configServer.stop() }
         }
+    }
+
+    /** Called from the settings page switch — persists the choice, no
+     * restart needed. Dashboard reads [tapFeedbackEnabled] and rebuilds the
+     * feedback lambda it provides via LocalTapFeedback, so taps go silent
+     * (or come back) on the next recomposition. */
+    private fun setTapFeedback(enabled: Boolean) {
+        tapFeedbackEnabled = enabled
+        prefs.edit { putBoolean("tap_feedback_enabled", enabled) }
+    }
+
+    /** Fires the tap sound for a hardware-button press — the button-press
+     * counterpart of the screen-tap sound Dashboard provides via
+     * LocalTapFeedback. Plays the system touch sound (AudioManager.FX_KEY_CLICK,
+     * the same one native Android UI menus play on touch). Gated by
+     * [tapFeedbackEnabled]. */
+    private fun fireButtonTap() {
+        if (!tapFeedbackEnabled) return
+        val am = getSystemService(AUDIO_SERVICE) as? AudioManager ?: return
+        am.playSoundEffect(AudioManager.FX_KEY_CLICK)
     }
 
     @Suppress("DEPRECATION")

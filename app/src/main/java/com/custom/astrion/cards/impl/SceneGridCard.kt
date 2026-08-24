@@ -3,7 +3,6 @@ package com.custom.astrion.cards.impl
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +36,7 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.tapClickable
 import java.io.File
 
 /**
@@ -227,7 +227,7 @@ class SceneGridCard : CardRenderer {
                         .height(layout.tileHeight.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(state.color)
-                        .clickable(onClick = onClick)
+                        .tapClickable(onClick = onClick)
                         .padding(6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
@@ -256,7 +256,7 @@ class SceneGridCard : CardRenderer {
                     .height(58.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(state.color)
-                    .clickable(onClick = onClick)
+                    .tapClickable(onClick = onClick)
                     .padding(horizontal = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -282,7 +282,7 @@ class SceneGridCard : CardRenderer {
                 .height(tileHeight.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .background(color)
-                .clickable(onClick = onClick)
+                .tapClickable(onClick = onClick)
                 .padding(6.dp),
             contentAlignment = Alignment.Center
         ) {

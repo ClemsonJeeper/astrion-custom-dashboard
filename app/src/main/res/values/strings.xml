@@ -17,6 +17,8 @@
     <string name="config_server_toggle">Local config server</string>
     <string name="config_server_toggle_hint">Also turns off /builder/, icon uploads, and dashboard.json upload/download. Turn back on here to reconfigure.</string>
     <string name="config_server_off_hint">Local config server is off</string>
+    <string name="tap_feedback">Tap feedback</string>
+    <string name="tap_feedback_hint">Short tick sound when you tap a scene, button, or dot — matches the device\'s own Android menus.</string>
     <string name="brightness">Brightness</string>
     <string name="allow_brightness_write">Allow brightness control (tap)</string>
 

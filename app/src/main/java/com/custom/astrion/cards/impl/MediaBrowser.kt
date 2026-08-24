@@ -1,7 +1,6 @@
 package com.custom.astrion.cards.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ui.ThemeColors
+import com.custom.astrion.ui.tapClickable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -151,7 +151,7 @@ private fun MediaRow(item: MediaItem, theme: ThemeColors, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
+            .tapClickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -177,7 +177,7 @@ private fun IconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, theme
         modifier =
         Modifier
             .size(40.dp)
-            .clickable(onClick = onClick),
+            .tapClickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = theme.iconTint)
