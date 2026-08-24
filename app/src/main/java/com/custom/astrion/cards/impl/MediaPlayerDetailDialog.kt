@@ -47,6 +47,7 @@ import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.icons.MdiIcons
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
 
 /**
  * Long-press detail popup for [MediaPlayerCard]'s compact tile (mirrors
@@ -196,15 +197,24 @@ private fun DialogProgressBar(e: EntityState, theme: ThemeColors) {
     // See MediaPlayerCard.MediaProgressBar's identical comment — Kodi's
     // media_content_id is a nested JsonObject, not a plain string, so this
     // keys on the raw JsonElement's string form instead of attrString().
-    var elapsed by remember(e.entityId, e.attr("media_content_id")?.toString()) {
+    val contentId = e.attr("media_content_id")?.toString()
+    val positionBaseline = e.attrDouble("media_position")
+    val positionUpdatedAt = e.attrString("media_position_updated_at")
+
+    var elapsed by remember(e.entityId, contentId) {
         mutableDoubleStateOf(currentMediaPosition(e))
     }
-    LaunchedEffect(e.entityId, e.state, e.attr("media_content_id")?.toString()) {
-        while (e.state == "playing") {
-            elapsed = currentMediaPosition(e)
-            kotlinx.coroutines.delay(1.seconds)
-        }
+    // Restarts on entity/track/state changes AND whenever the server
+    // reports a fresh position baseline — without positionBaseline/
+    // positionUpdatedAt in the key, a seek mid-track wouldn't restart this
+    // coroutine (state and content_id are unchanged by a seek), so it kept
+    // ticking from its stale captured baseline instead of tracking it.
+    LaunchedEffect(e.entityId, e.state, contentId, positionBaseline, positionUpdatedAt) {
         elapsed = currentMediaPosition(e)
+        while (e.state == "playing") {
+            delay(1.seconds)
+            elapsed = currentMediaPosition(e)
+        }
     }
     val fraction = if (duration > 0) (elapsed / duration).toFloat().coerceIn(0f, 1f) else 0f
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
