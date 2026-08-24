@@ -23,8 +23,8 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -117,9 +117,20 @@ class LightCard : CardRenderer {
         val useLightColor = config.bool("use_light_color", false)
         val showBrightness = config.bool("show_brightness", true)
 
-        // brightness attribute is 0..255; convert to a 0..100 percent.
-        val brightnessPct = e?.attrInt("brightness")?.let { (it / 255f * 100).roundToInt().coerceIn(0, 100) }
-        val stateLabel = lightStateLabel(isOn, showBrightness, brightnessPct)
+        // brightness attribute is 0..255; convert to a 0..100 percent (shows 0 while off).
+        val brightnessPct =
+            if (isOn) e?.attrInt("brightness")?.let { (it / 255f * 100).roundToInt().coerceIn(0, 100) } else 0
+
+        // The brightness slider holds its in-progress value after a commit until
+        // the entity catches up, and some integrations report the *retained*
+        // brightness when a light turns on — so the state label reads that same
+        // pending value (when one is active) instead of the live entity value,
+        // or it would disagree with the slider. The state is hoisted here so
+        // both the label and the slider share one source of truth.
+        val brightnessDrag = rememberDragFraction(entityId)
+        val displayedBrightnessPct =
+            if (brightnessDrag.value >= 0f) (brightnessDrag.value * 100).roundToInt() else brightnessPct
+        val stateLabel = lightStateLabel(isOn, showBrightness, displayedBrightnessPct)
 
         val rgb = e?.attr("rgb_color") as? JsonArray
         val appearance = resolveLightAppearance(isOn, useLightColor, rgb, ctx.theme)
@@ -143,7 +154,7 @@ class LightCard : CardRenderer {
                 )
 
         val actions = remember(entityId, ctx.client) { LightActions(entityId, ctx.client) }
-        val rowData = LightRowData(entityId, brightnessPct ?: 0, appearance, ctx.theme, controlsConfig, actions)
+        val rowData = LightRowData(entityId, isOn, brightnessPct ?: 0, appearance, ctx.theme, controlsConfig, actions)
 
         // Hoisted here (not inside a layout function) so the active-control
         // state survives regardless of which layout renders it.
@@ -157,6 +168,7 @@ class LightCard : CardRenderer {
                 fillWidth = fillWidth,
                 data = rowData,
                 resolvedActive = resolvedActive,
+                brightnessDrag = brightnessDrag,
                 onCycle = {
                     val idx = controlsConfig.controls.indexOf(resolvedActive)
                     activeControl = controlsConfig.controls[(idx + 1) % controlsConfig.controls.size]
@@ -317,6 +329,7 @@ private fun resolveLightControls(config: CardConfig, e: EntityState?, isOn: Bool
 /** Everything LightControlsRow needs about the light itself, bundled so the function stays under detekt's parameter-count limit. */
 private data class LightRowData(
     val entityId: String,
+    val isOn: Boolean,
     val brightnessPct: Int,
     val appearance: LightAppearance,
     val theme: ThemeColors,
@@ -326,7 +339,13 @@ private data class LightRowData(
 
 /** The active control's slider/swatches, plus the cycle button when more than one control is enabled. */
 @Composable
-private fun LightControlsRow(fillWidth: Boolean, data: LightRowData, resolvedActive: LightControl?, onCycle: () -> Unit) {
+private fun LightControlsRow(
+    fillWidth: Boolean,
+    data: LightRowData,
+    resolvedActive: LightControl?,
+    brightnessDrag: MutableFloatState,
+    onCycle: () -> Unit
+) {
     if (!data.controlsConfig.controlsVisible) return
     Row(
         modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier,
@@ -338,7 +357,9 @@ private fun LightControlsRow(fillWidth: Boolean, data: LightRowData, resolvedAct
                 LightControl.BRIGHTNESS ->
                     PercentSlider(
                         entityId = "${data.entityId}-brightness",
+                        isOn = data.isOn,
                         value = data.brightnessPct,
+                        drag = brightnessDrag,
                         color = data.appearance.barColor,
                         theme = data.theme,
                         onCommit = { pct -> data.actions.commitBrightness(pct / 100f) }
@@ -346,6 +367,7 @@ private fun LightControlsRow(fillWidth: Boolean, data: LightRowData, resolvedAct
                 LightControl.COLOR_TEMP ->
                     ColorTempSlider(
                         entityId = "${data.entityId}-ctemp",
+                        isOn = data.isOn,
                         minKelvin = data.controlsConfig.minKelvin,
                         maxKelvin = data.controlsConfig.maxKelvin,
                         kelvin = data.controlsConfig.currentKelvin,
@@ -440,13 +462,26 @@ private fun CycleControlButton(theme: ThemeColors, onClick: () -> Unit) {
  * tap anywhere on it to raise/lower a 0-100% value right from the card, no
  * dialog needed. The fraction shown always follows [value] except mid-drag,
  * where it tracks the finger for immediate feedback until release commits it.
+ *
+ * [drag] is hoisted from [LightCard]'s Render so the tile's state label can
+ * mirror the in-progress value; its release timing is driven by
+ * [TrackDragFraction].
  */
 @Composable
-private fun PercentSlider(entityId: String, value: Int, color: Color, theme: ThemeColors, onCommit: (Int) -> Unit) {
-    // Uses -1f as a sentinel to denote 'no active drag', avoiding Float autoboxing.
-    var dragFraction by remember(entityId) { mutableFloatStateOf(-1f) }
+private fun PercentSlider(
+    entityId: String,
+    isOn: Boolean,
+    value: Int,
+    color: Color,
+    theme: ThemeColors,
+    drag: MutableFloatState,
+    onCommit: (Int) -> Unit
+) {
+    var dragFraction by drag
     val liveFraction = (value / 100f).coerceIn(0f, 1f)
     val shownFraction = if (dragFraction >= 0f) dragFraction else liveFraction
+
+    TrackDragFraction(drag, liveFraction, isOn)
 
     Box(
         modifier =
@@ -461,9 +496,8 @@ private fun PercentSlider(entityId: String, value: Int, color: Color, theme: The
                         if (dragFraction >= 0f) {
                             onCommit((dragFraction * 100).roundToInt())
                         }
-                        dragFraction = -1f
                     },
-                    onDragCancel = { dragFraction = -1f }
+                    onDragCancel = { dragFraction = DRAG_FRACTION_INACTIVE }
                 ) { change, _ ->
                     dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
                 }
@@ -472,7 +506,6 @@ private fun PercentSlider(entityId: String, value: Int, color: Color, theme: The
                     val f = (offset.x / size.width).coerceIn(0f, 1f)
                     dragFraction = f
                     onCommit((f * 100).roundToInt())
-                    dragFraction = -1f
                 }
             },
         contentAlignment = Alignment.Center
@@ -500,13 +533,16 @@ private fun PercentSlider(entityId: String, value: Int, color: Color, theme: The
  * `color_temp_kelvin` between the entity's own min/max_color_temp_kelvin.
  */
 @Composable
-private fun ColorTempSlider(entityId: String, minKelvin: Int, maxKelvin: Int, kelvin: Int, onCommit: (Int) -> Unit) {
+private fun ColorTempSlider(entityId: String, isOn: Boolean, minKelvin: Int, maxKelvin: Int, kelvin: Int, onCommit: (Int) -> Unit) {
     val range = (maxKelvin - minKelvin).coerceAtLeast(1)
-    var dragFraction by remember(entityId) { mutableFloatStateOf(-1f) }
+    val drag = rememberDragFraction(entityId)
+    var dragFraction by drag
     val liveFraction = ((kelvin - minKelvin).toFloat() / range).coerceIn(0f, 1f)
     val shownFraction = if (dragFraction >= 0f) dragFraction else liveFraction
 
     fun fractionToKelvin(f: Float) = (minKelvin + f * range).roundToInt()
+
+    TrackDragFraction(drag, liveFraction, isOn)
 
     Box(
         modifier =
@@ -522,9 +558,8 @@ private fun ColorTempSlider(entityId: String, minKelvin: Int, maxKelvin: Int, ke
                 detectHorizontalDragGestures(
                     onDragEnd = {
                         if (dragFraction >= 0f) onCommit(fractionToKelvin(dragFraction))
-                        dragFraction = -1f
                     },
-                    onDragCancel = { dragFraction = -1f }
+                    onDragCancel = { dragFraction = DRAG_FRACTION_INACTIVE }
                 ) { change, _ ->
                     dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
                 }
@@ -533,7 +568,6 @@ private fun ColorTempSlider(entityId: String, minKelvin: Int, maxKelvin: Int, ke
                     val f = (offset.x / size.width).coerceIn(0f, 1f)
                     dragFraction = f
                     onCommit(fractionToKelvin(f))
-                    dragFraction = -1f
                 }
             },
         contentAlignment = Alignment.Center
