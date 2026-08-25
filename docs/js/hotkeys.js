@@ -1,5 +1,74 @@
 // ---- Hotkeys --------------------------------------------------------------
 
+// Built-in command suggestions for the HA `androidtv_remote` integration
+// (https://www.home-assistant.io/integrations/androidtv_remote/#remote).
+// Used as a <datalist> when the selected remote entity has no
+// `commands_list` attribute (most Android TV Remote entities don't expose
+// one). Integrations that DO populate `commands_list` (e.g. Apple TV)
+// override this list with their own values at runtime via
+// `remoteCommandSuggestions()`.
+//
+// Order mirrors the HA docs' grouping (Navigation → Volume → Media → TV →
+// Other) so the most-used keys surface first in the dropdown. The older
+// `androidtv` (ADB) integration uses a slightly different keymap (bare
+// `UP`/`DOWN`/`MUTE`/`PLAY`, `HDMI1`-`HDMI4`, `SLEEP`/`WAKEUP`, etc.); those
+// aliases are appended at the end so they still autocomplete for ADB-backed
+// remotes, but the androidtv_remote names take precedence.
+const ANDROID_TV_COMMANDS = [
+  // --- Navigation ---
+  'DPAD_UP', 'DPAD_DOWN', 'DPAD_LEFT', 'DPAD_RIGHT', 'DPAD_CENTER',
+  'BUTTON_A', 'BUTTON_B', 'BUTTON_X', 'BUTTON_Y',
+  'BACK', 'HOME', 'MENU', 'ENTER', 'INFO', 'GUIDE',
+  // --- Volume control ---
+  'VOLUME_UP', 'VOLUME_DOWN', 'VOLUME_MUTE', 'MUTE',
+  // --- Media control ---
+  'MEDIA_PLAY_PAUSE', 'MEDIA_PLAY', 'MEDIA_PAUSE',
+  'MEDIA_NEXT', 'MEDIA_PREVIOUS', 'MEDIA_STOP', 'MEDIA_RECORD',
+  'MEDIA_REWIND', 'MEDIA_FAST_FORWARD',
+  // --- TV control ---
+  'CHANNEL_UP', 'CHANNEL_DOWN',
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+  'DEL',
+  'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+  'TV', 'TV_TELETEXT', 'CAPTIONS', 'DVR',
+  'PROG_RED', 'PROG_GREEN', 'PROG_YELLOW', 'PROG_BLUE',
+  // --- Other ---
+  'BUTTON_MODE', 'EXPLORER', 'SETTINGS', 'SEARCH', 'ASSIST', 'POWER',
+  'MEDIA_AUDIO_TRACK',
+  // --- Legacy `androidtv` (ADB) aliases (not in androidtv_remote docs) ---
+  'UP', 'DOWN', 'LEFT', 'RIGHT', 'CENTER',
+  'ESCAPE', 'END', 'TOP', 'MOVE_HOME', 'PAIRING', 'TEXT',
+  'SLEEP', 'WAKEUP', 'RESUME', 'SUSPEND',
+  'PLAY', 'PAUSE', 'REWIND', 'FAST_FORWARD',
+  'RED', 'GREEN', 'YELLOW', 'BLUE',
+  'INPUT', 'HDMI1', 'HDMI2', 'HDMI3', 'HDMI4',
+  'COMPONENT1', 'COMPONENT2', 'COMPOSITE1', 'COMPOSITE2', 'SAT', 'VGA',
+  'SYSDOWN', 'SYSUP', 'SYSLEFT', 'SYSRIGHT',
+];
+
+// Returns the command list to suggest for a given remote entity, or null
+// when no live HA state is available (GitHub Pages / HA offline). Prefers
+// the entity's own `commands_list` attribute when present; otherwise falls
+// back to the built-in Android TV keymap.
+function remoteCommandSuggestions(entityId) {
+  if (haStates && entityId) {
+    const ent = haStates[entityId];
+    const list = ent && ent.attributes && ent.attributes.commands_list;
+    if (Array.isArray(list) && list.length) return list;
+  }
+  return ANDROID_TV_COMMANDS;
+}
+
+// Build (or rebuild) the <datalist> of command suggestions for #hkCommand
+// based on the currently-entered entity ID. Called on entity input.
+function refreshRemoteCommandDatalist() {
+  const dl = document.getElementById('hkCommandList');
+  if (!dl) return;
+  const entityId = document.getElementById('hkEntityId') ? document.getElementById('hkEntityId').value.trim() : '';
+  const suggestions = remoteCommandSuggestions(entityId) || [];
+  dl.innerHTML = suggestions.map((c) => `<option value="${c}">`).join('');
+}
+
 function updateHotkeyActionInputs() {
   const action = document.getElementById('hkAction').value;
   const container = document.getElementById('dynamicHotkeyInputs');
@@ -24,6 +93,16 @@ function updateHotkeyActionInputs() {
       <label>Entity ID (optional)</label><input type="text" id="hkEntityId" placeholder="e.g., light.living_room">
       <label>Extra data (optional, JSON)</label><input type="text" id="hkData" placeholder='{"brightness": 255}'>
     `;
+  } else if (action === 'remoteCommand') {
+    container.innerHTML = `
+      <label>Remote entity</label><input type="text" id="hkEntityId" placeholder="e.g., remote.family_room" oninput="refreshRemoteCommandDatalist()">
+      <label>Command</label>
+      <input type="text" id="hkCommand" placeholder="e.g., VOLUME_UP" list="hkCommandList">
+      <datalist id="hkCommandList"></datalist>
+      <div class="hint">Pick a <code>remote.*</code> entity. Command suggestions come from the entity's <code>commands_list</code> attribute when present, otherwise from the built-in Android TV keymap.</div>
+    `;
+    attachEntityAutocomplete(document.getElementById('hkEntityId'), 'remote');
+    refreshRemoteCommandDatalist();
   } else if (action === 'harmonyCommand') {
     if (harmonyAvailable) {
       renderHarmonyHubSelect(container, 'command', 'hk');
@@ -46,6 +125,10 @@ function describeHotkey(h) {
   if (h.page) return `→ page "${h.page}"`;
   if (h.openOverlay) return `→ open ${h.openOverlay === 'activities' ? 'Active Activities' : 'Settings'}`;
   if (h.openCurrentActivityRoom) return `→ current Activity in "${h.openCurrentActivityRoom}"`;
+  if (h.service === 'remote.send_command') {
+    const cmd = h.data && h.data.command ? h.data.command : '?';
+    return `→ remote ${h.entityId || '?'} / ${cmd}`;
+  }
   if (h.service) return `→ ${h.service}${h.entityId ? ' (' + h.entityId + ')' : ''}`;
   if (h.harmonyCommand) return `→ Harmony ${h.harmonyDevice || '?'} / ${h.harmonyCommand}`;
   if (h.harmonyActivity) return `→ Harmony activity ${h.harmonyActivity}`;
@@ -129,7 +212,7 @@ async function editHotkey(scope, listType, i) {
   document.getElementById('hkScope').value = scope;
   document.getElementById('hkType').value = listType;
   document.getElementById('hkKey').value = h.key;
-  const action = h.page ? 'page' : h.openOverlay ? 'openOverlay' : h.openCurrentActivityRoom ? 'openCurrentActivity' : h.service ? 'service' : h.harmonyCommand ? 'harmonyCommand' : 'harmonyActivity';
+  const action = h.page ? 'page' : h.openOverlay ? 'openOverlay' : h.openCurrentActivityRoom ? 'openCurrentActivity' : h.service === 'remote.send_command' ? 'remoteCommand' : h.service ? 'service' : h.harmonyCommand ? 'harmonyCommand' : 'harmonyActivity';
   document.getElementById('hkAction').value = action;
   updateHotkeyActionInputs();
 
@@ -143,6 +226,10 @@ async function editHotkey(scope, listType, i) {
     document.getElementById('hkService').value = h.service || '';
     document.getElementById('hkEntityId').value = h.entityId || '';
     document.getElementById('hkData').value = h.data ? JSON.stringify(h.data) : '';
+  } else if (action === 'remoteCommand') {
+    document.getElementById('hkEntityId').value = h.entityId || '';
+    document.getElementById('hkCommand').value = (h.data && h.data.command) || '';
+    refreshRemoteCommandDatalist();
   } else if (action === 'harmonyCommand') {
     if (harmonyAvailable) {
       const hubId = h.hub || (harmonyHubsList[0] && harmonyHubsList[0].localId) || '';
@@ -208,6 +295,13 @@ function addHotkey() {
     if (rawData) {
       try { hkObj.data = JSON.parse(rawData); } catch (e) { alert('Extra data must be valid JSON'); return; }
     }
+  } else if (action === 'remoteCommand') {
+    const entityId = document.getElementById('hkEntityId').value.trim();
+    const command = document.getElementById('hkCommand').value.trim();
+    if (!entityId || !command) { alert('Pick a remote entity and a command.'); return; }
+    hkObj.service = 'remote.send_command';
+    hkObj.entityId = entityId;
+    hkObj.data = { command };
   } else if (action === 'harmonyCommand') {
     if (harmonyAvailable) {
       const hub = document.getElementById('hkHub').value.trim();
