@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -677,16 +679,15 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
     val scrolling = page.cards.filter { it.options["pin"] != "bottom" }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Column(
+        LazyColumn(
             modifier =
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            scrolling.forEach { RenderCard(it, ctx) }
+            items(scrolling, key = { it.hashCode() }) { RenderCard(it, ctx) }
         }
         if (pinned.isNotEmpty()) {
             Column(
