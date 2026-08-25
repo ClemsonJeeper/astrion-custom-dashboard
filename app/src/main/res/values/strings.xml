@@ -63,6 +63,21 @@
     <string name="web_config_icons_note">Saved to /sdcard/astrion/icons/&lt;filename&gt; — reference it in dashboard.json as \"/sdcard/astrion/icons/&lt;filename&gt;\".</string>
     <string name="web_config_icon_uploaded">Icon uploaded</string>
 
+    <!-- Web Config: Find my remote (ring) -->
+    <string name="web_config_ring_heading">Find my remote</string>
+    <string name="web_config_ring_sub">Test the ring sound and volume right from here, before wiring it up in Home Assistant.</string>
+    <string name="web_config_ring_volume_label">Volume</string>
+    <string name="web_config_ring_sound_label">Sound</string>
+    <string name="web_config_ring_sound_ringtone">Ringtone</string>
+    <string name="web_config_ring_sound_alarm">Alarm</string>
+    <string name="web_config_ring_sound_notification">Notification</string>
+    <string name="web_config_ring_duration_label">Duration (seconds)</string>
+    <string name="web_config_ring_button">Ring</string>
+    <string name="web_config_ring_stop_button">Stop</string>
+    <string name="web_config_ring_status_ringing">Ringing…</string>
+    <string name="web_config_ring_status_stopped">Stopped</string>
+    <string name="web_config_ring_status_error">Could not ring:</string>
+
     <!-- Web Config: OTA / Updates -->
     <string name="web_config_updates_heading">Updates</string>
     <string name="web_config_current_version">Current version</string>

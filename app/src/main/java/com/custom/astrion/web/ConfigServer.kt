@@ -3,6 +3,10 @@ package com.custom.astrion.web
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioAttributes
+import android.media.AudioManager
+import android.media.MediaPlayer
+import android.media.RingtoneManager
 import android.os.BatteryManager
 import android.os.Environment
 import android.os.Handler
@@ -118,6 +122,20 @@ import org.json.JSONObject
  *                        possible "stop" and never touches a different
  *                        room's hub. This is the piece a plain hardware
  *                        "turn everything off" button doesn't give you.
+ *  POST /ring              "find my remote": plays this device's own
+ *                        ringtone/alarm/notification sound on loop for a
+ *                        few seconds, at a chosen volume, so a misplaced
+ *                        tablet/remote can be located by ear — the same
+ *                        idea as a phone's "find my device" ring. Form
+ *                        fields, all optional: `volume` (1-100, percent of
+ *                        the alarm stream's max, default 80), `sound`
+ *                        (`ringtone` | `alarm` | `notification`, default
+ *                        `ringtone`), `duration` (seconds, 1-60, default
+ *                        15). Restores the device's original alarm volume
+ *                        once done. A second call replaces any ring already
+ *                        in progress rather than layering sounds.
+ *  POST /ring/stop         cancel an in-progress /ring immediately and
+ *                        restore the original alarm volume.
  *
  * Deliberately has no auth — this device is assumed to live on a trusted
  * home LAN, the same assumption Home Assistant itself makes for local
@@ -154,6 +172,19 @@ class ConfigServer(
     @Volatile
     private var lastResult: UpdateChecker.CheckResult? = null
 
+    // ---- ring ("find my remote") state ------------------------------------
+    // All three only ever touched from NanoHTTPD's request-handling threads
+    // and the single Handler callback that clears them, never concurrently
+    // with UI code, so no extra synchronization beyond @Volatile is needed.
+    @Volatile
+    private var ringMediaPlayer: MediaPlayer? = null
+
+    @Volatile
+    private var ringStopHandler: Handler? = null
+
+    @Volatile
+    private var ringOriginalAlarmVolume: Int? = null
+
     private val iconsDir: File
         get() = File(Environment.getExternalStorageDirectory(), "astrion/icons").apply { mkdirs() }
 
@@ -189,6 +220,8 @@ class ConfigServer(
             "/activities/active" -> if (method == Method.GET) serveActiveActivities() else methodNotAllowed()
             "/activities/start" -> if (method == Method.POST) handleStartActivity(session) else methodNotAllowed()
             "/activities/stop" -> if (method == Method.POST) handleStopActivity(session) else methodNotAllowed()
+            "/ring" -> if (method == Method.POST) handleRing(session) else methodNotAllowed()
+            "/ring/stop" -> if (method == Method.POST) handleStopRing() else methodNotAllowed()
             else ->
                 when {
                     uri.startsWith("/builder/") ->
@@ -216,6 +249,15 @@ class ConfigServer(
             "text/plain",
             "Error: ${e.message}"
         )
+    }
+
+    /** Also cleans up any in-progress /ring (and restores its volume change)
+     * when the server itself is torn down, e.g. by reconnectWithNewSettings —
+     * otherwise a ring started just before a settings save would keep
+     * looping with no way left to reach /ring/stop. */
+    override fun stop() {
+        stopRingInternal()
+        super.stop()
     }
 
     private fun methodNotAllowed(): Response = newFixedLengthResponse(
@@ -322,6 +364,7 @@ class ConfigServer(
               }
               .panel-connection{--accent:var(--cyan)}
               .panel-editor{--accent:var(--amber)}
+              .panel-ring{--accent:var(--ok)}
               .panel h2{color:var(--accent,var(--text))}
               .panel-sub{font-size:12px;color:var(--muted);margin:4px 0 0}
               .status-strip{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin:14px 0 4px}
@@ -348,6 +391,19 @@ class ConfigServer(
               .hub-discover-btn{background:var(--surface);color:var(--cyan);border:1px solid var(--line)}
               .hub-config-result{white-space:pre-wrap;font-size:10.5px;background:var(--bg);border:1px solid var(--line);
                 border-radius:6px;padding:8px;margin-top:6px;max-height:200px;overflow:auto;display:none}
+              select{
+                width:100%; box-sizing:border-box; padding:9px 10px; margin-top:5px;
+                background:var(--bg); border:1px solid var(--line); color:var(--text);
+                border-radius:7px; font-family:inherit; font-size:13px;
+              }
+              input[type=range]{width:100%; margin-top:8px; accent-color:var(--ok)}
+              input[type=number]{
+                width:100%; box-sizing:border-box; padding:9px 10px; margin-top:5px;
+                background:var(--bg); border:1px solid var(--line); color:var(--text);
+                border-radius:7px; font-family:inherit; font-size:13px;
+              }
+              .ring-actions{display:flex; gap:10px; margin-top:16px}
+              .ring-actions .btn{margin-top:0; flex:1}
             </style></head><body>
 
             <div class="eyebrow">ASTRION · LOCAL CONFIG</div>
@@ -424,6 +480,35 @@ class ConfigServer(
             </div>
             </div>
 
+            <div class="panel panel-ring">
+              <h2>${svgBell()}${context.getString(R.string.web_config_ring_heading)}</h2>
+              <p class="panel-sub">${context.getString(R.string.web_config_ring_sub)}</p>
+
+              <label>${context.getString(R.string.web_config_ring_volume_label)} (<output id="ring-volume-out">80</output>%)</label>
+              <input type="range" id="ring-volume" min="1" max="100" value="80"
+                     oninput="document.getElementById('ring-volume-out').textContent=this.value">
+
+              <label>${context.getString(R.string.web_config_ring_sound_label)}</label>
+              <select id="ring-sound">
+                <option value="ringtone">${context.getString(R.string.web_config_ring_sound_ringtone)}</option>
+                <option value="alarm">${context.getString(R.string.web_config_ring_sound_alarm)}</option>
+                <option value="notification">${context.getString(R.string.web_config_ring_sound_notification)}</option>
+              </select>
+
+              <label>${context.getString(R.string.web_config_ring_duration_label)}</label>
+              <input type="number" id="ring-duration" min="1" max="60" value="15">
+
+              <div class="ring-actions">
+                <button type="button" class="btn btn-cyan" onclick="startRing()">${context.getString(
+                R.string.web_config_ring_button
+            )}</button>
+                <button type="button" class="btn btn-ghost" onclick="stopRing()">${context.getString(
+                R.string.web_config_ring_stop_button
+            )}</button>
+              </div>
+              <p class="note" id="ring-status"></p>
+            </div>
+
             <template id="hub-row-template">${
                 hubRowHtml(
                     HarmonyHubConfig(
@@ -496,6 +581,34 @@ class ConfigServer(
                 if (idInput.value.trim()) return;
                 runDiscoverHubId(row, true);
               }
+
+              function startRing() {
+                const volume = document.getElementById('ring-volume').value;
+                const sound = document.getElementById('ring-sound').value;
+                const duration = document.getElementById('ring-duration').value;
+                const status = document.getElementById('ring-status');
+                status.textContent = '${jsEscape(context.getString(R.string.web_config_ring_status_ringing))}';
+                fetch('/ring', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                  body: 'volume=' + encodeURIComponent(volume) +
+                        '&sound=' + encodeURIComponent(sound) +
+                        '&duration=' + encodeURIComponent(duration)
+                })
+                  .then(r => r.json().then(data => ({ok: r.ok, data})))
+                  .then(({ok, data}) => {
+                    if (!ok) {
+                      status.textContent = '${jsEscape(context.getString(R.string.web_config_ring_status_error))} ' + (data.error || '');
+                    }
+                  })
+                  .catch(e => { status.textContent = '' + e; });
+              }
+              function stopRing() {
+                const status = document.getElementById('ring-status');
+                fetch('/ring/stop', {method: 'POST'})
+                  .then(() => { status.textContent = '${jsEscape(context.getString(R.string.web_config_ring_status_stopped))}'; })
+                  .catch(e => { status.textContent = '' + e; });
+              }
             </script>
 
             </body></html>
@@ -528,6 +641,13 @@ class ConfigServer(
       <path d="M4 20 16 8"/>
       <path d="M14.5 9.5 18 6"/>
       <path d="M19 4v2M22 5h-2M4 3v2M3 4h2M19.5 15v2M20.5 16h-2"/>
+    </svg>
+    """.trimIndent()
+
+    private fun svgBell() = """
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 8a6 6 0 0 1 12 0c0 3.5 1 5 2 6H4c1-1 2-2.5 2-6Z"/>
+      <path d="M10 20a2 2 0 0 0 4 0"/>
     </svg>
     """.trimIndent()
 
@@ -1451,6 +1571,121 @@ class ConfigServer(
                 "Could not open installer: ${e.message}"
             )
         }
+    }
+
+    // ---- ring ("find my remote") -------------------------------------------
+
+    private val ringSounds =
+        mapOf(
+            "ringtone" to RingtoneManager.TYPE_RINGTONE,
+            "alarm" to RingtoneManager.TYPE_ALARM,
+            "notification" to RingtoneManager.TYPE_NOTIFICATION
+        )
+
+    /**
+     * Plays this device's own ringtone/alarm/notification sound on loop at a
+     * chosen volume, so a misplaced tablet can be found by ear. Uses
+     * `AudioAttributes.USAGE_ALARM` (rather than nudging the whole device's
+     * media/ringer volume, which would be audible far beyond this one call
+     * and could be left changed if something goes wrong) so the sound plays
+     * at a level we fully control and cleanly restore afterwards, and so it
+     * has a decent chance of being heard even if the tablet is set to
+     * silent/DND for notifications.
+     */
+    private fun handleRing(session: IHTTPSession): Response {
+        val files = HashMap<String, String>()
+        session.parseBody(files)
+        val soundParam = session.parameters["sound"]?.firstOrNull()?.trim()?.lowercase() ?: "ringtone"
+        val ringtoneType =
+            ringSounds[soundParam]
+                ?: return newFixedLengthResponse(
+                    Response.Status.BAD_REQUEST,
+                    "application/json",
+                    """{"error":"unknown sound '$soundParam', expected one of ${ringSounds.keys}"}"""
+                )
+        val volume = (session.parameters["volume"]?.firstOrNull()?.trim()?.toIntOrNull() ?: 80).coerceIn(1, 100)
+        val durationSeconds =
+            (session.parameters["duration"]?.firstOrNull()?.trim()?.toIntOrNull() ?: 15).coerceIn(1, 60)
+
+        val ringtoneUri =
+            RingtoneManager.getActualDefaultRingtoneUri(context, ringtoneType)
+                ?: RingtoneManager.getValidRingtoneUri(context)
+                ?: return newFixedLengthResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    "application/json",
+                    """{"error":"no ringtone available on this device"}"""
+                )
+
+        // A ring already in progress is replaced, not layered on top of.
+        stopRingInternal()
+
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val maxAlarmVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+        ringOriginalAlarmVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
+        val targetAlarmVolume = ((volume / 100f) * maxAlarmVolume).toInt().coerceIn(1, maxAlarmVolume)
+        runCatching { audioManager.setStreamVolume(AudioManager.STREAM_ALARM, targetAlarmVolume, 0) }
+
+        try {
+            ringMediaPlayer =
+                MediaPlayer().apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    isLooping = true
+                    setDataSource(context, ringtoneUri)
+                    prepare()
+                    start()
+                }
+        } catch (e: Exception) {
+            Log.e("ConfigServer", "ring: failed to start playback", e)
+            stopRingInternal()
+            return newFixedLengthResponse(
+                Response.Status.INTERNAL_ERROR,
+                "application/json",
+                """{"error":"could not play sound: ${e.message}"}"""
+            )
+        }
+
+        val handler = Handler(Looper.getMainLooper())
+        ringStopHandler = handler
+        handler.postDelayed({ stopRingInternal() }, durationSeconds * 1000L)
+
+        return newFixedLengthResponse(
+            Response.Status.OK,
+            "application/json",
+            """{"status":"ringing","sound":"$soundParam","volume":$volume,"duration":$durationSeconds}"""
+        )
+    }
+
+    private fun handleStopRing(): Response {
+        val wasRinging = ringMediaPlayer != null
+        stopRingInternal()
+        return newFixedLengthResponse(
+            Response.Status.OK,
+            "application/json",
+            """{"status":"stopped","was_ringing":$wasRinging}"""
+        )
+    }
+
+    /** Stops any in-progress /ring playback, cancels its scheduled auto-stop,
+     * and restores the alarm stream to whatever volume it was at before /ring
+     * changed it. Safe to call when nothing is ringing. */
+    private fun stopRingInternal() {
+        ringStopHandler?.removeCallbacksAndMessages(null)
+        ringStopHandler = null
+        ringMediaPlayer?.let { player ->
+            runCatching { player.stop() }
+            runCatching { player.release() }
+        }
+        ringMediaPlayer = null
+        ringOriginalAlarmVolume?.let { original ->
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            runCatching { audioManager.setStreamVolume(AudioManager.STREAM_ALARM, original, 0) }
+        }
+        ringOriginalAlarmVolume = null
     }
 
     // ---- helpers --------------------------------------------------------------
