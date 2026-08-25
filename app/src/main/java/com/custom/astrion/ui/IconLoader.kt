@@ -36,6 +36,23 @@ fun decodeIconSampled(path: String, targetPx: Int): ImageBitmap? {
 }
 
 /**
+ * Decode a JPEG byte array (e.g. an MJPEG frame) with the same two-pass
+ * downsample as [decodeIconSampled]. Camera streams are often 720p or
+ * 1080p but displayed at the card's rendered width (~480px on the HA100),
+ * so decoding every frame at full source resolution wastes CPU and
+ * creates large transient bitmaps that drive GC churn at 10-30 fps.
+ */
+fun decodeByteArraySampled(bytes: ByteArray, targetPx: Int): ImageBitmap? {
+    return runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        val sample = inSampleSizeFor(bounds.outWidth, bounds.outHeight, targetPx)
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)?.asImageBitmap()
+    }.getOrNull()
+}
+
+/**
  * [BitmapFactory.Options.inSampleSize] for a decode whose longer edge
  * should land at or above [targetPx]. `inSampleSize` is an int >= 1 that
  * the decoder rounds down to the nearest power of two, so we step it up
