@@ -1,6 +1,5 @@
 package com.custom.astrion.cards.impl
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -18,7 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -28,8 +27,8 @@ import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
+import com.custom.astrion.ui.decodeIconSampled
 import com.custom.astrion.ui.tapClickable
-import java.io.File
 
 /**
  * Title card — a section header for grouping cards on a page, styled after
@@ -105,14 +104,10 @@ class TitleCard : CardRenderer {
             remember(config) {
                 config.string("color")?.let { parseHexColor(it) } ?: ctx.theme.primaryText
             }
+        val iconTargetPx = with(LocalDensity.current) { 22.dp.toPx() }.toInt()
         val iconBitmap =
-            remember(iconPath) {
-                iconPath?.let {
-                    runCatching {
-                        val f = File(it)
-                        if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
-                    }.getOrNull()
-                }
+            remember(iconPath, iconTargetPx) {
+                iconPath?.let { decodeIconSampled(it, iconTargetPx) }
             }
         // An icon or a divider forces the Bubble-Card-style left-aligned
         // "icon, label, line" row — see the class doc comment for why.
