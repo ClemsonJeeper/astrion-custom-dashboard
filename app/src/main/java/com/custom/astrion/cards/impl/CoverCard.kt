@@ -25,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -404,14 +403,19 @@ private fun CycleControlButton(theme: ThemeColors, onClick: () -> Unit) {
 /**
  * Draggable 0-100% slider used for both the position and tilt controls —
  * drag or tap anywhere on it, released value fires [onCommit]. Shows the
- * live percentage as a centered label, Mushroom-slider-style.
+ * live percentage as a centered label, Mushroom-slider-style. The drag
+ * override is held after commit until the live state catches up, so the bar
+ * doesn't snap back to the stale pre-drag value before HA confirms — see
+ * [TrackDragFraction].
  */
 @Composable
 private fun PercentSlider(entityId: String, value: Int, color: Color, theme: ThemeColors, onCommit: (Int) -> Unit) {
-    // Uses -1f as a sentinel to denote 'no active drag', avoiding Float autoboxing.
-    var dragFraction by remember(entityId) { mutableFloatStateOf(-1f) }
+    val drag = rememberDragFraction(entityId)
+    var dragFraction by drag
     val liveFraction = (value / 100f).coerceIn(0f, 1f)
     val shownFraction = if (dragFraction >= 0f) dragFraction else liveFraction
+
+    TrackDragFraction(drag, liveFraction)
 
     Box(
         modifier =
@@ -426,9 +430,8 @@ private fun PercentSlider(entityId: String, value: Int, color: Color, theme: The
                         if (dragFraction >= 0f) {
                             onCommit((dragFraction * 100).roundToInt())
                         }
-                        dragFraction = -1f
                     },
-                    onDragCancel = { dragFraction = -1f }
+                    onDragCancel = { dragFraction = DRAG_FRACTION_INACTIVE }
                 ) { change, _ ->
                     dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
                 }
@@ -437,7 +440,6 @@ private fun PercentSlider(entityId: String, value: Int, color: Color, theme: The
                     val f = (offset.x / size.width).coerceIn(0f, 1f)
                     dragFraction = f
                     onCommit((f * 100).roundToInt())
-                    dragFraction = -1f
                 }
             },
         contentAlignment = Alignment.Center
