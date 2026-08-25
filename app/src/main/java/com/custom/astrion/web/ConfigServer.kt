@@ -74,6 +74,11 @@ import org.json.JSONObject
  *                        device (/builder/)
  *  GET  /check-update     check this project's GitHub Releases for a newer build
  *  POST /install-update   download the newer APK and open the system installer
+ *  POST /install-beta-update  same as /install-update but against the rolling
+ *                        dev-latest pre-release instead — always installs
+ *                        whatever the tag currently points to, no separate
+ *                        check step (used by the beta toggle in the builder,
+ *                        docs/js/hotkeys.js's installBetaUpdate())
  *  GET  /pages            list this device's dashboard pages (id + name), in
  *                        pager order — lets a remote controller (e.g. the
  *                        Home Assistant "astrion" integration) discover what
@@ -174,6 +179,7 @@ class ConfigServer(
             "/save-connection" -> if (method == Method.POST) handleSaveConnection(session) else methodNotAllowed()
             "/icons" -> if (method == Method.POST) handleIconUpload(session) else methodNotAllowed()
             "/install-update" -> if (method == Method.POST) handleInstallUpdate() else methodNotAllowed()
+            "/install-beta-update" -> if (method == Method.POST) handleInstallBetaUpdate() else methodNotAllowed()
             "/pages" -> if (method == Method.GET) servePages() else methodNotAllowed()
             "/current-page" -> if (method == Method.GET) serveCurrentPage() else methodNotAllowed()
             "/version" -> if (method == Method.GET) serveVersion() else methodNotAllowed()
@@ -1381,6 +1387,64 @@ class ConfigServer(
             redirectHome(context.getString(R.string.web_config_update_installing))
         } catch (e: Exception) {
             Log.e("ConfigServer", "install prompt failed", e)
+            newFixedLengthResponse(
+                Response.Status.INTERNAL_ERROR,
+                "text/plain",
+                "Could not open installer: ${e.message}"
+            )
+        }
+    }
+
+    /**
+     * Mirrors [handleInstallUpdate], but for the rolling `dev-latest`
+     * pre-release, and called via `fetch()` from docs/js/hotkeys.js's
+     * installBetaUpdate() rather than a `<form>` navigation — so this
+     * returns plain HTTP status + text instead of [redirectHome]'s
+     * meta-refresh HTML, which `fetch()` doesn't act on anyway and which
+     * always reports 200 OK even for a failure.
+     */
+    private fun handleInstallBetaUpdate(): Response {
+        val result = UpdateChecker.checkBetaUpdate()
+        val info =
+            (result as? UpdateChecker.CheckResult.Available)?.info
+                ?: return newFixedLengthResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    "text/plain",
+                    when (result) {
+                        is UpdateChecker.CheckResult.Failed -> result.reason
+                        else -> "No beta build available"
+                    }
+                )
+
+        // Ask first instead of letting the installation intent fail: on Android 8+
+        // this permission is granted per-app in Settings, not at install time.
+        if (!context.packageManager.canRequestPackageInstalls()) {
+            val settingsIntent =
+                Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    "package:${context.packageName}".toUri()
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { context.startActivity(settingsIntent) }
+            return newFixedLengthResponse(
+                Response.Status.FORBIDDEN,
+                "text/plain",
+                context.getString(R.string.web_config_update_needs_permission)
+            )
+        }
+
+        val file =
+            UpdateChecker.download(context, info.apkUrl)
+                ?: return newFixedLengthResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    "text/plain",
+                    "Download failed"
+                )
+
+        return try {
+            UpdateChecker.promptInstall(context, file)
+            newFixedLengthResponse(Response.Status.OK, "text/plain", "Installing ${info.version}")
+        } catch (e: Exception) {
+            Log.e("ConfigServer", "beta install prompt failed", e)
             newFixedLengthResponse(
                 Response.Status.INTERNAL_ERROR,
                 "text/plain",

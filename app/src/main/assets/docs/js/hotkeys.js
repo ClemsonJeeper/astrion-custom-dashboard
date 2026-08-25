@@ -281,5 +281,36 @@ async function toggleBetaBadge() {
   const html = await fetchReleaseBadge(
     'https://api.github.com/repos/dckiller51/astrion-custom-dashboard/releases/tags/dev-latest', '🧪'
   );
-  badge.innerHTML = html || 'Bêta indisponible';
+  if (!html) {
+    badge.innerHTML = 'Bêta indisponible';
+    return;
+  }
+  // In device mode (opened from the remote's own :8080), a real one-click
+  // install button posts to /install-beta-update — same-origin, so it runs
+  // server-side on the remote regardless of which browser/device clicked
+  // it, exactly like the existing official-update button. Outside device
+  // mode (e.g. GitHub Pages) there's no known device IP to target, so the
+  // plain download link from fetchReleaseBadge stays as the fallback.
+  if (typeof deviceModeAvailable !== 'undefined' && deviceModeAvailable) {
+    const label = html.replace(/ — <a[^>]*>.*?<\/a>/, '');
+    badge.innerHTML = `${label} — <button type="button" onclick="installBetaUpdate(this)" style="padding:4px 10px;font-size:0.8rem">Installer sur cet appareil</button>`;
+  } else {
+    badge.innerHTML = html;
+  }
+}
+
+async function installBetaUpdate(btn) {
+  const original = btn.textContent;
+  btn.textContent = 'Installation…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/install-beta-update', { method: 'POST' });
+    const text = await res.text();
+    if (!res.ok) throw new Error(text || ('HTTP ' + res.status));
+    showToast('Installation lancée sur la télécommande.');
+  } catch (e) {
+    showToast('Échec de l\'installation : ' + e.message, 'error');
+    btn.textContent = original;
+    btn.disabled = false;
+  }
 }
