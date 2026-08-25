@@ -63,6 +63,21 @@
     <string name="web_config_icons_note">Enregistrée dans /sdcard/astrion/icons/&lt;nom&gt; — à référencer dans dashboard.json en tant que \"/sdcard/astrion/icons/&lt;nom&gt;\".</string>
     <string name="web_config_icon_uploaded">Icône envoyée</string>
 
+    <!-- Web Config: Find my remote (ring) -->
+    <string name="web_config_ring_heading">Où est ma télécommande</string>
+    <string name="web_config_ring_sub">Teste le son et le volume de la sonnerie directement ici, avant de la configurer dans Home Assistant.</string>
+    <string name="web_config_ring_volume_label">Volume</string>
+    <string name="web_config_ring_sound_label">Son</string>
+    <string name="web_config_ring_sound_ringtone">Sonnerie</string>
+    <string name="web_config_ring_sound_alarm">Alarme</string>
+    <string name="web_config_ring_sound_notification">Notification</string>
+    <string name="web_config_ring_duration_label">Durée (secondes)</string>
+    <string name="web_config_ring_button">Sonner</string>
+    <string name="web_config_ring_stop_button">Arrêter</string>
+    <string name="web_config_ring_status_ringing">Ça sonne…</string>
+    <string name="web_config_ring_status_stopped">Arrêté</string>
+    <string name="web_config_ring_status_error">Impossible de sonner :</string>
+
     <!-- Web Config: OTA / Updates -->
     <string name="web_config_updates_heading">Mises à jour</string>
     <string name="web_config_current_version">Version actuelle</string>
