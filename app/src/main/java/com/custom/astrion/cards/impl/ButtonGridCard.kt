@@ -1,6 +1,5 @@
 package com.custom.astrion.cards.impl
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -29,8 +28,8 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ThemeColors
+import com.custom.astrion.ui.decodeIconSampled
 import com.custom.astrion.ui.tapClickable
-import java.io.File
 
 /**
  * Generic grid of action buttons, each firing a HA service call. Buttons can
@@ -91,14 +90,10 @@ class ButtonGridCard : CardRenderer {
     private fun GridButton(b: Map<String, Any?>, modifier: Modifier, theme: ThemeColors, onClick: () -> Unit) {
         val name = b["name"] as? String
         val iconPath = b["icon"] as? String
+        val targetPx = with(LocalDensity.current) { 32.dp.toPx() }.toInt()
         val bitmap =
-            remember(iconPath) {
-                iconPath?.let {
-                    runCatching {
-                        val f = File(it)
-                        if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
-                    }.getOrNull()
-                }
+            remember(iconPath, targetPx) {
+                iconPath?.let { decodeIconSampled(it, targetPx) }
             }
         val hasIcon = bitmap != null
 
