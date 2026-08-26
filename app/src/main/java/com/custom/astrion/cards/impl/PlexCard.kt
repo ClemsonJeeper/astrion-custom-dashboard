@@ -1,8 +1,9 @@
 package com.custom.astrion.cards.impl
 
-import android.graphics.BitmapFactory
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,165 +36,237 @@ import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ThemeColors
-import com.custom.astrion.ui.tapClickable
-import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import okhttp3.OkHttpClient
-import okhttp3.Request
 
 /**
  * Native Plex browser — the lightweight answer to the plex-meets-homeassistant
  * web card. Talks straight to the Plex server's HTTP API (no HA round-trip):
- * shows On Deck and Recently Added as swipeable poster rows; tapping an item
- * deep-links the Plex app on the Android TV via the standard HA
- * `remote.turn_on` activity call:
- *   plex://preplay/?metadataKey=<key>&server=<machineIdentifier>
+ * shows On Deck, Recently Added Movies and Recently Added TV Shows as
+ * swipeable poster rows.
+ *
+ * Input is two-tier, matching the rest of the app's long-press-for-detail
+ * convention (LightCard, CoverCard, MediaPlayerCard) — but with tap and
+ * long-press swapped from that convention on purpose: this row scrolls under
+ * a finger, and an accidental tap mid-scroll is common (touch slop doesn't
+ * always save it), so tap is bound to the harmless, easily-dismissed action
+ * and the side-effecting one needs a deliberate hold.
+ *   - Tap a poster    → [PlexDetailDialog]: synopsis, genres, and — for an
+ *                       episode — the rest of its season to browse. Its own
+ *                       Play button is what actually attempts real
+ *                       playback (`media_player.play_media` on
+ *                       `play_entity`, deep-linking to that exact item).
+ *   - Long-press it    → quick action: open Plex on the playback entity
+ *                       (`media_player.select_source`).
  *
  * Kept deliberately light for the MT6580: posters are requested pre-scaled by
  * the server's photo transcoder (~140x210), rows are LazyRow (only visible
- * posters decode), and a tiny in-memory cache stops re-fetching while swiping.
+ * posters decode), and network/caching is shared with the detail dialog via
+ * [PlexApi] rather than duplicated.
+ *
+ * Movies/TV are split automatically: [PlexApi] fetches `/library/sections`
+ * once, keeps whichever sections report `type=="movie"` / `type=="show"`, and
+ * calls each section's own `/recentlyAdded` — no need to type a library name.
  *
  * Config shape:
  *   { "type": "plex", "options": {
  *       "host": "http://plex-server:32400",
  *       "token": "<X-Plex-Token>",
- *       "remote_entity": "remote.tv"
+ *       "media_entity": "media_player.tv",
+ *       "play_entity": "media_player.plex_tv_client",   // optional
+ *       "play_content_type": "video",                     // optional, defaults to "video" —
+ *                                                          // use "url" if play_entity is HA's
+ *                                                          // native Apple TV integration entity
+ *       "source": "Plex",                                // optional, defaults to "Plex"
+ *       "show_on_deck": true,                             // optional, defaults to true
+ *       "show_recently_added_movies": true,               // optional, defaults to true
+ *       "show_recently_added_shows": true,                // optional, defaults to true
+ *       "items_per_row": 12                                // optional, defaults to 12
  *   } }
  */
 class PlexCard : CardRenderer {
     override val type = "plex"
 
-    private data class PlexItem(val key: String, val title: String, val subtitle: String, val thumb: String?)
+    private data class PlexConfig(
+        val host: String,
+        val token: String,
+        val mediaEntity: String,
+        val source: String,
+        val playEntity: String?,
+        val playContentType: String,
+        val showOnDeck: Boolean,
+        val showMovies: Boolean,
+        val showShows: Boolean,
+        val itemsPerRow: Int
+    )
 
-    private data class PlexRow(val title: String, val items: List<PlexItem>)
+    private class PlexUiState {
+        var rows by mutableStateOf<List<PlexApi.PlexRow>?>(null)
+        var machineId by mutableStateOf<String?>(null)
+        var error by mutableStateOf<String?>(null)
+        var detailItem by mutableStateOf<PlexApi.PlexItem?>(null)
+        var detail by mutableStateOf<PlexApi.PlexDetail?>(null)
+    }
 
-    private companion object {
-        val http: OkHttpClient = OkHttpClient.Builder().callTimeout(12, TimeUnit.SECONDS).build()
-        val json = Json { ignoreUnknownKeys = true }
-
-        // Tiny LRU poster cache (~40 posters ≈ a few MB) so swiping doesn't refetch.
-        val posterCache =
-            object : LinkedHashMap<String, ImageBitmap>(0, 0.75f, true) {
-                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 40
-            }
-
-        @Synchronized fun cacheGet(k: String): ImageBitmap? = posterCache[k]
-
-        @Synchronized fun cachePut(k: String, v: ImageBitmap) {
-            posterCache[k] = v
-        }
+    private fun readConfig(config: CardConfig): PlexConfig? {
+        val host = config.string("host")?.trimEnd('/') ?: return null
+        val token = config.string("token") ?: return null
+        // Android-TV media_player entity. Long-pressing launches Plex on it via
+        // select_source — deep-link item playback isn't reliable on Plex for
+        // Android TV (opens the app but won't navigate to the item).
+        val mediaEntity = config.string("media_entity") ?: return null
+        return PlexConfig(
+            host = host,
+            token = token,
+            mediaEntity = mediaEntity,
+            source = config.string("source") ?: "Plex",
+            // Optional: a real Plex-client entity (HA Plex integration, requires the
+            // TV's Plex app registered as a companion client) → true item playback.
+            playEntity = config.string("play_entity"),
+            // "video" is right for a Plex-integration client entity; HA's native Apple TV
+            // integration instead needs "url" to route through its deep-link/launch_app path
+            // (see home-assistant.io/integrations/apple_tv/#launching-apps) — anything else it
+            // treats as a real media stream and rejects with "Streaming ... is not supported".
+            playContentType = config.string("play_content_type") ?: "video",
+            showOnDeck = config.bool("show_on_deck", default = true),
+            showMovies = config.bool("show_recently_added_movies", default = true),
+            showShows = config.bool("show_recently_added_shows", default = true),
+            itemsPerRow = config.int("items_per_row", default = 12).coerceIn(1, 30)
+        )
     }
 
     @Composable
-    override fun Render(config: CardConfig, ctx: CardContext) {
-        val host = config.string("host")?.trimEnd('/') ?: return
-        val token = config.string("token") ?: return
-        // Android-TV media_player entity. Tapping launches Plex on it via
-        // select_source — deep-link item playback isn't reliable on Plex for
-        // Android TV (opens the app but won't navigate to the item).
-        val mediaEntity = config.string("media_entity") ?: return
-        val source = config.string("source") ?: "Plex"
-        // Optional: a real Plex-client entity (HA Plex integration, requires the
-        // TV's Plex app registered as a companion client) → true item playback.
-        val playEntity = config.string("play_entity")
-
-        var rows by remember { mutableStateOf<List<PlexRow>?>(null) }
-        var machineId by remember { mutableStateOf<String?>(null) }
-        var error by remember { mutableStateOf<String?>(null) }
-
-        LaunchedEffect(host, token) {
+    private fun rememberPlexState(cfg: PlexConfig): PlexUiState {
+        val state = remember { PlexUiState() }
+        LaunchedEffect(cfg.host, cfg.token, cfg.showOnDeck, cfg.showMovies, cfg.showShows, cfg.itemsPerRow) {
             try {
-                machineId =
-                    get(url(host, token, "/identity"))
-                        ?.mc()
-                        ?.strOf("machineIdentifier")
-                val out = mutableListOf<PlexRow>()
-                fetchItems(host, token, "/library/onDeck")
-                    ?.takeIf { it.isNotEmpty() }
-                    ?.let { out += PlexRow("On Deck", it) }
-                fetchItems(host, token, "/library/recentlyAdded")
-                    ?.takeIf { it.isNotEmpty() }
-                    ?.let { out += PlexRow("Recently Added", it) }
-                rows = out
-                if (out.isEmpty()) error = "No items returned from Plex"
+                state.machineId = PlexApi.fetchIdentity(cfg.host, cfg.token)
+                val out = loadRows(cfg.host, cfg.token, cfg.showOnDeck, cfg.showMovies, cfg.showShows, cfg.itemsPerRow)
+                state.rows = out
+                if (out.isEmpty()) state.error = "No items returned from Plex"
             } catch (ex: Exception) {
-                error = ex.message ?: "Plex error"
-                rows = emptyList()
+                state.error = ex.message ?: "Plex error"
+                state.rows = emptyList()
             }
         }
+        LaunchedEffect(state.detailItem) {
+            state.detail = null
+            val cur = state.detailItem ?: return@LaunchedEffect
+            state.detail = PlexApi.fetchDetail(cfg.host, cfg.token, cur.key)
+        }
+        return state
+    }
 
-        fun play(item: PlexItem) {
-            if (playEntity != null) {
-                // Real playback via the HA Plex integration's client entity.
-                val id = machineId ?: return
+    @OptIn(ExperimentalFoundationApi::class)
+    @Composable
+    override fun Render(config: CardConfig, ctx: CardContext) {
+        val cfg = readConfig(config) ?: return
+        val state = rememberPlexState(cfg)
+
+        fun openSource() {
+            // Reliable fallback: open Plex on the TV so you can pick it.
+            ctx.client.callService(
+                ServiceCall.of("media_player", "select_source", cfg.mediaEntity, "source" to cfg.source)
+            )
+        }
+
+        fun play(ratingKey: String) {
+            // machineId comes from the same /identity call rows already depend on; if it's
+            // still null here the Plex server didn't answer it (or answered oddly) — rather
+            // than silently doing nothing, fall back to just opening the app like the no-
+            // play_entity case does below.
+            val id = state.machineId
+            if (cfg.playEntity != null && id != null) {
+                // Real playback via the HA Plex integration's client entity, or HA's native
+                // Apple TV integration when play_content_type is "url". Note the Plex path only
+                // works if that client is already connected (e.g. the TV's Plex app is open) —
+                // HA's Plex integration can't wake/launch a client that isn't already active.
                 ctx.client.callService(
                     ServiceCall.of(
                         "media_player",
                         "play_media",
-                        playEntity,
-                        "media_content_type" to "video",
-                        "media_content_id" to "plex://preplay/?metadataKey=${item.key}&server=$id"
+                        cfg.playEntity,
+                        "media_content_type" to cfg.playContentType,
+                        "media_content_id" to "plex://preplay/?metadataKey=$ratingKey&server=$id"
                     )
                 )
             } else {
-                // Reliable fallback: open Plex on the TV so you can pick it.
-                ctx.client.callService(
-                    ServiceCall.of("media_player", "select_source", mediaEntity, "source" to source)
-                )
+                openSource()
             }
         }
 
+        PlexRowsList(
+            theme = ctx.theme,
+            host = cfg.host,
+            token = cfg.token,
+            rows = state.rows,
+            error = state.error,
+            onTap = { item -> state.detailItem = item },
+            onLongPress = { openSource() }
+        )
+
+        if (state.detailItem != null) {
+            PlexDetailDialog(
+                host = cfg.host,
+                token = cfg.token,
+                detail = state.detail,
+                theme = ctx.theme,
+                onSelectEpisode = { ep -> state.detailItem = PlexApi.PlexItem(ep.key, ep.title, "", ep.thumb, 0L) },
+                onPlay = { key ->
+                    play(key)
+                    state.detailItem = null
+                },
+                onClose = { state.detailItem = null }
+            )
+        }
+    }
+
+    @OptIn(ExperimentalFoundationApi::class)
+    @Composable
+    private fun PlexRowsList(
+        theme: ThemeColors,
+        host: String,
+        token: String,
+        rows: List<PlexApi.PlexRow>?,
+        error: String?,
+        onTap: (PlexApi.PlexItem) -> Unit,
+        onLongPress: (PlexApi.PlexItem) -> Unit
+    ) {
         Column(
             modifier =
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(ctx.theme.cardSurface)
+                .background(theme.cardSurface)
                 .padding(vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
                 "Plex",
-                color = ctx.theme.primaryText,
+                color = theme.primaryText,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(horizontal = 14.dp)
             )
             when {
                 rows == null ->
-                    Text(
-                        "Loading…",
-                        color = ctx.theme.mutedText,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 14.dp)
-                    )
+                    Text("Loading…", color = theme.mutedText, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 14.dp))
                 error != null ->
-                    Text(
-                        error!!,
-                        color = ctx.theme.danger,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 14.dp)
-                    )
+                    Text(error, color = theme.danger, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 14.dp))
                 else ->
-                    rows!!.forEach { row ->
-                        Text(
-                            row.title,
-                            color = ctx.theme.mutedText,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 14.dp)
-                        )
+                    rows.forEach { row ->
+                        Text(row.title, color = theme.mutedText, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 14.dp))
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             contentPadding = PaddingValues(horizontal = 14.dp)
                         ) {
                             items(row.items) { item ->
-                                PosterTile(host, token, item, ctx.theme) { play(item) }
+                                PosterTile(
+                                    host = host,
+                                    token = token,
+                                    item = item,
+                                    theme = theme,
+                                    onTap = { onTap(item) },
+                                    onLongPress = { onLongPress(item) }
+                                )
                             }
                         }
                     }
@@ -202,120 +274,65 @@ class PlexCard : CardRenderer {
         }
     }
 
+    private suspend fun loadRows(
+        host: String,
+        token: String,
+        showOnDeck: Boolean,
+        showMovies: Boolean,
+        showShows: Boolean,
+        itemsPerRow: Int
+    ): List<PlexApi.PlexRow> {
+        val sections = if (showMovies || showShows) PlexApi.fetchSections(host, token) else emptyList()
+        val out = mutableListOf<PlexApi.PlexRow>()
+        if (showOnDeck) {
+            PlexApi.fetchItems(host, token, "/library/onDeck", itemsPerRow)
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { out += PlexApi.PlexRow("On Deck", it) }
+        }
+        if (showMovies) {
+            PlexApi.fetchRecentlyAddedForType(host, token, sections, "movie", itemsPerRow)
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { out += PlexApi.PlexRow("Recently Added Movies", it) }
+        }
+        if (showShows) {
+            PlexApi.fetchRecentlyAddedForType(host, token, sections, "show", itemsPerRow)
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { out += PlexApi.PlexRow("Recently Added TV", it) }
+        }
+        return out
+    }
+
+    @OptIn(ExperimentalFoundationApi::class)
     @Composable
-    private fun PosterTile(host: String, token: String, item: PlexItem, theme: ThemeColors, onClick: () -> Unit) {
+    private fun PosterTile(
+        host: String,
+        token: String,
+        item: PlexApi.PlexItem,
+        theme: ThemeColors,
+        onTap: () -> Unit,
+        onLongPress: () -> Unit
+    ) {
+        // combinedClickable alone never fires onLongClick from a held hardware D-pad key
+        // (only from a touch gesture's press duration) — rememberLongPressKeyModifier covers
+        // that case separately, same fix as LightCard/CoverCard/MediaPlayerCard.
+        val gestureModifier =
+            rememberLongPressKeyModifier(item.key) { onLongPress() }
+                .combinedClickable(onClick = onTap, onLongClick = onLongPress)
         Column(
-            modifier =
-            Modifier
-                .width(104.dp)
-                .tapClickable(onClick = onClick)
+            modifier = Modifier.width(104.dp).then(gestureModifier)
         ) {
-            val posterUrl =
-                item.thumb?.let {
-                    "$host/photo/:/transcode?width=140&height=210&minSize=1&upscale=1" +
-                        "&url=${URLEncoder.encode(it, "UTF-8")}&X-Plex-Token=$token"
-                }
-            var bmp by remember(posterUrl) { mutableStateOf(posterUrl?.let { cacheGet(it) }) }
-            LaunchedEffect(posterUrl) {
-                if (bmp == null && posterUrl != null) {
-                    val loaded =
-                        withContext(Dispatchers.IO) {
-                            runCatching {
-                                http.newCall(Request.Builder().url(posterUrl).build()).execute().use { r ->
-                                    r.body?.bytes()?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
-                                }
-                            }.getOrNull()?.asImageBitmap()
-                        }
-                    if (loaded != null) {
-                        cachePut(posterUrl, loaded)
-                        bmp = loaded
-                    }
-                }
-            }
-            val posterMod =
-                Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-                    .clip(RoundedCornerShape(10.dp))
+            val posterUrl = remember(item.thumb) { PlexApi.posterUrl(host, token, item.thumb) }
+            var bmp by remember(posterUrl) { mutableStateOf<ImageBitmap?>(null) }
+            LaunchedEffect(posterUrl) { bmp = posterUrl?.let { PlexApi.loadBitmap(it) } }
+            val posterMod = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(10.dp))
             if (bmp != null) {
                 Image(bmp!!, contentDescription = item.title, modifier = posterMod, contentScale = ContentScale.Crop)
             } else {
                 Box(posterMod.background(theme.insetSurface))
             }
             Spacer(Modifier.height(4.dp))
-            Text(
-                item.title,
-                color = theme.primaryText,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                item.subtitle,
-                color = theme.mutedText,
-                fontSize = 10.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Text(item.title, color = theme.primaryText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(item.subtitle, color = theme.mutedText, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
-
-    // ---- Plex HTTP helpers ----------------------------------------------------
-
-    private fun url(host: String, token: String, path: String): String =
-        host + path + (if ('?' in path) "&" else "?") + "X-Plex-Token=$token"
-
-    private suspend fun get(u: String): JsonObject? = withContext(Dispatchers.IO) {
-        runCatching {
-            http
-                .newCall(
-                    Request
-                        .Builder()
-                        .url(u)
-                        .header("Accept", "application/json")
-                        .build()
-                ).execute()
-                .use { r ->
-                    if (!r.isSuccessful) {
-                        null
-                    } else {
-                        json.parseToJsonElement(r.body?.string() ?: return@use null) as? JsonObject
-                    }
-                }
-        }.getOrNull()
-    }
-
-    private suspend fun fetchItems(host: String, token: String, path: String): List<PlexItem>? {
-        val container = get(url(host, token, path) + "&X-Plex-Container-Size=12")?.mc() ?: return null
-        val meta = container["Metadata"] as? JsonArray ?: return emptyList()
-        return meta.mapNotNull { el ->
-            val o = el as? JsonObject ?: return@mapNotNull null
-            val key = o.strOf("key") ?: return@mapNotNull null
-            val type = o.strOf("type")
-            if (type == "episode") {
-                val show = o.strOf("grandparentTitle") ?: o.strOf("title") ?: "?"
-                val s = o.intOf("parentIndex")
-                val ep = o.intOf("index")
-                PlexItem(
-                    key = key,
-                    title = show,
-                    subtitle = "S${s ?: "?"}E${ep ?: "?"} · ${o.strOf("title") ?: ""}",
-                    thumb = o.strOf("grandparentThumb") ?: o.strOf("thumb")
-                )
-            } else {
-                PlexItem(
-                    key = key,
-                    title = o.strOf("title") ?: "?",
-                    subtitle = o.intOf("year")?.toString() ?: type.orEmpty(),
-                    thumb = o.strOf("thumb")
-                )
-            }
-        }
-    }
-
-    private fun JsonObject.mc(): JsonObject? = this["MediaContainer"] as? JsonObject
-
-    private fun JsonObject.strOf(k: String): String? = (this[k] as? JsonPrimitive)?.content
-
-    private fun JsonObject.intOf(k: String): Int? = (this[k] as? JsonPrimitive)?.content?.toIntOrNull()
 }
