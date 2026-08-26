@@ -291,6 +291,28 @@ function updateCardFormInputs() {
     `;
     window._pendingVacuumRooms = window._pendingVacuumRooms || [];
     renderVacuumRoomsList();
+  } else if (type === 'plex') {
+    container.innerHTML = `
+      <label>Plex server URL</label><input type="text" id="optPlexHost" placeholder="e.g., http://192.168.1.50:32400">
+      <label>Plex token (X-Plex-Token)</label><input type="text" id="optPlexToken" placeholder="e.g., aBcDeFgHiJkLmNoPqRsT">
+      <label>Playback entity (Android TV media_player — used to open Plex when no direct client entity is set)</label><input type="text" id="optPlexMediaEntity" placeholder="e.g., media_player.tv">
+      <label>Source name (as it appears in that player's source list)</label><input type="text" id="optPlexSource" value="Plex" placeholder="Plex">
+      <label>Direct playback entity (optional — jumps straight to the item instead of just opening the app)</label><input type="text" id="optPlexPlayEntity" placeholder="e.g., media_player.plex_living_room_tv">
+      <label>Direct playback entity type</label>
+      <select id="optPlexPlayContentType">
+        <option value="video">HA Plex integration client (video)</option>
+        <option value="url">HA's native Apple TV integration (url / deep link)</option>
+      </select>
+      <div class="hint">The HA Plex integration expects "video", but requires the Plex client on the TV to already be open and actively connected — HA's own Plex integration has a known, long-standing bug where it otherwise refuses with "Client is not currently accepting playback controls" (this is on Plex/Apple TV's side, not fixable here). HA's native Apple TV integration instead deep-links via "url" and doesn't have that restriction, but needs the Plex app on the Apple TV to support plex:// as a system deep link.</div>
+      <label>Rows to show</label>
+      <div class="hint-row">
+        <label class="inline-check"><input type="checkbox" id="optPlexShowOnDeck" checked> On Deck / Continue Watching</label>
+        <label class="inline-check"><input type="checkbox" id="optPlexShowMovies" checked> Recently Added Movies</label>
+        <label class="inline-check"><input type="checkbox" id="optPlexShowShows" checked> Recently Added TV</label>
+      </div>
+      <label>Items per row</label><input type="number" id="optPlexItemsPerRow" value="12" min="1" max="30">
+      <div class="hint">Movies/TV are detected automatically from your Plex libraries' own type (no need to type a library name) — if several libraries share a type (e.g. "Movies" + "Movies 4K") their items are merged into one row. Tap a poster for a detail view — synopsis, genres, episode browser for a show — with its own Play button, which is what actually attempts a direct deep-link (requires a direct playback entity below, and for the HA Plex integration, that the TV's Plex app is already open and connected). Long-press a poster to open Plex on the playback entity directly (quick action) — bound to long-press rather than tap since these rows scroll under a finger and an accidental tap mid-scroll shouldn't trigger a real Home Assistant call.</div>
+    `;
   } else {
     // Advanced / custom: raw options JSON, and free type name if "custom"
     container.innerHTML = `
@@ -309,7 +331,8 @@ function updateCardFormInputs() {
     : type === 'select' ? ['select', 'input_select']
     : type;
   ['optEntityId', 'optRemoteEntity', 'optMediaEntity', 'optMuteEntity',
-    'optCalendarEntity', 'optMapImage', 'giEntityId'].forEach(id => {
+    'optCalendarEntity', 'optMapImage', 'giEntityId',
+    'optPlexMediaEntity', 'optPlexPlayEntity'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const dom = id === 'optEntityId' ? mainDomain
@@ -318,6 +341,8 @@ function updateCardFormInputs() {
       : id === 'optMuteEntity' ? 'media_player'
       : id === 'optCalendarEntity' ? 'calendar'
       : id === 'optMapImage' ? 'image'
+      : id === 'optPlexMediaEntity' ? 'media_player'
+      : id === 'optPlexPlayEntity' ? 'media_player'
       : null; // giEntityId — any domain (scene.*, script.*, media_player.*, …)
     attachEntityAutocomplete(el, dom);
   });
@@ -773,6 +798,17 @@ function fillCardForm(card) {
     document.getElementById('optRoomCleanDomain').value = rca.domain || '';
     document.getElementById('optRoomCleanService').value = rca.service || '';
     document.getElementById('optRoomCleanParameter').value = rca.parameter || '';
+  } else if (type === 'plex') {
+    document.getElementById('optPlexHost').value = o.host || '';
+    document.getElementById('optPlexToken').value = o.token || '';
+    document.getElementById('optPlexMediaEntity').value = o.media_entity || '';
+    document.getElementById('optPlexSource').value = o.source || 'Plex';
+    document.getElementById('optPlexPlayEntity').value = o.play_entity || '';
+    document.getElementById('optPlexPlayContentType').value = o.play_content_type || 'video';
+    document.getElementById('optPlexShowOnDeck').checked = o.show_on_deck !== false;
+    document.getElementById('optPlexShowMovies').checked = o.show_recently_added_movies !== false;
+    document.getElementById('optPlexShowShows').checked = o.show_recently_added_shows !== false;
+    document.getElementById('optPlexItemsPerRow').value = o.items_per_row ?? 12;
   } else {
     const customField = document.getElementById('optCustomType');
     if (customField) customField.value = type;
@@ -993,6 +1029,33 @@ function addCardToPage() {
       }
       newCard.options.room_clean_action = { domain: rcaDomain, service: rcaService, parameter: rcaParameter };
     }
+  } else if (type === 'plex') {
+    const plexHost = document.getElementById('optPlexHost').value.trim();
+    const plexToken = document.getElementById('optPlexToken').value.trim();
+    const plexMediaEntity = document.getElementById('optPlexMediaEntity').value.trim();
+    if (!plexHost || !plexToken || !plexMediaEntity) {
+      alert('Fill in the Plex server URL, token, and a playback entity.');
+      return;
+    }
+    newCard.options.host = plexHost;
+    newCard.options.token = plexToken;
+    newCard.options.media_entity = plexMediaEntity;
+    const plexSource = document.getElementById('optPlexSource').value.trim();
+    if (plexSource && plexSource !== 'Plex') newCard.options.source = plexSource;
+    const plexPlayEntity = document.getElementById('optPlexPlayEntity').value.trim();
+    if (plexPlayEntity) {
+      newCard.options.play_entity = plexPlayEntity;
+      const plexPlayContentType = document.getElementById('optPlexPlayContentType').value;
+      if (plexPlayContentType !== 'video') newCard.options.play_content_type = plexPlayContentType;
+    }
+    // Written explicitly (even when checked/default) so the app's "any flag
+    // present => only what's set shows" logic is unambiguous once the
+    // builder has touched this card.
+    newCard.options.show_on_deck = document.getElementById('optPlexShowOnDeck').checked;
+    newCard.options.show_recently_added_movies = document.getElementById('optPlexShowMovies').checked;
+    newCard.options.show_recently_added_shows = document.getElementById('optPlexShowShows').checked;
+    const plexItemsPerRow = parseInt(document.getElementById('optPlexItemsPerRow').value, 10);
+    if (!isNaN(plexItemsPerRow) && plexItemsPerRow !== 12) newCard.options.items_per_row = plexItemsPerRow;
   } else {
     if (type === 'custom') newCard.type = document.getElementById('optCustomType').value.trim() || 'custom';
     try {
