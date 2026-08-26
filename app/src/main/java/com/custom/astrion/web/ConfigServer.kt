@@ -1449,8 +1449,16 @@ class ConfigServer(
         )
     }
 
+    /**
+     * Same beta-detection as SettingsMenu.kt's LaunchedEffect: a beta/debug
+     * build (`versionNameSuffix = "-beta"`, see build.gradle.kts) checks the
+     * rolling `dev-latest` pre-release here too, instead of always comparing
+     * against `/releases/latest` — otherwise this badge could never fire on
+     * a beta install either.
+     */
     private fun handleCheckUpdate(): Response {
-        val result = UpdateChecker.checkForUpdate()
+        val isBeta = BuildConfig.VERSION_NAME.contains("-beta")
+        val result = if (isBeta) UpdateChecker.checkBetaUpdate() else UpdateChecker.checkForUpdate()
         lastResult = result
         val message =
             when (result) {
@@ -1467,7 +1475,11 @@ class ConfigServer(
     }
 
     private fun handleInstallUpdate(): Response {
-        val result = lastResult ?: UpdateChecker.checkForUpdate()
+        val result =
+            lastResult ?: run {
+                val isBeta = BuildConfig.VERSION_NAME.contains("-beta")
+                if (isBeta) UpdateChecker.checkBetaUpdate() else UpdateChecker.checkForUpdate()
+            }
         val info =
             (result as? UpdateChecker.CheckResult.Available)?.info
                 ?: return redirectHome(

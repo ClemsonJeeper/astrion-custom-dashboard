@@ -3,6 +3,7 @@ package com.custom.astrion.ui
 import android.app.Activity
 import android.content.Intent
 import android.provider.Settings
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.astrion.BuildConfig
 import com.custom.astrion.R
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.ha.ConnectionState
@@ -74,15 +76,32 @@ fun SettingsMenu(ctx: CardContext) {
     val activity = context as? Activity
     val scope = rememberCoroutineScope()
     var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
+    var updateIsBeta by remember { mutableStateOf(false) }
 
     // Checked once each time the Settings panel is opened — not on a
     // background timer, to avoid polling GitHub while the app just sits on
-    // the dashboard. Always compares against the official /releases/latest,
-    // so this never fires for a newer beta build, only a newer official one.
+    // the dashboard. A beta/debug build (versionNameSuffix = "-beta", see
+    // build.gradle.kts) checks the rolling dev-latest pre-release instead of
+    // /releases/latest — otherwise this row would never fire on a beta
+    // install, since dev-latest is never "the newer official release".
+    // A Failed result (network error, GitHub rate limit, misconfigured REPO
+    // constant...) is logged rather than silently dropped, so a report of
+    // "the update notification doesn't work" is diagnosable from logcat
+    // instead of indistinguishable from "genuinely up to date".
     LaunchedEffect(Unit) {
-        val result = withContext(Dispatchers.IO) { UpdateChecker.checkForUpdate() }
-        if (result is UpdateChecker.CheckResult.Available) {
-            updateInfo = result.info
+        val isBeta = BuildConfig.VERSION_NAME.contains("-beta")
+        val result =
+            withContext(Dispatchers.IO) {
+                if (isBeta) UpdateChecker.checkBetaUpdate() else UpdateChecker.checkForUpdate()
+            }
+        when (result) {
+            is UpdateChecker.CheckResult.Available -> {
+                updateInfo = result.info
+                updateIsBeta = isBeta
+            }
+            is UpdateChecker.CheckResult.Failed ->
+                Log.w("SettingsMenu", "Update check failed (beta=$isBeta): ${result.reason}")
+            UpdateChecker.CheckResult.UpToDate -> Unit
         }
     }
 
@@ -103,7 +122,13 @@ fun SettingsMenu(ctx: CardContext) {
         )
 
         updateInfo?.let { info ->
-            SettingRow(icon = Icons.Filled.SystemUpdate, label = "Mise à jour disponible : v${info.version}") {
+            val label =
+                if (updateIsBeta) {
+                    "Bêta disponible : ${info.version}"
+                } else {
+                    "Mise à jour disponible : v${info.version}"
+                }
+            SettingRow(icon = Icons.Filled.SystemUpdate, label = label) {
                 scope.launch(Dispatchers.IO) {
                     val file = UpdateChecker.download(context, info.apkUrl)
                     if (file != null) {
