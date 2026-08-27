@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -83,6 +85,7 @@ fun MediaPlayerDetailDialog(
     val artPath = e?.attrString("entity_picture")
     var art by remember(artPath) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(artPath) { art = artPath?.let { client.fetchBitmap(it) } }
+    var showBrowser by remember { mutableStateOf(false) }
 
     fun mp(service: String, data: Array<out Pair<String, Any?>> = emptyArray()) {
         client.callService(ServiceCall.of("media_player", service, entityId, *data))
@@ -132,6 +135,26 @@ fun MediaPlayerDetailDialog(
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center
                 )
+            }
+
+            if (e?.supports(Feature.BROWSE_MEDIA) == true) {
+                Row(
+                    modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(theme.controlBackground)
+                        .tapClickable { showBrowser = true }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.List,
+                        contentDescription = null,
+                        tint = theme.primaryText,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text("Browse", color = theme.primaryText, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
+                }
             }
 
             if (e != null && e.attrDouble("media_duration") != null) {
@@ -188,6 +211,10 @@ fun MediaPlayerDetailDialog(
                 }
             }
         }
+    }
+
+    if (showBrowser) {
+        MediaBrowser(entityId = entityId, client = client, theme = theme) { showBrowser = false }
     }
 }
 
