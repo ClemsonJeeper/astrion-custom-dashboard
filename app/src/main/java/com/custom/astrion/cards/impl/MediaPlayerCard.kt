@@ -733,6 +733,10 @@ internal object Feature {
     const val STOP = 4096
     const val PLAY = 16384
     const val SHUFFLE_SET = 32768
+
+    // Home Assistant's media_player.const.SUPPORT_BROWSE_MEDIA — gates the
+    // "Browse" button in MediaPlayerDetailDialog that opens MediaBrowser.
+    const val BROWSE_MEDIA = 131072
     const val REPEAT_SET = 262144
 }
 
