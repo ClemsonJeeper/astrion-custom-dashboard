@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
+import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.ui.ThemeColors
 
@@ -54,8 +55,13 @@ import com.custom.astrion.ui.ThemeColors
  *                       Play button is what actually attempts real
  *                       playback (`media_player.play_media` on
  *                       `play_entity`, deep-linking to that exact item).
- *   - Long-press it    → quick action: open Plex on the playback entity
- *                       (`media_player.select_source`).
+ *   - Long-press it    → [PlexLibraryDialog]: every item in that poster's
+ *                       own Plex library, since Plex has no deep-link for
+ *                       "open this whole library" — Astrion reimplements
+ *                       that browse view itself. Falls back to opening
+ *                       Plex on the playback entity directly
+ *                       (`media_player.select_source`) if the server
+ *                       didn't report a library section for the item.
  *
  * Kept deliberately light for the MT6580: posters are requested pre-scaled by
  * the server's photo transcoder (~140x210), rows are LazyRow (only visible
@@ -104,6 +110,8 @@ class PlexCard : CardRenderer {
         var error by mutableStateOf<String?>(null)
         var detailItem by mutableStateOf<PlexApi.PlexItem?>(null)
         var detail by mutableStateOf<PlexApi.PlexDetail?>(null)
+        var librarySectionKey by mutableStateOf<String?>(null)
+        var librarySectionTitle by mutableStateOf<String?>(null)
     }
 
     private fun readConfig(config: CardConfig): PlexConfig? {
@@ -155,43 +163,84 @@ class PlexCard : CardRenderer {
         return state
     }
 
+    private fun openSource(client: HaClient, cfg: PlexConfig) {
+        // Reliable fallback: open Plex on the TV so you can pick it.
+        client.callService(ServiceCall.of("media_player", "select_source", cfg.mediaEntity, "source" to cfg.source))
+    }
+
+    private fun play(client: HaClient, cfg: PlexConfig, machineId: String?, ratingKey: String) {
+        // machineId comes from the same /identity call rows already depend on; if it's still
+        // null here the Plex server didn't answer it (or answered oddly) — rather than silently
+        // doing nothing, fall back to just opening the app like the no-play_entity case does below.
+        if (cfg.playEntity != null && machineId != null) {
+            // Real playback via the HA Plex integration's client entity, or HA's native
+            // Apple TV integration when play_content_type is "url". Note the Plex path only
+            // works if that client is already connected (e.g. the TV's Plex app is open) —
+            // HA's Plex integration can't wake/launch a client that isn't already active.
+            client.callService(
+                ServiceCall.of(
+                    "media_player",
+                    "play_media",
+                    cfg.playEntity,
+                    "media_content_type" to cfg.playContentType,
+                    "media_content_id" to "plex://preplay/?metadataKey=$ratingKey&server=$machineId"
+                )
+            )
+        } else {
+            openSource(client, cfg)
+        }
+    }
+
+    private fun openLibrary(client: HaClient, cfg: PlexConfig, state: PlexUiState, item: PlexApi.PlexItem) {
+        val key = item.sectionKey
+        if (key != null) {
+            state.librarySectionKey = key
+            state.librarySectionTitle = item.sectionTitle ?: "Library"
+        } else {
+            // No section info from the server for this item — fall back to just
+            // opening the app rather than doing nothing.
+            openSource(client, cfg)
+        }
+    }
+
+    @Composable
+    private fun PlexDialogs(cfg: PlexConfig, state: PlexUiState, theme: ThemeColors, onPlay: (String) -> Unit) {
+        if (state.detailItem != null) {
+            PlexDetailDialog(
+                host = cfg.host,
+                token = cfg.token,
+                detail = state.detail,
+                theme = theme,
+                onSelectEpisode = { ep -> state.detailItem = PlexApi.PlexItem(ep.key, ep.title, "", ep.thumb, 0L) },
+                onPlay = { key ->
+                    onPlay(key)
+                    state.detailItem = null
+                },
+                onClose = { state.detailItem = null }
+            )
+        }
+        val sectionKey = state.librarySectionKey
+        if (sectionKey != null) {
+            PlexLibraryDialog(
+                host = cfg.host,
+                token = cfg.token,
+                sectionKey = sectionKey,
+                sectionTitle = state.librarySectionTitle ?: "Library",
+                theme = theme,
+                onSelectItem = { item ->
+                    state.librarySectionKey = null
+                    state.detailItem = item
+                },
+                onClose = { state.librarySectionKey = null }
+            )
+        }
+    }
+
     @OptIn(ExperimentalFoundationApi::class)
     @Composable
     override fun Render(config: CardConfig, ctx: CardContext) {
         val cfg = readConfig(config) ?: return
         val state = rememberPlexState(cfg)
-
-        fun openSource() {
-            // Reliable fallback: open Plex on the TV so you can pick it.
-            ctx.client.callService(
-                ServiceCall.of("media_player", "select_source", cfg.mediaEntity, "source" to cfg.source)
-            )
-        }
-
-        fun play(ratingKey: String) {
-            // machineId comes from the same /identity call rows already depend on; if it's
-            // still null here the Plex server didn't answer it (or answered oddly) — rather
-            // than silently doing nothing, fall back to just opening the app like the no-
-            // play_entity case does below.
-            val id = state.machineId
-            if (cfg.playEntity != null && id != null) {
-                // Real playback via the HA Plex integration's client entity, or HA's native
-                // Apple TV integration when play_content_type is "url". Note the Plex path only
-                // works if that client is already connected (e.g. the TV's Plex app is open) —
-                // HA's Plex integration can't wake/launch a client that isn't already active.
-                ctx.client.callService(
-                    ServiceCall.of(
-                        "media_player",
-                        "play_media",
-                        cfg.playEntity,
-                        "media_content_type" to cfg.playContentType,
-                        "media_content_id" to "plex://preplay/?metadataKey=$ratingKey&server=$id"
-                    )
-                )
-            } else {
-                openSource()
-            }
-        }
 
         PlexRowsList(
             theme = ctx.theme,
@@ -200,23 +249,10 @@ class PlexCard : CardRenderer {
             rows = state.rows,
             error = state.error,
             onTap = { item -> state.detailItem = item },
-            onLongPress = { openSource() }
+            onLongPress = { item -> openLibrary(ctx.client, cfg, state, item) }
         )
 
-        if (state.detailItem != null) {
-            PlexDetailDialog(
-                host = cfg.host,
-                token = cfg.token,
-                detail = state.detail,
-                theme = ctx.theme,
-                onSelectEpisode = { ep -> state.detailItem = PlexApi.PlexItem(ep.key, ep.title, "", ep.thumb, 0L) },
-                onPlay = { key ->
-                    play(key)
-                    state.detailItem = null
-                },
-                onClose = { state.detailItem = null }
-            )
-        }
+        PlexDialogs(cfg, state, ctx.theme) { key -> play(ctx.client, cfg, state.machineId, key) }
     }
 
     @OptIn(ExperimentalFoundationApi::class)
