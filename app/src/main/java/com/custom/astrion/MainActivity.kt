@@ -210,7 +210,7 @@ class MainActivity : ComponentActivity() {
         if (now - ambientWindowStart >= AMBIENT_WINDOW_MS) {
             val rate = "%.1f".format(ambientSamples * 1000f / (now - ambientWindowStart))
             val summary =
-                "ambient ${AMBIENT_WINDOW_MS}ms: n=$ambientSamples rate=${rate}/s " +
+                "ambient ${AMBIENT_WINDOW_MS}ms: n=$ambientSamples rate=$rate/s " +
                     "min=${f2(ambientMin)} max=${f2(ambientMax)} " +
                     "mean=${f2(ambientSum / ambientSamples)} " +
                     "maxLin=${f2(ambientMaxLin)} over=$ambientOverThreshold"
@@ -770,9 +770,9 @@ class MainActivity : ComponentActivity() {
         if (enabled) {
             registerMotionListener()
         } else {
-keyHandler.removeCallbacks(keepScreenOnClear)
-        runCatching { window.decorView.keepScreenOn = false }
-        sensorManager?.unregisterListener(motionListener)
+            keyHandler.removeCallbacks(keepScreenOnClear)
+            runCatching { window.decorView.keepScreenOn = false }
+            sensorManager?.unregisterListener(motionListener)
         }
     }
 
