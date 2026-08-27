@@ -272,7 +272,11 @@ class HaClient(
         send(msg)
         val reply = withTimeoutOrNull(RESPONSE_TIMEOUT) { deferred.await() }
         pending.remove(id)
-        return reply?.get("result")?.jsonObject
+        // Safe cast, not kotlinx.serialization's `.jsonObject` extension — that one
+        // throws IllegalStateException if "result" isn't a JsonObject (e.g. some
+        // media_player integrations return something else for certain folders)
+        // instead of returning null, which was crashing MediaBrowser on navigation.
+        return reply?.get("result") as? JsonObject
     }
 
     /**
