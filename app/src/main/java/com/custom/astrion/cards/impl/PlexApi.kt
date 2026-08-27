@@ -25,11 +25,11 @@ internal object PlexApi {
     val http: OkHttpClient = OkHttpClient.Builder().callTimeout(12, TimeUnit.SECONDS).build()
     val json = Json { ignoreUnknownKeys = true }
 
-    // Tiny LRU poster/thumb cache (~40 images ≈ a few MB) so re-opening a
-    // row or the detail dialog doesn't refetch what's already on screen.
+    // Tiny LRU poster/thumb cache — bumped from 40 to 80 now that the library
+    // grid can have many more visible posters at once than a single row.
     private val bitmapCache =
         object : LinkedHashMap<String, ImageBitmap>(0, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 40
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 80
         }
 
     @Synchronized private fun cacheGet(k: String): ImageBitmap? = bitmapCache[k]
@@ -38,13 +38,25 @@ internal object PlexApi {
         bitmapCache[k] = v
     }
 
-    data class PlexItem(val key: String, val title: String, val subtitle: String, val thumb: String?, val addedAt: Long)
+    data class PlexItem(
+        val key: String,
+        val title: String,
+        val subtitle: String,
+        val thumb: String?,
+        val addedAt: Long,
+        /** This item's Plex library section — lets a long-press open that whole library. Null if the server didn't report one. */
+        val sectionKey: String? = null,
+        val sectionTitle: String? = null
+    )
 
     data class PlexRow(val title: String, val items: List<PlexItem>)
 
-    data class PlexSection(val key: String, val type: String)
+    data class PlexSection(val key: String, val type: String, val title: String)
 
     data class PlexEpisodeSummary(val key: String, val title: String, val index: Int?, val thumb: String?)
+
+    /** One page of a full library section browse, plus the section's total item count for infinite scroll. */
+    data class PlexLibraryPage(val items: List<PlexItem>, val totalSize: Int)
 
     /** Everything the detail dialog needs for one movie or one episode. */
     data class PlexDetail(
@@ -107,7 +119,8 @@ internal object PlexApi {
             val o = el as? JsonObject ?: return@mapNotNull null
             val key = o.strOf("key") ?: return@mapNotNull null
             val secType = o.strOf("type") ?: return@mapNotNull null
-            PlexSection(key, secType)
+            val secTitle = o.strOf("title") ?: return@mapNotNull null
+            PlexSection(key, secType, secTitle)
         }
     }
 
@@ -116,6 +129,13 @@ internal object PlexApi {
      * `type` ("movie" or "show"). Multiple matching sections (e.g. a "4K
      * Movies" library alongside "Movies") are merged and re-sorted by
      * addedAt so the row still reads newest-first.
+     *
+     * Unlike the cross-section On Deck/global Recently Added endpoints,
+     * `/library/sections/{key}/recentlyAdded` doesn't reliably echo
+     * `librarySectionID` on every item (it's already implied by the
+     * endpoint path) — so items here get [section]'s key/title stamped on
+     * directly rather than trusting `toPlexItem()`'s parse of it, or a
+     * long-press's "browse this library" would silently have nothing to open.
      */
     suspend fun fetchRecentlyAddedForType(
         host: String,
@@ -128,7 +148,9 @@ internal object PlexApi {
         if (matching.isEmpty()) return null
         val merged = mutableListOf<PlexItem>()
         for (section in matching) {
-            fetchItems(host, token, "/library/sections/${section.key}/recentlyAdded", limit)?.let { merged += it }
+            fetchItems(host, token, "/library/sections/${section.key}/recentlyAdded", limit)
+                ?.map { it.copy(sectionKey = section.key, sectionTitle = section.title) }
+                ?.let { merged += it }
         }
         return merged.sortedByDescending { it.addedAt }.take(limit)
     }
@@ -137,6 +159,20 @@ internal object PlexApi {
         val meta = get(apiUrl(host, token, path) + "&X-Plex-Container-Size=$limit")?.mc()?.get("Metadata") as? JsonArray
             ?: return null
         return meta.mapNotNull { el -> (el as? JsonObject)?.toPlexItem() }
+    }
+
+    /**
+     * One page of every item in a library section (alphabetical), for the
+     * long-press "browse this library" dialog — unlike the On Deck/Recently
+     * Added rows, this isn't capped at [itemsPerRow][fetchItems]'s limit.
+     */
+    suspend fun fetchLibraryPage(host: String, token: String, sectionKey: String, start: Int, size: Int): PlexLibraryPage? {
+        val path = "/library/sections/$sectionKey/all?sort=titleSort"
+        val container = get(apiUrl(host, token, path) + "&X-Plex-Container-Start=$start&X-Plex-Container-Size=$size")?.mc()
+            ?: return null
+        val meta = container["Metadata"] as? JsonArray
+        val items = meta?.mapNotNull { el -> (el as? JsonObject)?.toPlexItem() }.orEmpty()
+        return PlexLibraryPage(items, container.intOf("totalSize") ?: items.size)
     }
 
     /** Full details for one item (movie or episode), plus its season's episode list when it's an episode. */
@@ -221,7 +257,9 @@ internal object PlexApi {
             title = show,
             subtitle = "S${season ?: "?"}E${episode ?: "?"} · ${strOf("title") ?: ""}",
             thumb = strOf("grandparentThumb") ?: strOf("thumb"),
-            addedAt = addedAt
+            addedAt = addedAt,
+            sectionKey = strOf("librarySectionID"),
+            sectionTitle = strOf("librarySectionTitle")
         )
     }
 
@@ -230,7 +268,9 @@ internal object PlexApi {
         title = strOf("title") ?: "?",
         subtitle = intOf("year")?.toString() ?: strOf("type").orEmpty(),
         thumb = strOf("thumb"),
-        addedAt = addedAt
+        addedAt = addedAt,
+        sectionKey = strOf("librarySectionID"),
+        sectionTitle = strOf("librarySectionTitle")
     )
 
     private fun JsonObject.genreTags(): List<String> =
