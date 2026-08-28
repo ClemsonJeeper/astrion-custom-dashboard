@@ -51,6 +51,7 @@ function importJson() {
       irDevices: parsed.irDevices || [],
       activities: parsed.activities || [],
       theme: parsed.theme || {},
+      voice: parsed.voice || undefined, // undefined (not null) so a missing block round-trips as absent, not "voice": null
     };
     if (dashboardData.pages.length === 0) dashboardData.pages.push({ name: "Home", cards: [], hotkeys: [], longHotkeys: [] });
     currentActivePage = 0;

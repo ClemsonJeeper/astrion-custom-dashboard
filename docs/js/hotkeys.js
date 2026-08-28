@@ -87,6 +87,16 @@ function updateHotkeyActionInputs() {
       <label>Room</label><input type="text" id="hkActivityRoom" placeholder="e.g., Living Room">
       <div class="hint" style="margin-top:4px">Jumps straight to the page of whichever Activity is currently active in this room — no picker. Does nothing if that room has nothing active right now. Must match a room name used by a tracked Activity (a composed Activity, or a scene_grid tile / hotkey with "track": true) exactly.</div>
     `;
+  } else if (action === 'appVoice') {
+    container.innerHTML = `
+      <label>Voice action</label>
+      <select id="hkVoiceMode" onchange="updateVoiceModeInputs()">
+        <option value="voice">Press-to-talk (mic streams to HA Assist)</option>
+        <option value="voice_siri">Siri passthrough (mic streams straight to an Apple TV)</option>
+      </select>
+      <div id="voiceModeInputs"></div>
+    `;
+    updateVoiceModeInputs();
   } else if (action === 'service') {
     container.innerHTML = `
       <label>Service (domain.service)</label><input type="text" id="hkService" placeholder="e.g., light.toggle">
@@ -121,7 +131,67 @@ function updateHotkeyActionInputs() {
   }
 }
 
+/** Renders the fields under the Voice action's "Voice action" sub-select —
+ * called on that select's onchange, and once up front from
+ * updateHotkeyActionInputs() to render the initial (press-to-talk) state. */
+function updateVoiceModeInputs() {
+  const mode = document.getElementById('hkVoiceMode').value;
+  const el = document.getElementById('voiceModeInputs');
+  if (mode === 'voice') {
+    el.innerHTML = `
+      <div class="hint">Streams the mic to HA Assist. Auto-stops on silence.</div>
+    `;
+    return;
+  }
+  // voice_siri: same capture, but streamed straight to an Apple TV's Siri via
+  // the appletv_siri bridge, skipping Assist entirely. siri_target isn't a
+  // per-hotkey value — it's the one Apple TV this whole layout's Siri
+  // passthrough targets (dashboardData.voice.siri_target) — so the picker
+  // below reads/writes that shared setting, not anything on this hotkey.
+  const sensor = haStates && haStates['sensor.apple_tv_siri_bridge_apple_tvs_found'];
+  const targets = sensor && sensor.attributes && sensor.attributes.apple_tvs;
+  const currentTarget = (dashboardData.voice && dashboardData.voice.siri_target) || '';
+  const known = targets && Object.keys(targets).length;
+  const picker = known
+    ? `
+      <label>Apple TV</label>
+      <select id="hkSiriTarget" onchange="setSiriTarget(this.value)">
+        ${Object.entries(targets).map(([id, t]) =>
+          `<option value="${id}"${id === currentTarget ? ' selected' : ''}>${(t.name || id)}${t.voice_ready === false ? ' (voice not ready)' : ''}</option>`
+        ).join('')}
+      </select>
+    `
+    : `
+      <label>Apple TV target ID</label>
+      <input type="text" id="hkSiriTarget" value="${currentTarget}" placeholder="e.g., 2709616" oninput="setSiriTarget(this.value)">
+      <div class="hint">No live list (HA offline, or the bridge's "Apple TVs found" sensor isn't reporting) — enter the numeric id the bridge assigned.</div>
+    `;
+  el.innerHTML = `
+    ${picker}
+    <div class="hint" style="margin-top:6px">Streams straight to Siri on the selected Apple TV. Shared setting — applies to every Siri-passthrough hotkey. Switched to Long press below.</div>
+  `;
+  // Siri passthrough only makes sense as a hold (matches a real Siri remote:
+  // press and hold to talk, release to stop) — a tap has no way to signal
+  // "done talking" the same way, so it falls back to guessing from silence,
+  // which is exactly what release-to-stop was built to avoid. See
+  // VoiceSession.stopIfListening/startOrRedirect on the app side.
+  const hkType = document.getElementById('hkType');
+  if (hkType && hkType.value !== 'longHotkeys') hkType.value = 'longHotkeys';
+  setSiriTarget(document.getElementById('hkSiriTarget').value);
+}
+
+/** Siri passthrough's target picker writes here directly rather than onto
+ * the hotkey being edited — see updateVoiceModeInputs()'s comment on why. */
+function setSiriTarget(value) {
+  if (!value) return;
+  dashboardData.voice = dashboardData.voice || {};
+  dashboardData.voice.siri_target = value;
+  updateJsonOutput();
+}
+
 function describeHotkey(h) {
+  if (h.action === 'voice') return '→ voice (press-to-talk)';
+  if (h.action === 'voice_siri') return '→ voice (Siri passthrough)';
   if (h.page) return `→ page "${h.page}"`;
   if (h.openOverlay) return `→ open ${h.openOverlay === 'activities' ? 'Active Activities' : 'Settings'}`;
   if (h.openCurrentActivityRoom) return `→ current Activity in "${h.openCurrentActivityRoom}"`;
@@ -212,7 +282,7 @@ async function editHotkey(scope, listType, i) {
   document.getElementById('hkScope').value = scope;
   document.getElementById('hkType').value = listType;
   document.getElementById('hkKey').value = h.key;
-  const action = h.page ? 'page' : h.openOverlay ? 'openOverlay' : h.openCurrentActivityRoom ? 'openCurrentActivity' : h.service === 'remote.send_command' ? 'remoteCommand' : h.service ? 'service' : h.harmonyCommand ? 'harmonyCommand' : 'harmonyActivity';
+  const action = h.page ? 'page' : h.openOverlay ? 'openOverlay' : h.openCurrentActivityRoom ? 'openCurrentActivity' : h.action === 'voice' || h.action === 'voice_siri' ? 'appVoice' : h.service === 'remote.send_command' ? 'remoteCommand' : h.service ? 'service' : h.harmonyCommand ? 'harmonyCommand' : 'harmonyActivity';
   document.getElementById('hkAction').value = action;
   updateHotkeyActionInputs();
 
@@ -222,6 +292,9 @@ async function editHotkey(scope, listType, i) {
     document.getElementById('hkOverlay').value = h.openOverlay || 'settings';
   } else if (action === 'openCurrentActivity') {
     document.getElementById('hkActivityRoom').value = h.openCurrentActivityRoom || '';
+  } else if (action === 'appVoice') {
+    document.getElementById('hkVoiceMode').value = h.action || 'voice';
+    updateVoiceModeInputs();
   } else if (action === 'service') {
     document.getElementById('hkService').value = h.service || '';
     document.getElementById('hkEntityId').value = h.entityId || '';
@@ -287,6 +360,17 @@ function addHotkey() {
     const room = document.getElementById('hkActivityRoom').value.trim();
     if (!room) { alert('Enter a room name.'); return; }
     hkObj.openCurrentActivityRoom = room;
+  } else if (action === 'appVoice') {
+    const voiceMode = document.getElementById('hkVoiceMode').value;
+    if (voiceMode === 'voice_siri' && hkType !== 'longHotkeys') {
+      alert('Siri passthrough must be a Long press — switch "Press type" above to Long press.');
+      return;
+    }
+    if (voiceMode === 'voice_siri' && !(dashboardData.voice && dashboardData.voice.siri_target)) {
+      alert('Pick which Apple TV Siri passthrough should target.');
+      return;
+    }
+    hkObj.action = voiceMode;
   } else if (action === 'service') {
     hkObj.service = document.getElementById('hkService').value.trim();
     const entityId = document.getElementById('hkEntityId').value.trim();

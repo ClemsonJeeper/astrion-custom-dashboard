@@ -23,6 +23,7 @@ It features a swipe-navigable, full-screen dashboard driven entirely by a JSON c
 - **Home Assistant connection**: WebSocket via `HaClient`.
 - **Harmony Hub integration** (optional) for IR remotes/activities.
 - **Physical keys**: `HardwareKeyRouter` maps the box's hardware keys to hotkeys defined in the config (page navigation, quick actions...).
+- **Voice**: press-to-talk into Home Assistant Assist, or (long-press only) straight to Siri on an Apple TV — see [docs/VOICE.md](docs/VOICE.md).
 
 ### Local configuration (no adb needed)
 

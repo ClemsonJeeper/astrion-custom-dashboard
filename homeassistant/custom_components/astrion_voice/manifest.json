@@ -1,0 +1,9 @@
+{
+  "domain": "astrion_voice",
+  "name": "Astrion Voice",
+  "version": "1.0.0",
+  "documentation": "https://github.com/ClemsonJeeper/astrion-custom-dashboard",
+  "codeowners": ["@ClemsonJeeper"],
+  "iot_class": "local_push",
+  "dependencies": ["http", "assist_pipeline"]
+}

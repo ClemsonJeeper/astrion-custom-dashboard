@@ -81,13 +81,46 @@ enum class HardwareKey {
 class HardwareKeyRouter {
     private val shortHandlers = mutableMapOf<HardwareKey, () -> Boolean>()
     private val longHandlers = mutableMapOf<HardwareKey, () -> Boolean>()
+    private val longReleaseHandlers = mutableMapOf<HardwareKey, () -> Unit>()
+    private val pressStartHandlers = mutableMapOf<HardwareKey, () -> Unit>()
+    private val repeatable = mutableSetOf<HardwareKey>()
 
-    fun on(key: HardwareKey, handler: () -> Boolean) {
+    /**
+     * @param repeats whether holding the key should fire the handler again and
+     *   again. True for level-triggered things like volume and channel; FALSE
+     *   for edge-triggered ones like starting a voice capture, where auto-repeat
+     *   would toggle it on and off several times a second.
+     */
+    fun on(key: HardwareKey, repeats: Boolean = true, handler: () -> Boolean) {
         shortHandlers[key] = handler
+        if (repeats) repeatable += key else repeatable -= key
     }
 
     fun onLong(key: HardwareKey, handler: () -> Boolean) {
         longHandlers[key] = handler
+    }
+
+    /** Called immediately on ACTION_DOWN, before the long-press threshold has
+     * had any chance to confirm this press is actually a hold — for an action
+     * that has to start the instant the key goes down rather than after that
+     * threshold (voice capture streaming to Siri: waiting for the threshold
+     * before opening the mic would mean every hold starts with a dead sliver
+     * of unrecorded audio, unlike a real Siri remote). The eventual [onLong] /
+     * short-handler firing still happens on its own schedule and is
+     * responsible for reconciling with whatever this already started — see
+     * VoiceSession.startOrRedirect. */
+    fun onPressStart(key: HardwareKey, handler: () -> Unit) {
+        pressStartHandlers[key] = handler
+    }
+
+    /** Called on release, but only for a press that actually reached the long-press
+     * threshold (i.e. [onLong]'s handler already fired) — a plain tap that resolved
+     * to the short handler does not call this. For a hold whose action is ongoing
+     * for as long as the key is down (voice capture streaming to Siri; see
+     * MainActivity.startVoiceHotkey), release is the natural "stop now" signal
+     * rather than something [onLong]'s handler can react to on its own. */
+    fun onLongRelease(key: HardwareKey, handler: () -> Unit) {
+        longReleaseHandlers[key] = handler
     }
 
     /** True if [key] already has a short-press handler bound — used to let a
@@ -99,7 +132,13 @@ class HardwareKeyRouter {
     fun clear() {
         shortHandlers.clear()
         longHandlers.clear()
+        longReleaseHandlers.clear()
+        pressStartHandlers.clear()
+        repeatable.clear()
     }
+
+    /** True if holding this key should re-fire its handler. */
+    fun repeatsWhileHeld(code: Int): Boolean = HardwareKey.fromKeyCode(code).let { it != HardwareKey.UNKNOWN && it in repeatable }
 
     fun shortHandler(code: Int): (() -> Boolean)? {
         val key = HardwareKey.fromKeyCode(code)
@@ -109,5 +148,15 @@ class HardwareKeyRouter {
     fun longHandler(code: Int): (() -> Boolean)? {
         val key = HardwareKey.fromKeyCode(code)
         return if (key == HardwareKey.UNKNOWN) null else longHandlers[key]
+    }
+
+    fun longReleaseHandler(code: Int): (() -> Unit)? {
+        val key = HardwareKey.fromKeyCode(code)
+        return if (key == HardwareKey.UNKNOWN) null else longReleaseHandlers[key]
+    }
+
+    fun pressStartHandler(code: Int): (() -> Unit)? {
+        val key = HardwareKey.fromKeyCode(code)
+        return if (key == HardwareKey.UNKNOWN) null else pressStartHandlers[key]
     }
 }

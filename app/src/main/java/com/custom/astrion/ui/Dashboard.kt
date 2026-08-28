@@ -66,6 +66,8 @@ import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.harmony.HarmonyHubRegistry
+import com.custom.astrion.voice.VoiceOverlay
+import com.custom.astrion.voice.VoiceState
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -134,7 +136,10 @@ fun Dashboard(
      * exist in this Composable's scope, so ConfigServer gets a fresh
      * function reference instead of duplicating the dispatch logic. */
     onStartActivityReady: ((String) -> Unit) -> Unit = {},
-    onStopActivityReady: ((String) -> Unit) -> Unit = {}
+    onStopActivityReady: ((String) -> Unit) -> Unit = {},
+    /** Voice indicator state; the VOICE key drives it via VoiceSession. */
+    voiceState: VoiceState = VoiceState.Idle,
+    onVoiceDismiss: () -> Unit = {}
 ) {
     val entities by entitiesState
     val context = LocalContext.current
@@ -465,6 +470,25 @@ fun Dashboard(
                         onClose = { showActivities = false }
                     )
                 }
+
+                // Prompts are gated on an entity so they can be specific to what is on
+                // (movie searches in front of a Kaleidescape, nothing elsewhere). No
+                // gate entity configured means always show them. Reading the one key
+                // here keeps the per-key observation intact — see CardContext.
+                val voiceCfg = config.voice
+                val prompts = when {
+                    voiceCfg == null || voiceCfg.suggestions.isEmpty() -> emptyList()
+                    voiceCfg.suggestEntity == null -> voiceCfg.suggestions
+                    entities[voiceCfg.suggestEntity]?.state == voiceCfg.suggestState ->
+                        voiceCfg.suggestions
+                    else -> emptyList()
+                }
+                VoiceOverlay(
+                    voiceState,
+                    onVoiceDismiss,
+                    prompts = prompts,
+                    promptTitle = voiceCfg?.suggestTitle ?: "Try saying"
+                )
             }
         }
     }

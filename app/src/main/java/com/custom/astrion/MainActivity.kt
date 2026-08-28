@@ -42,6 +42,8 @@ import com.custom.astrion.harmony.HarmonyHubRegistry
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.ui.Dashboard
+import com.custom.astrion.voice.VoiceRoute
+import com.custom.astrion.voice.VoiceSession
 import com.custom.astrion.web.ConfigServer
 import fi.iki.elonen.NanoHTTPD
 import kotlin.math.abs
@@ -112,6 +114,12 @@ class MainActivity : ComponentActivity() {
         }
 
     private lateinit var client: HaClient
+
+    /** Press-to-talk for the VOICE key (see `runHotkey`'s `hk.isVoiceAction`
+     * branch): streams the mic to the HA endpoint named by the layout's
+     * `voice.path`. Recreated in [initClientsAndServer] so a settings
+     * re-connect swaps the URL/token the stream is posted to. */
+    private lateinit var voice: VoiceSession
 
     /** Owns one HarmonyHubClient per configured Harmony hub. */
     private lateinit var harmonyRegistry: HarmonyHubRegistry
@@ -191,7 +199,10 @@ class MainActivity : ComponentActivity() {
             storagePermission.launch(
                 arrayOf(
                     Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    // VOICE key press-to-talk — see the manifest comment; Android 8.1
+                    // grants nothing by default, so ask alongside the storage pair.
+                    Manifest.permission.RECORD_AUDIO
                 )
             )
         }
@@ -225,6 +236,7 @@ class MainActivity : ComponentActivity() {
      *  unreliable on Android 8.1 HOME launcher activities. */
     private fun initClientsAndServer() {
         client = HaClient(baseUrl = RemoteSettings.haUrl(this), token = RemoteSettings.haToken(this))
+        voice = VoiceSession(baseUrl = RemoteSettings.haUrl(this), token = RemoteSettings.haToken(this))
         harmonyRegistry =
             HarmonyHubRegistry(
                 hubs = RemoteSettings.harmonyHubs(this),
@@ -272,6 +284,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val entities = client.entities.collectAsState()
             val connection = client.connection.collectAsState()
+            val voiceState = voice.state.collectAsState()
             Dashboard(
                 client = client,
                 harmonyRegistry = harmonyRegistry,
@@ -296,7 +309,9 @@ class MainActivity : ComponentActivity() {
                 setTapFeedbackEnabled = { enabled -> setTapFeedback(enabled) },
                 onActivityRuntimeReady = { activityRuntime = it },
                 onStartActivityReady = { fn -> startActivityFn = fn },
-                onStopActivityReady = { fn -> stopActivityFn = fn }
+                onStopActivityReady = { fn -> stopActivityFn = fn },
+                voiceState = voiceState.value,
+                onVoiceDismiss = { voice.dismiss() }
             )
         }
     }
@@ -390,13 +405,21 @@ class MainActivity : ComponentActivity() {
             val key =
                 runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
                     ?: return@forEach
-            keyRouter.on(key) { runHotkey(hk) }
+            keyRouter.on(key, repeats = !hk.isVoiceAction) { runHotkey(hk) }
         }
         long.forEach { hk ->
             val key =
                 runCatching { HardwareKey.valueOf(hk.key.uppercase()) }.getOrNull()
                     ?: return@forEach
             keyRouter.onLong(key) { runHotkey(hk) }
+            // Siri capture starts the instant the key goes down (not after the
+            // long-press threshold confirms a hold) and streams for as long as
+            // it's held, same as the real remote — release is what ends it, not
+            // a silence guess. See VoiceSession.startOrRedirect/stopIfListening.
+            if (hk.isSiriVoiceAction) {
+                keyRouter.onPressStart(key) { startVoiceHotkey(hk) }
+                keyRouter.onLongRelease(key) { voice.stopIfListening() }
+            }
         }
     }
 
@@ -423,19 +446,66 @@ class MainActivity : ComponentActivity() {
         return true
     }
 
+    /** `hk.action == "voice"` (Assist) or `"voice_siri"` (straight to the Apple
+     * TV Siri bridge, bypassing Assist) — same capture either way, only the
+     * destination differs, split out of [runHotkey] purely to keep that
+     * function's cyclomatic complexity down (it only checks
+     * [HotkeyConfig.isVoiceAction]). Edge-triggered: [bindHotkeys] registers
+     * both actions with `repeats = false`, so holding the key can't toggle the
+     * session on and off. The layout's page name rides along as X-Astrion-Page
+     * so HA can route the utterance context-sensitively (e.g. "Search:" on a TV
+     * page vs. plain Assist).
+     *
+     * Called from three places, all funneling into [VoiceSession.startOrRedirect]
+     * which reconciles whichever of them fires first with whichever fires
+     * second: [bindHotkeys]'s `onPressStart` (VOICE going down — starts the Siri
+     * capture immediately, before the long-press threshold has confirmed a
+     * hold), this same hotkey's `onLong` (the threshold's redundant
+     * confirmation once it does), and the short/tap binding via [runHotkey]
+     * (VOICE released before the threshold — redirects the already-running
+     * capture to Assist instead of the Siri guess). */
+    private fun startVoiceHotkey(hk: HotkeyConfig): Boolean {
+        voice.startOrRedirect(
+            dashboard.config.voice,
+            dashboard.config.pages.getOrNull(currentPageIndex)?.name,
+            route = if (hk.isSiriVoiceAction) VoiceRoute.SIRI else VoiceRoute.ASSIST
+        )
+        return true
+    }
+
+    /** `hk.irDevice` + `hk.irCommand`'s handling, split out of [runHotkey] purely
+     * to keep that function's cyclomatic complexity down — behavior unchanged. */
+    private fun sendIrCommandHotkey(irDevice: String, irCommand: String): Boolean {
+        val irStep =
+            dashboard.config.irDevices
+                .firstOrNull { it.id == irDevice }
+                ?.commands
+                ?.get(irCommand)
+        if (irStep != null) {
+            runCatching { irManager?.transmit(irStep.freq, irStep.pattern.toIntArray()) }
+                .onFailure { Log.e("MainActivity", "hotkey IR send failed: $irDevice/$irCommand", it) }
+        } else {
+            Log.w("MainActivity", "hotkey irDevice=$irDevice irCommand=$irCommand not found in AppConfig.irDevices")
+        }
+        return true
+    }
+
     /**
      * Execute one hotkey, in priority order:
      *  1. Open overlay (settings / active activities)
      *  2. Open current Activity's page for a room
-     *  3. Page navigation
-     *  4. Harmony Activity by id
-     *  5. Direct Harmony hub command (harmonyDevice + harmonyCommand) — no HA involved
-     *  6. Local IR command (irDevice + irCommand) — no hub, no HA, fully offline
-     *  7. Home Assistant service call
+     *  3. Built-in app action (`action: "voice"` → Assist press-to-talk, or
+     *     `action: "voice_siri"` → straight to the Apple TV Siri bridge)
+     *  4. Page navigation
+     *  5. Harmony Activity by id
+     *  6. Direct Harmony hub command (harmonyDevice + harmonyCommand) — no HA involved
+     *  7. Local IR command (irDevice + irCommand) — no hub, no HA, fully offline
+     *  8. Home Assistant service call
      */
     private fun runHotkey(hk: HotkeyConfig): Boolean {
         if (hk.openOverlay != null) return openOverlayHotkey(hk.openOverlay)
         if (hk.openCurrentActivityRoom != null) return openCurrentActivityHotkey(hk.openCurrentActivityRoom)
+        if (hk.isVoiceAction) return startVoiceHotkey(hk)
 
         hk.page?.let { pageName ->
             val idx = dashboard.config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
@@ -461,17 +531,7 @@ class MainActivity : ComponentActivity() {
         val irDevice = hk.irDevice
         val irCommand = hk.irCommand
         if (irDevice != null && irCommand != null) {
-            val irStep =
-                dashboard.config.irDevices
-                    .firstOrNull { it.id == irDevice }
-                    ?.commands
-                    ?.get(irCommand)
-            if (irStep != null) {
-                runCatching { irManager?.transmit(irStep.freq, irStep.pattern.toIntArray()) }
-                    .onFailure { Log.e("MainActivity", "hotkey IR send failed: $irDevice/$irCommand", it) }
-            } else {
-                Log.w("MainActivity", "hotkey irDevice=$irDevice irCommand=$irCommand not found in AppConfig.irDevices")
-            }
+            sendIrCommandHotkey(irDevice, irCommand)
             return true
         }
 
@@ -482,6 +542,12 @@ class MainActivity : ComponentActivity() {
         client.callService(ServiceCall(domain, svc, hk.entityId, data))
         return true
     }
+
+    /** True if this DOWN should fire the key's short handler: the first press
+     * (repeatCount 0), or a repeat of a key bound as repeatable (volume, channel,
+     * ...). Edge-triggered bindings (repeats = false, e.g. the VOICE press-to-talk
+     * key) only fire on the first press — holding them must not re-toggle. */
+    private fun shouldFireShort(event: KeyEvent): Boolean = event.repeatCount == 0 || keyRouter.repeatsWhileHeld(event.keyCode)
 
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -501,6 +567,10 @@ class MainActivity : ComponentActivity() {
             KeyEvent.ACTION_DOWN -> {
                 if (longH != null) {
                     if (event.repeatCount == 0) {
+                        Log.i(KEY_TAG, "keyCode=$code down, arming long-press ($LONG_PRESS_MS ms)")
+                        // Fires before the threshold has any chance to confirm
+                        // this is actually a hold — see HardwareKeyRouter.onPressStart.
+                        keyRouter.pressStartHandler(code)?.invoke()
                         cancelPendingLong()
                         longFired = false
                         activeLongKey = code
@@ -508,14 +578,17 @@ class MainActivity : ComponentActivity() {
                             Runnable {
                                 longFired = true
                                 fireButtonTap()
+                                Log.i(KEY_TAG, "keyCode=$code long-press FIRED")
                                 longH.invoke()
                             }
                         pendingLong = r
                         keyHandler.postDelayed(r, LONG_PRESS_MS)
                     }
                 } else {
-                    fireButtonTap()
-                    shortH?.invoke()
+                    if (shouldFireShort(event)) {
+                        fireButtonTap()
+                        shortH?.invoke()
+                    }
                 }
                 return true
             }
@@ -524,8 +597,11 @@ class MainActivity : ComponentActivity() {
                     cancelPendingLong()
                     activeLongKey = -1
                     if (!longFired) {
+                        Log.i(KEY_TAG, "keyCode=$code up before long-press threshold, short-firing")
                         fireButtonTap()
                         shortH?.invoke()
+                    } else {
+                        keyRouter.longReleaseHandler(code)?.invoke()
                     }
                 }
                 return true

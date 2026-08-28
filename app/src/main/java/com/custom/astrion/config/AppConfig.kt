@@ -35,7 +35,9 @@ data class AppConfig(
      * reads from here (via ThemeColors / LocalTheme in the Compose layer).
      * Missing fields fall back to the built-in defaults, so an empty `theme`
      * block renders identically to the original look. */
-    val theme: ThemeConfig = ThemeConfig()
+    val theme: ThemeConfig = ThemeConfig(),
+    /** Optional VOICE-key config; absent means the key does nothing. */
+    val voice: VoiceConfig? = null
 )
 
 /**
@@ -149,7 +151,12 @@ data class HotkeyConfig(
      * Activity's page with no picker, so it only makes sense on a
      * remote/page that's already dedicated to a single room. Checked right
      * after [openOverlay], before page navigation. */
-    val openCurrentActivityRoom: String? = null
+    val openCurrentActivityRoom: String? = null,
+    /** Built-in app action: "voice" (press-to-talk: capture + stream to HA's
+     * Assist pipeline) or "voice_siri" (capture + stream straight to the
+     * Apple TV Siri bridge, bypassing Assist). Edge-triggered: auto-repeat
+     * is suppressed so holding the key doesn't toggle it on and off. */
+    val action: String? = null
 ) {
     /** Helper flags to quickly check hotkey action type. */
     val isPageNavigation: Boolean get() = !page.isNullOrBlank()
@@ -158,6 +165,8 @@ data class HotkeyConfig(
     val isHarmonyActivity: Boolean get() = !harmonyActivity.isNullOrBlank()
     val isOpenOverlay: Boolean
         get() = openOverlay.equals("settings", ignoreCase = true) || openOverlay.equals("activities", ignoreCase = true)
+    val isSiriVoiceAction: Boolean get() = action.equals("voice_siri", ignoreCase = true)
+    val isVoiceAction: Boolean get() = isSiriVoiceAction || action.equals("voice", ignoreCase = true)
 }
 
 /**
@@ -290,4 +299,58 @@ data class ThemeConfig(
     val amber: String = "#FFC24B",
     val danger: String = "#E06767",
     val success: String = "#4CAF50"
+)
+
+/**
+ * The VOICE key: press, talk, and it ends itself on silence.
+ *
+ * The remote deliberately makes NO routing decision — it POSTs raw PCM16
+ * (16 kHz, mono) to [path] and lets the server decide what to do with it. Point
+ * it wherever you like: this setup uses a custom component that forwards to
+ * Siri on an Apple TV or to Assist depending on what's on screen, but any
+ * endpoint that accepts a chunked audio body will do.
+ *
+ * The body is streamed as the microphone produces it, so a server can begin
+ * consuming the utterance before the user has finished speaking.
+ */
+@Suppress("Unused")
+data class VoiceConfig(
+    /** Path on the HA base URL that receives the audio stream for the
+     * "voice" action (Assist pipeline). */
+    val path: String = "/api/hap_remote/audio",
+    /** Path on the HA base URL that receives the audio stream for the
+     * "voice_siri" action — the Apple TV Siri bridge's HA-side endpoint.
+     * `{target}` is replaced with [siriTarget]. */
+    val siriPath: String = "/api/appletv_siri/audio/{target}",
+    /** Which Apple TV the Siri bridge should forward to, substituted into
+     * [siriPath]'s `{target}` placeholder. The bridge assigns this id when
+     * paired — see its `sensor.apple_tv_bridge` entity. Null/blank leaves
+     * `{target}` unsubstituted, which will 404 against the bridge. */
+    val siriTarget: String? = null,
+    /** Hard cap on one utterance. */
+    val maxMs: Int = 10_000,
+    /** Quiet needed AFTER speech before the utterance is considered finished. */
+    val silenceMs: Int = 1_200,
+    /**
+     * Give up if the user never speaks. Without this an accidental press holds
+     * the microphone — and, on the Siri route, the Apple TV's SIRI button —
+     * open for the whole [maxMs] window.
+     */
+    val noSpeechMs: Int = 4_000,
+    /**
+     * Prompts shown while listening — what you can usefully SAY.
+     *
+     * A microphone that is listening tells you it works but not what it
+     * understands, and a voice interface with no discoverable vocabulary gets
+     * used for the two phrases you already know. These are shown at the moment
+     * of the press, when the person is deciding what to say.
+     *
+     * Gated on an entity so the prompts can be specific to what is on: movie
+     * searches are useful advice in front of a Kaleidescape and noise in front
+     * of anything else. Leave [suggestEntity] unset to always show them.
+     */
+    val suggestions: List<String> = emptyList(),
+    val suggestTitle: String = "Try saying",
+    val suggestEntity: String? = null,
+    val suggestState: String? = null
 )

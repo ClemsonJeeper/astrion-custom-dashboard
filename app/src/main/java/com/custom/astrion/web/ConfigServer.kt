@@ -781,12 +781,20 @@ class ConfigServer(
                 "ico" -> "image/x-icon"
                 else -> "application/octet-stream"
             }
-        return newFixedLengthResponse(
-            Response.Status.OK,
-            mime,
-            bytes.inputStream(),
-            bytes.size.toLong()
-        )
+        val resp =
+            newFixedLengthResponse(
+                Response.Status.OK,
+                mime,
+                bytes.inputStream(),
+                bytes.size.toLong()
+            )
+        // These files change on every rebuild during active development, but
+        // carry no versioned filename/query string for the browser to key on —
+        // without this, a plain reload can keep serving a stale cached copy
+        // indefinitely (no explicit cache directive means the browser falls
+        // back to its own heuristics, which can cache for a long time).
+        resp.addHeader("Cache-Control", "no-store")
+        return resp
     }
 
     /** 302 redirect — used to send /builder to /builder/ so index.html's

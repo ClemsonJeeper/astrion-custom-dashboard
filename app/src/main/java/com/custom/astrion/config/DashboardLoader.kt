@@ -10,6 +10,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
@@ -130,7 +131,8 @@ object DashboardLoader {
             val irDevices = root["irDevices"]?.jsonArray?.map { parseIrDevice(it.jsonObject) } ?: emptyList()
             val activities = root["activities"]?.jsonArray?.map { parseActivity(it.jsonObject) } ?: emptyList()
             val theme = root["theme"]?.jsonObject?.let { parseTheme(it) } ?: ThemeConfig()
-            AppConfig(pages, start.coerceIn(0, pages.size - 1), hotkeys, longHotkeys, irDevices, activities, theme)
+            val voice = root["voice"]?.jsonObject?.let { parseVoice(it) }
+            AppConfig(pages, start.coerceIn(0, pages.size - 1), hotkeys, longHotkeys, irDevices, activities, theme, voice)
         }
         else -> error("top level must be an object or array")
     }
@@ -170,6 +172,7 @@ object DashboardLoader {
         val devices = obj["devices"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
         val openOverlay = obj["openOverlay"]?.jsonPrimitive?.content
         val openCurrentActivityRoom = obj["openCurrentActivityRoom"]?.jsonPrimitive?.content
+        val action = obj["action"]?.jsonPrimitive?.content
         return HotkeyConfig(
             key,
             page,
@@ -186,7 +189,8 @@ object DashboardLoader {
             room,
             devices,
             openOverlay,
-            openCurrentActivityRoom
+            openCurrentActivityRoom,
+            action = action
         )
     }
 
@@ -274,6 +278,24 @@ object DashboardLoader {
             amber = s("amber", ThemeConfig().amber),
             danger = s("danger", ThemeConfig().danger),
             success = s("success", ThemeConfig().success)
+        )
+    }
+
+    private fun parseVoice(obj: JsonObject): VoiceConfig {
+        fun s(key: String, default: String) = obj[key]?.jsonPrimitive?.takeIf { it.isString }?.content?.ifBlank { default } ?: default
+        fun i(key: String, default: Int) = obj[key]?.jsonPrimitive?.intOrNull ?: default
+        val suggestions = obj["suggestions"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+        return VoiceConfig(
+            path = s("path", VoiceConfig().path),
+            siriPath = s("siri_path", VoiceConfig().siriPath),
+            siriTarget = obj["siri_target"]?.jsonPrimitive?.takeIf { it.isString }?.content?.ifBlank { null },
+            maxMs = i("max_ms", VoiceConfig().maxMs),
+            silenceMs = i("silence_ms", VoiceConfig().silenceMs),
+            noSpeechMs = i("no_speech_ms", VoiceConfig().noSpeechMs),
+            suggestions = suggestions,
+            suggestTitle = s("suggest_title", VoiceConfig().suggestTitle),
+            suggestEntity = obj["suggest_entity"]?.jsonPrimitive?.takeIf { it.isString }?.content?.ifBlank { null },
+            suggestState = obj["suggest_state"]?.jsonPrimitive?.takeIf { it.isString }?.content?.ifBlank { null }
         )
     }
 
@@ -414,6 +436,7 @@ object DashboardLoader {
                     if (hk.devices.isNotEmpty()) put("devices", buildJsonArray { hk.devices.forEach { add(JsonPrimitive(it)) } })
                     hk.openOverlay?.let { put("openOverlay", it) }
                     hk.openCurrentActivityRoom?.let { put("openCurrentActivityRoom", it) }
+                    hk.action?.let { put("action", it) }
                 }
             )
         }
