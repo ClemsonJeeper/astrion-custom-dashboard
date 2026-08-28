@@ -69,6 +69,10 @@ class CardContext(
     /** Live connection state of the direct Harmony hub link — for a status
      * indicator on the settings page (HA's own state is on ctx.client.connection). */
     val harmonyConnected: Boolean = false,
+    /** Whether any Harmony hubs are configured at all — the settings page
+     * hides the Harmony status row when none are, so the settings pulldown
+     * only shows what this device can actually reach. */
+    val harmonyHubsConfigured: Boolean = false,
     /** Local IR devices (id -> config), resolved once from AppConfig.irDevices.
      * Used by scene_grid items with `irDevice`+`irCommand` fields, and by
      * composed Activities' `"ir"`-sourced devices, to send a raw IR command

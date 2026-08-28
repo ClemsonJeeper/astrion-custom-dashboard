@@ -186,11 +186,13 @@ private fun ConnectionStatusSection(ctx: CardContext) {
                 haConnection.name.lowercase().replaceFirstChar { it.uppercase() }
             }
         )
-        ConnectionStatusRow(
-            label = "Harmony Hub",
-            connected = ctx.harmonyConnected,
-            detail = stringResource(if (ctx.harmonyConnected) R.string.connected else R.string.disconnected)
-        )
+        if (ctx.harmonyHubsConfigured) {
+            ConnectionStatusRow(
+                label = "Harmony Hub",
+                connected = ctx.harmonyConnected,
+                detail = stringResource(if (ctx.harmonyConnected) R.string.connected else R.string.disconnected)
+            )
+        }
     }
 }
 

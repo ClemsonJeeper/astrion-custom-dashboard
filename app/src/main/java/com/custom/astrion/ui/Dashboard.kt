@@ -371,6 +371,7 @@ fun Dashboard(
                     tapFeedbackEnabled = tapFeedbackEnabled,
                     setTapFeedbackEnabled = setTapFeedbackEnabled,
                     harmonyConnected = harmonyConnected,
+                    harmonyHubsConfigured = !harmonyRegistry.isEmpty,
                     irDevices = irDevicesById,
                     sendIrCommand = ::sendIrCommand,
                     activities = activitiesById,
