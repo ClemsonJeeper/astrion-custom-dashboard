@@ -17,6 +17,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
@@ -44,7 +45,7 @@ import com.custom.astrion.input.HardwareKeyRouter
 import com.custom.astrion.ui.Dashboard
 import com.custom.astrion.web.ConfigServer
 import fi.iki.elonen.NanoHTTPD
-import kotlin.math.abs
+import kotlin.math.acos
 import kotlin.math.sqrt
 import kotlinx.coroutines.launch
 
@@ -63,8 +64,17 @@ class MainActivity : ComponentActivity() {
     private companion object {
         const val DEBUG_KEYS = false
         const val KEY_TAG = "AstrionKeys"
+        const val MOTION_TAG = "MotionWake"
+        const val SCREEN_TAG = "ScreenTimeout"
         const val LONG_PRESS_MS = 1500L
-        const val MOTION_THRESHOLD = 0.9f
+        const val TILT_WAKE_DEG = 30f
+        const val LIN_ACC_WAKE = 2.5f
+        const val MOTION_CONSECUTIVE_N = 3
+        const val SCREEN_OFF_WARMUP_MS = 1500L
+        const val MAGNITUDE_SANITY_FLOOR = 5f
+        const val HOLD_SCREEN_INTERVAL_MS = 1000L
+        const val KEEP_SCREEN_HOLD_MS = 10000L
+        const val AMBIENT_WINDOW_MS = 5000L
         const val WAKE_COOLDOWN_MS = 2000L
     }
 
@@ -75,21 +85,145 @@ class MainActivity : ComponentActivity() {
 
     private var sensorManager: SensorManager? = null
     private var motionSensor: Sensor? = null
-    private var lastMagnitude = 0f
     private var lastWakeMs = 0L
+    private var ambientSamples = 0
+    private var ambientMin = Float.MAX_VALUE
+    private var ambientMax = 0f
+    private var ambientSum = 0f
+    private var ambientMaxLin = 0f
+    private var ambientOverThreshold = 0
+    private var ambientWindowStart = 0L
+    private var lastScreenOffMs = 0L
+    private var warmupDrops = 0
+    private var subfloorDrops = 0
+    private var lastHoldScreenMs = 0L
+    private var gravX = 0f
+    private var gravY = 0f
+    private var gravZ = 0f
+    private var lastSampleMs = 0L
+    private var overCount = 0
     private val motionListener =
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
                 val (x, y, z) = event.values
                 val mag = sqrt(x * x + y * y + z * z)
-                if (lastMagnitude != 0f && abs(mag - lastMagnitude) > MOTION_THRESHOLD) {
-                    wakeScreen()
+                val now = System.currentTimeMillis()
+                if (lastScreenOffMs != 0L && now - lastScreenOffMs < SCREEN_OFF_WARMUP_MS) {
+                    warmupDrops++
+                    return
                 }
-                lastMagnitude = mag
+                if (warmupDrops > 0) {
+                    Log.i(MOTION_TAG, "warmup: dropped $warmupDrops samples in ${SCREEN_OFF_WARMUP_MS}ms after screen-off")
+                    warmupDrops = 0
+                }
+                if (mag < MAGNITUDE_SANITY_FLOOR) {
+                    subfloorDrops++
+                    Log.i(
+                        MOTION_TAG,
+                        "subfloor drop: x=${f2(x)} y=${f2(y)} z=${f2(z)} mag=${f2(mag)} " +
+                            "(glitch sample, |a|<${MAGNITUDE_SANITY_FLOOR}, total=$subfloorDrops)"
+                    )
+                    return
+                }
+                trackAmbientWindow(mag, now)
+                if (lastSampleMs == 0L || now - lastSampleMs > 1000) {
+                    gravX = x
+                    gravY = y
+                    gravZ = z
+                    overCount = 0
+                }
+                lastSampleMs = now
+                val gmag = sqrt(gravX * gravX + gravY * gravY + gravZ * gravZ)
+                val ax = x - gravX
+                val ay = y - gravY
+                val az = z - gravZ
+                val lin = sqrt(ax * ax + ay * ay + az * az)
+                if (lin > ambientMaxLin) ambientMaxLin = lin
+                val cosT = (x * gravX + y * gravY + z * gravZ) / (mag * gmag)
+                val tilt = Math.toDegrees(acos(cosT.coerceIn(-1f, 1f)).toDouble()).toFloat()
+                val moving = tilt > TILT_WAKE_DEG || lin > LIN_ACC_WAKE
+                if (moving) {
+                    ambientOverThreshold++
+                    overCount++
+                    if (overCount >= MOTION_CONSECUTIVE_N) {
+                        overCount = 0
+                        gravX = x
+                        gravY = y
+                        gravZ = z
+                        Log.i(
+                            MOTION_TAG,
+                            "MOTION x=${f2(x)} y=${f2(y)} z=${f2(z)} tilt=${f1(tilt)} lin=${f2(lin)} " +
+                                "mag=${f2(mag)} -> wakeScreen()"
+                        )
+                        wakeScreen(tilt, lin, mag)
+                    } else {
+                        Log.i(
+                            MOTION_TAG,
+                            "move $overCount/$MOTION_CONSECUTIVE_N x=${f2(x)} y=${f2(y)} z=${f2(z)} " +
+                                "tilt=${f1(tilt)} lin=${f2(lin)}"
+                        )
+                    }
+                } else {
+                    overCount = 0
+                    gravX = 0.9f * gravX + 0.1f * x
+                    gravY = 0.9f * gravY + 0.1f * y
+                    gravZ = 0.9f * gravZ + 0.1f * z
+                    if (tilt > TILT_WAKE_DEG / 2f || lin > LIN_ACC_WAKE / 2f) holdScreenWhileInHand()
+                }
             }
 
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
+
+    private fun f2(v: Float): String = "%.2f".format(v)
+    private fun f1(v: Float): String = "%.1f".format(v)
+
+    private val keepScreenOnClear = Runnable {
+        runCatching { window.decorView.keepScreenOn = false }
+            .onFailure { Log.i(MOTION_TAG, "clear keepScreenOn failed", it) }
+    }
+
+    /** The 15s system screen timeout does not reset on accelerometer
+     * activity, so the screen goes dark while the device is still in hand
+     * (observed: screen turned off mid-shake 15.5s after the motion wake).
+     * While the device is actually being moved (delta past the near threshold),
+     * hold FLAG_KEEP_SCREEN_ON and re-arm the clear timer on every sample. */
+    private fun holdScreenWhileInHand() {
+        if (!screenOn) return
+        val now = System.currentTimeMillis()
+        if (now - lastHoldScreenMs < HOLD_SCREEN_INTERVAL_MS) return
+        lastHoldScreenMs = now
+        runCatching {
+            val dv = window.decorView
+            dv.keepScreenOn = true
+            keyHandler.removeCallbacks(keepScreenOnClear)
+            keyHandler.postDelayed(keepScreenOnClear, KEEP_SCREEN_HOLD_MS)
+        }.onFailure { Log.i(MOTION_TAG, "set keepScreenOn failed", it) }
+    }
+
+    private fun trackAmbientWindow(mag: Float, now: Long) {
+        if (ambientWindowStart == 0L) ambientWindowStart = now
+        ambientSamples++
+        if (mag < ambientMin) ambientMin = mag
+        if (mag > ambientMax) ambientMax = mag
+        ambientSum += mag
+        if (now - ambientWindowStart >= AMBIENT_WINDOW_MS) {
+            val rate = "%.1f".format(ambientSamples * 1000f / (now - ambientWindowStart))
+            val summary =
+                "ambient ${AMBIENT_WINDOW_MS}ms: n=$ambientSamples rate=$rate/s " +
+                    "min=${f2(ambientMin)} max=${f2(ambientMax)} " +
+                    "mean=${f2(ambientSum / ambientSamples)} " +
+                    "maxLin=${f2(ambientMaxLin)} over=$ambientOverThreshold"
+            Log.i(MOTION_TAG, summary)
+            ambientSamples = 0
+            ambientMin = Float.MAX_VALUE
+            ambientMax = 0f
+            ambientSum = 0f
+            ambientMaxLin = 0f
+            ambientOverThreshold = 0
+            ambientWindowStart = now
+        }
+    }
 
     /** Live screen-on/off state, fed to Compose (see [composeContent]) so
      * cards that do continuous background work while composed — e.g.
@@ -101,12 +235,34 @@ class MainActivity : ComponentActivity() {
      * meaning Compose keeps recomposing/running LaunchedEffects unless
      * something explicit like this tells cards to stand down. */
     private var screenOn by mutableStateOf(true)
+    private var screenOnSinceMs = 0L
+    private var screenOffSinceMs = 0L
     private val screenStateReceiver =
         object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
+                val now = System.currentTimeMillis()
                 when (intent?.action) {
-                    Intent.ACTION_SCREEN_OFF -> screenOn = false
-                    Intent.ACTION_SCREEN_ON -> screenOn = true
+                    Intent.ACTION_SCREEN_OFF -> {
+                        screenOn = false
+                        screenOffSinceMs = now
+                        lastScreenOffMs = now
+                        warmupDrops = 0
+                        val onFor = if (screenOnSinceMs > 0) now - screenOnSinceMs else -1L
+                        val timeoutMs =
+                            runCatching {
+                                Settings.System.getString(
+                                    contentResolver,
+                                    Settings.System.SCREEN_OFF_TIMEOUT
+                                )?.toLongOrNull()
+                            }.getOrNull()
+                        Log.i(SCREEN_TAG, "SCREEN_OFF — was on for ${onFor}ms, system timeout=${timeoutMs}ms")
+                    }
+                    Intent.ACTION_SCREEN_ON -> {
+                        screenOn = true
+                        screenOnSinceMs = now
+                        val offFor = if (screenOffSinceMs > 0) now - screenOffSinceMs else -1L
+                        Log.i(SCREEN_TAG, "SCREEN_ON — was off for ${offFor}ms")
+                    }
                 }
             }
         }
@@ -205,6 +361,15 @@ class MainActivity : ComponentActivity() {
                 addAction(Intent.ACTION_SCREEN_ON)
             }
         )
+        val pmInteractive = (getSystemService(POWER_SERVICE) as? PowerManager)?.isInteractive
+        if (pmInteractive == true) {
+            screenOnSinceMs = System.currentTimeMillis()
+        } else {
+            val nowMs = System.currentTimeMillis()
+            screenOffSinceMs = nowMs
+            lastScreenOffMs = nowMs
+        }
+        Log.i(SCREEN_TAG, "onCreate — initial screenOn=$screenOn pm.isInteractive=$pmInteractive")
 
         initClientsAndServer()
         configServerEnabled = prefs.getBoolean("config_server_enabled", true)
@@ -342,7 +507,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        Log.i("MainActivity", "onResume — instance ${this.hashCode()} screenOn=$screenOn")
         reloadDashboard()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Log.i("MainActivity", "onPause — instance ${this.hashCode()} screenOn=$screenOn")
+    }
+
+    override fun onStop() {
+        super.onStop()
+        Log.i("MainActivity", "onStop — instance ${this.hashCode()} screenOn=$screenOn")
     }
 
     private fun reloadDashboard() {
@@ -486,6 +662,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val code = event.keyCode
+        logKeyEventDown(event)
         val shortH = keyRouter.shortHandler(code)
         val longH = keyRouter.longHandler(code)
 
@@ -539,6 +716,16 @@ class MainActivity : ComponentActivity() {
         pendingLong = null
     }
 
+    private fun logKeyEventDown(event: KeyEvent) {
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            val code = event.keyCode
+            Log.i(
+                KEY_TAG,
+                "DOWN keyCode=$code (${KeyEvent.keyCodeToString(code)}) key=${HardwareKey.fromKeyCode(code)}"
+            )
+        }
+    }
+
     // ---- Motion Wake --------------------------------------------------------
 
     private fun setupMotionWake() {
@@ -550,6 +737,19 @@ class MainActivity : ComponentActivity() {
             .firstOrNull { it.isWakeUpSensor }
             ?: sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
+        val s = motionSensor
+        if (s == null) {
+            Log.e(MOTION_TAG, "setup: no accelerometer found, motion wake disabled")
+        } else {
+            Log.i(
+                MOTION_TAG,
+                "setup: sensor='${s.name}' vendor='${s.vendor}' " +
+                    "wakeUp=${s.isWakeUpSensor} minDelay=${s.minDelay}us wakeOnMotion=$wakeOnMotionEnabled " +
+                    "tiltWake=${TILT_WAKE_DEG}deg linWake=${LIN_ACC_WAKE} consecutive=$MOTION_CONSECUTIVE_N " +
+                    "warmup=${SCREEN_OFF_WARMUP_MS}ms floor=$MAGNITUDE_SANITY_FLOOR"
+            )
+        }
+
         if (wakeOnMotionEnabled) registerMotionListener()
     }
 
@@ -557,17 +757,21 @@ class MainActivity : ComponentActivity() {
         val sm = sensorManager ?: return
         motionSensor?.let { sensor ->
             sm.registerListener(motionListener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            Log.i(MOTION_TAG, "listener registered on '${sensor.name}' (SENSOR_DELAY_NORMAL)")
         }
     }
 
     /** Called from the settings page switch — persists the choice and
      * registers/unregisters the sensor listener immediately, no restart needed. */
     private fun setWakeOnMotion(enabled: Boolean) {
+        Log.i(MOTION_TAG, "setWakeOnMotion($enabled)")
         wakeOnMotionEnabled = enabled
         prefs.edit { putBoolean("wake_on_motion_enabled", enabled) }
         if (enabled) {
             registerMotionListener()
         } else {
+            keyHandler.removeCallbacks(keepScreenOnClear)
+            runCatching { window.decorView.keepScreenOn = false }
             sensorManager?.unregisterListener(motionListener)
         }
     }
@@ -622,12 +826,21 @@ class MainActivity : ComponentActivity() {
     }
 
     @Suppress("DEPRECATION")
-    private fun wakeScreen() {
+    private fun wakeScreen(tiltDeg: Float, linAcc: Float, mag: Float) {
         val pm = getSystemService(POWER_SERVICE) as? PowerManager ?: return
-        if (pm.isInteractive) return
+        if (pm.isInteractive) {
+            Log.i(MOTION_TAG, "wakeScreen skipped: already interactive (tilt=${f1(tiltDeg)} lin=${f2(linAcc)})")
+            return
+        }
         val now = System.currentTimeMillis()
-        if (now - lastWakeMs < WAKE_COOLDOWN_MS) return
+        if (now - lastWakeMs < WAKE_COOLDOWN_MS) {
+            val left = WAKE_COOLDOWN_MS - (now - lastWakeMs)
+            Log.i(MOTION_TAG, "wakeScreen skipped: cooldown ${left}ms left (tilt=${f1(tiltDeg)} lin=${f2(linAcc)})")
+            return
+        }
         lastWakeMs = now
+
+        Log.i(MOTION_TAG, "WAKE: tilt=${f1(tiltDeg)} lin=${f2(linAcc)} mag=${f2(mag)} — acquiring wakelock 5000ms")
 
         // Suppressed deprecation for older Android 8.1 (HA100 remote) compatibility
         val flags =
@@ -636,13 +849,19 @@ class MainActivity : ComponentActivity() {
                 PowerManager.ON_AFTER_RELEASE
 
         val wl = pm.newWakeLock(flags, "astrion:motionwake")
-        wl.acquire(4000)
-        keyHandler.postDelayed({ if (wl.isHeld) wl.release() }, 3500)
+        wl.acquire(5000)
+        keyHandler.postDelayed({
+            if (wl.isHeld) {
+                Log.i(MOTION_TAG, "wakelock released at 4500ms (early release)")
+                wl.release()
+            }
+        }, 4500)
     }
 
     override fun onDestroy() {
         Log.i("MainActivity", "onDestroy — activity instance ${this.hashCode()}")
         sensorManager?.unregisterListener(motionListener)
+        Log.i(MOTION_TAG, "listener unregistered")
         runCatching { unregisterReceiver(screenStateReceiver) }
         client.disconnect()
         harmonyRegistry.disconnectAll()
