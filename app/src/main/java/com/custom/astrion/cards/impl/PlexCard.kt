@@ -27,10 +27,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.astrion.R
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -143,15 +146,16 @@ class PlexCard : CardRenderer {
 
     @Composable
     private fun rememberPlexState(cfg: PlexConfig): PlexUiState {
+        val context = LocalContext.current
         val state = remember { PlexUiState() }
         LaunchedEffect(cfg.host, cfg.token, cfg.showOnDeck, cfg.showMovies, cfg.showShows, cfg.itemsPerRow) {
             try {
                 state.machineId = PlexApi.fetchIdentity(cfg.host, cfg.token)
                 val out = loadRows(cfg.host, cfg.token, cfg.showOnDeck, cfg.showMovies, cfg.showShows, cfg.itemsPerRow)
                 state.rows = out
-                if (out.isEmpty()) state.error = "No items returned from Plex"
+                if (out.isEmpty()) state.error = context.getString(R.string.plex_error_no_items)
             } catch (ex: Exception) {
-                state.error = ex.message ?: "Plex error"
+                state.error = ex.message ?: context.getString(R.string.plex_error_generic)
                 state.rows = emptyList()
             }
         }
@@ -195,7 +199,7 @@ class PlexCard : CardRenderer {
         val key = item.sectionKey
         if (key != null) {
             state.librarySectionKey = key
-            state.librarySectionTitle = item.sectionTitle ?: "Library"
+            state.librarySectionTitle = item.sectionTitle
         } else {
             // No section info from the server for this item — fall back to just
             // opening the app rather than doing nothing.
@@ -225,7 +229,7 @@ class PlexCard : CardRenderer {
                 host = cfg.host,
                 token = cfg.token,
                 sectionKey = sectionKey,
-                sectionTitle = state.librarySectionTitle ?: "Library",
+                sectionTitle = state.librarySectionTitle ?: stringResource(R.string.plex_library),
                 theme = theme,
                 onSelectItem = { item ->
                     state.librarySectionKey = null
@@ -284,7 +288,12 @@ class PlexCard : CardRenderer {
             )
             when {
                 rows == null ->
-                    Text("Loading…", color = theme.mutedText, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 14.dp))
+                    Text(
+                        stringResource(R.string.media_loading),
+                        color = theme.mutedText,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 14.dp)
+                    )
                 error != null ->
                     Text(error, color = theme.danger, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 14.dp))
                 else ->

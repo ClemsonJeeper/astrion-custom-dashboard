@@ -128,7 +128,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
     val entityId = options["entity_id"] as? String ?: return
     val e = ctx.entities[entityId]
     val state = e?.state ?: "unknown"
-    val name = options["name"] as? String ?: e?.friendlyName ?: "Vacuum"
+    val name = options["name"] as? String ?: e?.friendlyName ?: stringResource(R.string.vacuum_default_name)
     val fanSpeed = e?.attrString("fan_speed")
     val fanList = e?.attrStringList("fan_speed_list") ?: emptyList()
     val mapEntity = options["map_image"] as? String
@@ -209,7 +209,7 @@ fun VacuumPanelContent(options: Map<String, Any?>, ctx: CardContext) {
         ) {
             Image(
                 bitmap = bmp,
-                contentDescription = "Vacuum map",
+                contentDescription = stringResource(R.string.vacuum_map_label),
                 modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = 1.9f, scaleY = 1.9f),
                 contentScale = ContentScale.Fit
             )

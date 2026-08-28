@@ -1,6 +1,7 @@
 package com.custom.astrion.ui
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import android.util.Log
@@ -53,6 +54,7 @@ import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.update.UpdateChecker
 import java.net.Inet4Address
 import java.net.NetworkInterface
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -122,27 +124,16 @@ fun SettingsMenu(ctx: CardContext) {
         )
 
         updateInfo?.let { info ->
-            val label =
-                if (updateIsBeta) {
-                    "Bêta disponible : ${info.version}"
-                } else {
-                    "Mise à jour disponible : v${info.version}"
-                }
-            SettingRow(icon = Icons.Filled.SystemUpdate, label = label) {
-                scope.launch(Dispatchers.IO) {
-                    val file = UpdateChecker.download(context, info.apkUrl)
-                    if (file != null) {
-                        withContext(Dispatchers.Main) {
-                            UpdateChecker.promptInstall(context, file)
-                        }
-                    }
-                }
-            }
+            UpdateRow(context, scope, info, updateIsBeta)
         }
 
         localIpAddress()?.let { ip ->
             Text(
-                if (ctx.configServerEnabled) "Local config: http://$ip:8080" else stringResource(R.string.config_server_off_hint),
+                if (ctx.configServerEnabled) {
+                    stringResource(R.string.settings_local_config, "http://$ip:8080")
+                } else {
+                    stringResource(R.string.config_server_off_hint)
+                },
                 color = if (ctx.configServerEnabled) LocalTheme.current.accent else LocalTheme.current.mutedText,
                 fontSize = 12.sp
             )
@@ -171,6 +162,26 @@ fun SettingsMenu(ctx: CardContext) {
 }
 
 @Composable
+private fun UpdateRow(context: Context, scope: CoroutineScope, info: UpdateChecker.UpdateInfo, isBeta: Boolean) {
+    val label =
+        if (isBeta) {
+            stringResource(R.string.settings_beta_update_available, info.version)
+        } else {
+            stringResource(R.string.settings_update_available, info.version)
+        }
+    SettingRow(icon = Icons.Filled.SystemUpdate, label = label) {
+        scope.launch(Dispatchers.IO) {
+            val file = UpdateChecker.download(context, info.apkUrl)
+            if (file != null) {
+                withContext(Dispatchers.Main) {
+                    UpdateChecker.promptInstall(context, file)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ConnectionStatusSection(ctx: CardContext) {
     val haConnection by ctx.client.connection.collectAsState()
     val haConnected = haConnection == ConnectionState.CONNECTED
@@ -183,7 +194,7 @@ private fun ConnectionStatusSection(ctx: CardContext) {
             if (haConnected) {
                 stringResource(R.string.connected)
             } else {
-                haConnection.name.lowercase().replaceFirstChar { it.uppercase() }
+                stringResource(haStatusString(haConnection))
             }
         )
         ConnectionStatusRow(
@@ -192,6 +203,13 @@ private fun ConnectionStatusSection(ctx: CardContext) {
             detail = stringResource(if (ctx.harmonyConnected) R.string.connected else R.string.disconnected)
         )
     }
+}
+
+private fun haStatusString(state: ConnectionState): Int = when (state) {
+    ConnectionState.CONNECTING, ConnectionState.AUTHENTICATING -> R.string.connection_connecting
+    ConnectionState.AUTH_FAILED -> R.string.connection_auth_failed
+    ConnectionState.ERROR -> R.string.connection_error_retrying
+    else -> R.string.disconnected
 }
 
 @Composable

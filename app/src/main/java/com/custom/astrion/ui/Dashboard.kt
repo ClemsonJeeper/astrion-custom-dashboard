@@ -874,10 +874,10 @@ private fun ConnectionBanner(connection: ConnectionState) {
         when (connection) {
             ConnectionState.CONNECTING,
             ConnectionState.AUTHENTICATING
-            -> "Connecting…" to LocalTheme.current.accentSecondary
-            ConnectionState.AUTH_FAILED -> "Auth failed — check token" to LocalTheme.current.danger
-            ConnectionState.ERROR -> "Connection error — retrying" to LocalTheme.current.danger
-            else -> "Disconnected" to LocalTheme.current.controlBackground
+            -> stringResource(R.string.connection_connecting) to LocalTheme.current.accentSecondary
+            ConnectionState.AUTH_FAILED -> stringResource(R.string.connection_auth_failed) to LocalTheme.current.danger
+            ConnectionState.ERROR -> stringResource(R.string.connection_error_retrying) to LocalTheme.current.danger
+            else -> stringResource(R.string.disconnected) to LocalTheme.current.controlBackground
         }
     Box(
         modifier =
@@ -913,6 +913,6 @@ private fun UnknownCard(type: String) {
             .background(LocalTheme.current.cardSurface)
             .padding(14.dp)
     ) {
-        Text(text = "Unknown card type: \"$type\"", color = LocalTheme.current.danger, fontSize = 13.sp)
+        Text(text = stringResource(R.string.unknown_card_type, type), color = LocalTheme.current.danger, fontSize = 13.sp)
     }
 }

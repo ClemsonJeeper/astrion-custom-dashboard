@@ -30,11 +30,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.custom.astrion.R
 import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.tapClickable
 import kotlinx.coroutines.flow.collect
@@ -102,7 +104,13 @@ internal fun PlexLibraryDialog(
         ) {
             LibraryHeader(sectionTitle, totalSize, theme)
             if (items.isEmpty()) {
-                Text(if (loading) "Loading…" else "No items", color = theme.mutedText, fontSize = 13.sp)
+                val emptyLabel =
+                    if (loading) {
+                        stringResource(R.string.media_loading)
+                    } else {
+                        stringResource(R.string.media_no_items)
+                    }
+                Text(emptyLabel, color = theme.mutedText, fontSize = 13.sp)
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
@@ -115,7 +123,7 @@ internal fun PlexLibraryDialog(
                         LibraryTile(host, token, item, theme) { onSelectItem(item) }
                     }
                 }
-                if (loading) Text("Loading more…", color = theme.mutedText, fontSize = 12.sp)
+                if (loading) Text(stringResource(R.string.media_loading_more), color = theme.mutedText, fontSize = 12.sp)
             }
         }
     }

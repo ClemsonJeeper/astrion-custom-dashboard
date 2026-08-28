@@ -21,6 +21,9 @@
     <string name="tap_feedback_hint">Léger clic sonore quand vous tapotez une scène, un bouton ou un point — identique aux menus Android de l\'appareil.</string>
     <string name="brightness">Luminosité</string>
     <string name="allow_brightness_write">Autoriser la modification (appuyer)</string>
+    <string name="settings_update_available">Mise à jour disponible : v%1$s</string>
+    <string name="settings_beta_update_available">Bêta disponible : %1$s</string>
+    <string name="settings_local_config">Configuration locale : %1$s</string>
 
     <!-- Web Config: Header & General -->
     <string name="web_config_title">Astrion Custom — Configuration locale</string>
@@ -89,6 +92,37 @@
     <string name="web_config_update_needs_permission">Autorisez « Installer des applications inconnues » pour cette app sur l\'écran qui vient de s\'ouvrir, puis appuyez de nouveau sur Télécharger &amp; installer.</string>
     <string name="web_config_update_failed">Échec de la vérification : %1$s</string>
 
+    <!-- Connection status -->
+    <string name="connection_connecting">Connexion…</string>
+    <string name="connection_auth_failed">Échec de l\'authentification — vérifiez le jeton</string>
+    <string name="connection_error_retrying">Erreur de connexion — nouvelle tentative</string>
+
+    <!-- Unknown card -->
+    <string name="unknown_card_type">Type de carte inconnu : "%1$s"</string>
+
+    <!-- Media (player, Plex, browser) -->
+    <string name="media_loading">Chargement…</string>
+    <string name="media_loading_more">Chargement de la suite…</string>
+    <string name="media_no_items">Aucun élément</string>
+    <string name="media_nothing_here">Rien ici</string>
+    <string name="media_default_title">Médias</string>
+    <string name="media_load_timeout">Impossible de charger les médias (délai dépassé)</string>
+    <string name="media_load_failed">Impossible de charger les médias</string>
+    <string name="media_browse">Parcourir</string>
+    <string name="media_power_toggle">Basculer</string>
+    <string name="plex_error_no_items">Plex n\'a renvoyé aucun élément</string>
+    <string name="plex_error_generic">Erreur Plex</string>
+    <string name="plex_library">Bibliothèque</string>
+    <string name="plex_this_season">Cette saison</string>
+    <string name="plex_play">Lire</string>
+    <string name="plex_episode">Ép. %1$s · %2$s</string>
+
+    <!-- Select cards -->
+    <string name="select_no_options">Aucune option</string>
+    <string name="select_choose">Sélectionner…</string>
+    <string name="source_no_sources">Aucune source (appareil éteint ?)</string>
+    <string name="source_choose">Sélectionner une source…</string>
+
     <!-- ClimateCard -->
     <string name="climate_current_temp">Actuellement %1$s°</string>
     <string name="climate_hvac_caption">Mode</string>
@@ -103,6 +137,8 @@
 
     <!-- VacuumCard -->
     <string name="vacuum_fan_speed_caption">Mode de nettoyage</string>
+    <string name="vacuum_default_name">Aspirateur robot</string>
+    <string name="vacuum_map_label">Carte de l\'aspirateur robot</string>
 
     <!-- CoverCard -->
     <string name="cover_open">Ouvert</string>
