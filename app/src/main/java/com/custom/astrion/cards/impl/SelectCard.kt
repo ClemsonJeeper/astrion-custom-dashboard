@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
+import com.custom.astrion.R
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -90,7 +92,12 @@ class SelectCard : CardRenderer {
         // shape to account for: state is always one of `options`, or
         // "unavailable"/"unknown" if the entity itself is down.
         val current = e?.state
-        val stateLabel = current ?: if (options.isEmpty()) "No options" else "Select…"
+        val stateLabel =
+            current ?: if (options.isEmpty()) {
+                stringResource(R.string.select_no_options)
+            } else {
+                stringResource(R.string.select_choose)
+            }
 
         val iconColor = config.string("icon_color")?.let(::parseHexColor)
 

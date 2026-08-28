@@ -1,5 +1,6 @@
 package com.custom.astrion.cards.impl
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,11 +34,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.custom.astrion.R
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.tapClickable
@@ -56,28 +60,28 @@ private data class MediaItem(
 )
 
 private class BrowserUiState {
-    var title by mutableStateOf("Media")
+    var title by mutableStateOf<String?>(null)
     var items by mutableStateOf<List<MediaItem>?>(null)
     var error by mutableStateOf<String?>(null)
 }
 
-private suspend fun loadFolder(client: HaClient, entityId: String, cid: String?, ctype: String?, state: BrowserUiState) {
+private suspend fun loadFolder(context: Context, client: HaClient, entityId: String, cid: String?, ctype: String?, state: BrowserUiState) {
     state.items = null
     state.error = null
     try {
         val result = client.browseMedia(entityId, cid, ctype)
         if (result == null) {
-            state.error = "Couldn't load media (timeout)"
+            state.error = context.getString(R.string.media_load_timeout)
             state.items = emptyList()
         } else {
-            state.title = (result["title"] as? JsonPrimitive)?.content ?: "Media"
+            state.title = (result["title"] as? JsonPrimitive)?.content
             state.items = (result["children"] as? JsonArray)?.mapNotNull { parseItem(it as? JsonObject) } ?: emptyList()
         }
     } catch (ex: Exception) {
         // Some media_player integrations return an unexpected shape for a given
         // folder (e.g. a non-object "result") — surface it instead of letting
         // it crash the whole app.
-        state.error = ex.message ?: "Couldn't load media"
+        state.error = ex.message ?: context.getString(R.string.media_load_failed)
         state.items = emptyList()
     }
 }
@@ -94,9 +98,10 @@ fun MediaBrowser(entityId: String, client: HaClient, theme: ThemeColors = ThemeC
     val state = remember { BrowserUiState() }
 
     // Reload whenever the depth changes (push/pop).
+    val context = LocalContext.current
     androidx.compose.runtime.LaunchedEffect(stack.size) {
         val (cid, ctype) = stack.last()
-        loadFolder(client, entityId, cid, ctype, state)
+        loadFolder(context, client, entityId, cid, ctype, state)
     }
 
     Dialog(onDismissRequest = onClose) {
@@ -129,7 +134,7 @@ private fun MediaBrowserBody(
                 Spacer(Modifier.width(6.dp))
             }
             Text(
-                state.title,
+                state.title ?: stringResource(R.string.media_default_title),
                 color = theme.primaryText,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -154,7 +159,7 @@ private fun MediaBrowserBody(
                 }
             items.isEmpty() ->
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Nothing here", color = theme.mutedText, fontSize = 14.sp)
+                    Text(stringResource(R.string.media_nothing_here), color = theme.mutedText, fontSize = 14.sp)
                 }
             else ->
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {

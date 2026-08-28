@@ -36,12 +36,14 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.custom.astrion.R
 import com.custom.astrion.ha.EntityState
 import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.ServiceCall
@@ -153,7 +155,12 @@ fun MediaPlayerDetailDialog(
                         tint = theme.primaryText,
                         modifier = Modifier.size(16.dp)
                     )
-                    Text("Browse", color = theme.primaryText, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
+                    Text(
+                        stringResource(R.string.media_browse),
+                        color = theme.primaryText,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(start = 6.dp)
+                    )
                 }
             }
 
@@ -207,7 +214,7 @@ fun MediaPlayerDetailDialog(
                         .tapClickable { mp(if (on) "turn_off" else "turn_on") },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(MdiIcons.Power, contentDescription = "Toggle", tint = Color.White)
+                    Icon(MdiIcons.Power, contentDescription = stringResource(R.string.media_power_toggle), tint = Color.White)
                 }
             }
         }

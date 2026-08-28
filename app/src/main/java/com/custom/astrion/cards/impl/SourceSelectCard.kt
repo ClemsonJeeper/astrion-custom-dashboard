@@ -22,9 +22,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.custom.astrion.R
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRenderer
@@ -72,7 +74,11 @@ class SourceSelectCard : CardRenderer {
                 Column(Modifier.weight(1f)) {
                     Text(name, color = ctx.theme.mutedText, fontSize = 11.sp)
                     Text(
-                        current ?: if (sources.isEmpty()) "No sources (device off?)" else "Select source…",
+                        current ?: if (sources.isEmpty()) {
+                            stringResource(R.string.source_no_sources)
+                        } else {
+                            stringResource(R.string.source_choose)
+                        },
                         color = ctx.theme.primaryText,
                         fontSize = 15.sp,
                         maxLines = 1,

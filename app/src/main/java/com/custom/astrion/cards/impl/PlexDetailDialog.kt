@@ -32,11 +32,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.custom.astrion.R
 import com.custom.astrion.ui.ThemeColors
 import com.custom.astrion.ui.icons.MdiIcons
 import com.custom.astrion.ui.tapClickable
@@ -75,7 +77,7 @@ internal fun PlexDetailDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (detail == null) {
-                Text("Loading…", color = theme.mutedText, fontSize = 13.sp)
+                Text(stringResource(R.string.media_loading), color = theme.mutedText, fontSize = 13.sp)
             } else {
                 DetailArt(host, token, detail, theme)
                 DetailHeader(detail, theme)
@@ -154,7 +156,7 @@ private fun EpisodeRow(
     onSelectEpisode: (PlexApi.PlexEpisodeSummary) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("This season", color = theme.mutedText, fontSize = 13.sp)
+        Text(stringResource(R.string.plex_this_season), color = theme.mutedText, fontSize = 13.sp)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
             items(episodes) { ep ->
                 EpisodeTile(host, token, ep, selected = ep.key == selectedKey, theme = theme) { onSelectEpisode(ep) }
@@ -188,7 +190,7 @@ private fun EpisodeTile(
             Box(mod)
         }
         Text(
-            "E${ep.index ?: "?"} · ${ep.title}",
+            stringResource(R.string.plex_episode, ep.index?.toString() ?: "?", ep.title),
             color = if (selected) theme.accent else theme.primaryText,
             fontSize = 10.sp,
             maxLines = 2,
@@ -211,6 +213,12 @@ private fun PlayButton(theme: ThemeColors, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(MdiIcons.Play, contentDescription = null, tint = Color.White, modifier = Modifier.height(20.dp))
-        Text("Play", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 6.dp))
+        Text(
+            stringResource(R.string.plex_play),
+            color = Color.White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 6.dp)
+        )
     }
 }
