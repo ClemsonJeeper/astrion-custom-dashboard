@@ -271,6 +271,7 @@ class ConfigServer(
     private fun serveForm(): Response {
         val haUrl = RemoteSettings.haUrl(context)
         val haToken = RemoteSettings.haToken(context)
+        val haWebhookId = RemoteSettings.haWebhookId(context)
         val hubs = RemoteSettings.harmonyHubs(context)
         val haConfigured = haUrl.isNotBlank() && haToken.isNotBlank()
         val update = (lastResult as? UpdateChecker.CheckResult.Available)?.info
@@ -432,6 +433,9 @@ class ConfigServer(
                 <input type="text" name="ha_url" value="${escape(haUrl)}" placeholder="http://192.168.1.50:8123">
                 <label>${context.getString(R.string.web_config_ha_token_label)}</label>
                 <input type="password" name="ha_token" value="${escape(haToken)}">
+                <label>${context.getString(R.string.web_config_ha_webhook_label)}</label>
+                <input type="text" name="ha_webhook_id" value="${escape(haWebhookId)}" placeholder="astrion_push">
+                <div class="hint">${context.getString(R.string.web_config_ha_webhook_hint)}</div>
 
                 <div class="divider"></div>
 
@@ -1329,7 +1333,8 @@ class ConfigServer(
         RemoteSettings.saveHaConnection(
             context = context,
             haUrl = params["ha_url"]?.firstOrNull().orEmpty().trim(),
-            haToken = params["ha_token"]?.firstOrNull().orEmpty().trim()
+            haToken = params["ha_token"]?.firstOrNull().orEmpty().trim(),
+            haWebhookId = params["ha_webhook_id"]?.firstOrNull().orEmpty().trim()
         )
         RemoteSettings.saveHarmonyHubs(context, parseHubRows(params))
         Handler(Looper.getMainLooper()).postDelayed({ onConnectionSaved() }, 500L)

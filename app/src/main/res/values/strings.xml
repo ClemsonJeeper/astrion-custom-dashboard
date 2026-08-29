@@ -16,6 +16,8 @@
     <string name="wake_on_motion">Wake on motion</string>
     <string name="config_server_toggle">Local config server</string>
     <string name="config_server_toggle_hint">Also turns off /builder/, icon uploads, and dashboard.json upload/download. Turn back on here to reconfigure.</string>
+    <string name="wifi_keep_awake">Keep Wi-Fi awake</string>
+    <string name="wifi_keep_awake_hint">Off by default. Fixes Home Assistant sometimes failing to reach this device (services, push) while the screen is off — costs some battery, since it stops the Wi-Fi radio from ever entering power-save.</string>
     <string name="config_server_off_hint">Local config server is off</string>
     <string name="tap_feedback">Tap feedback</string>
     <string name="tap_feedback_hint">Short tick sound when you tap a scene, button, or dot — matches the device\'s own Android menus.</string>
@@ -38,6 +40,8 @@
     <string name="web_config_ha_heading">Home Assistant</string>
     <string name="web_config_ha_url_label">Home Assistant URL</string>
     <string name="web_config_ha_token_label">Home Assistant long-lived access token</string>
+    <string name="web_config_ha_webhook_label">Webhook ID (optional — instant push instead of polling)</string>
+    <string name="web_config_ha_webhook_hint">If your companion Home Assistant integration registers a webhook, paste its id here so Astrion can push the current page and active Activity the instant they change, instead of Home Assistant polling for them. Leave blank to keep polling only — everything still works either way.</string>
 
     <!-- Web Config: Harmony Hubs -->
     <string name="web_config_harmony_heading">Harmony Hubs</string>

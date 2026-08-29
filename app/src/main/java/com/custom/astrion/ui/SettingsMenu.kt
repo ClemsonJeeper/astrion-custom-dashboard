@@ -72,24 +72,23 @@ import kotlinx.coroutines.withContext
  * swipe-down-from-top overlay, not through CardRegistry/CardConfig like
  * the swipeable-page cards are.
  */
+/**
+ * Checks for an app update once each time Settings is opened (not on a
+ * background timer, to avoid polling GitHub while the app just sits on the
+ * dashboard). A beta/debug build (versionNameSuffix = "-beta", see
+ * build.gradle.kts) checks the rolling dev-latest pre-release instead of
+ * /releases/latest — otherwise this row would never fire on a beta install,
+ * since dev-latest is never "the newer official release". A Failed result
+ * (network error, GitHub rate limit, misconfigured REPO constant...) is
+ * logged rather than silently dropped, so a report of "the update
+ * notification doesn't work" is diagnosable from logcat instead of
+ * indistinguishable from "genuinely up to date".
+ */
 @Composable
-fun SettingsMenu(ctx: CardContext) {
-    val context = LocalContext.current
-    val activity = context as? Activity
-    val scope = rememberCoroutineScope()
+private fun rememberUpdateCheck(): Pair<UpdateChecker.UpdateInfo?, Boolean> {
     var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
     var updateIsBeta by remember { mutableStateOf(false) }
 
-    // Checked once each time the Settings panel is opened — not on a
-    // background timer, to avoid polling GitHub while the app just sits on
-    // the dashboard. A beta/debug build (versionNameSuffix = "-beta", see
-    // build.gradle.kts) checks the rolling dev-latest pre-release instead of
-    // /releases/latest — otherwise this row would never fire on a beta
-    // install, since dev-latest is never "the newer official release".
-    // A Failed result (network error, GitHub rate limit, misconfigured REPO
-    // constant...) is logged rather than silently dropped, so a report of
-    // "the update notification doesn't work" is diagnosable from logcat
-    // instead of indistinguishable from "genuinely up to date".
     LaunchedEffect(Unit) {
         val isBeta = BuildConfig.VERSION_NAME.contains("-beta")
         val result =
@@ -106,6 +105,16 @@ fun SettingsMenu(ctx: CardContext) {
             UpdateChecker.CheckResult.UpToDate -> Unit
         }
     }
+
+    return updateInfo to updateIsBeta
+}
+
+@Composable
+fun SettingsMenu(ctx: CardContext) {
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val scope = rememberCoroutineScope()
+    val (updateInfo, updateIsBeta) = rememberUpdateCheck()
 
     Column(
         modifier =
@@ -129,12 +138,12 @@ fun SettingsMenu(ctx: CardContext) {
 
         localIpAddress()?.let { ip ->
             Text(
-                if (ctx.configServerEnabled) {
+                if (ctx.deviceSettings.configServerEnabled) {
                     stringResource(R.string.settings_local_config, "http://$ip:8080")
                 } else {
                     stringResource(R.string.config_server_off_hint)
                 },
-                color = if (ctx.configServerEnabled) LocalTheme.current.accent else LocalTheme.current.mutedText,
+                color = if (ctx.deviceSettings.configServerEnabled) LocalTheme.current.accent else LocalTheme.current.mutedText,
                 fontSize = 12.sp
             )
         }
@@ -156,6 +165,7 @@ fun SettingsMenu(ctx: CardContext) {
         }
 
         WakeOnMotionRow(ctx)
+        WifiKeepAwakeRow(ctx)
         ConfigServerRow(ctx)
         TapFeedbackRow(ctx)
     }
@@ -306,9 +316,40 @@ private fun WakeOnMotionRow(ctx: CardContext) {
         Text(stringResource(R.string.wake_on_motion), color = LocalTheme.current.primaryText, fontSize = 14.sp)
         Spacer(Modifier.weight(1f))
         Switch(
-            checked = ctx.wakeOnMotionEnabled,
-            onCheckedChange = { ctx.setWakeOnMotionEnabled(it) },
+            checked = ctx.deviceSettings.wakeOnMotionEnabled,
+            onCheckedChange = { ctx.deviceSettings.setWakeOnMotionEnabled(it) },
             colors = SwitchDefaults.colors(checkedTrackColor = LocalTheme.current.accent)
+        )
+    }
+}
+
+/**
+ * "Keep Wi-Fi awake" switch — off by default. See [CardContext.wifiKeepAwakeEnabled]'s
+ * doc for the battery-vs-reachability trade-off; this is purely about Home
+ * Assistant reaching this device (services, push-webhook) while the screen's
+ * off, not about the device's own connectivity for anything it initiates itself.
+ */
+@Composable
+private fun WifiKeepAwakeRow(ctx: CardContext) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(Icons.Filled.Wifi, contentDescription = null, tint = LocalTheme.current.mutedText)
+            Text(stringResource(R.string.wifi_keep_awake), color = LocalTheme.current.primaryText, fontSize = 14.sp)
+            Spacer(Modifier.weight(1f))
+            Switch(
+                checked = ctx.deviceSettings.wifiKeepAwakeEnabled,
+                onCheckedChange = { ctx.deviceSettings.setWifiKeepAwakeEnabled(it) },
+                colors = SwitchDefaults.colors(checkedTrackColor = LocalTheme.current.accent)
+            )
+        }
+        Text(
+            stringResource(R.string.wifi_keep_awake_hint),
+            color = LocalTheme.current.mutedText,
+            fontSize = 11.sp
         )
     }
 }
@@ -334,8 +375,8 @@ private fun ConfigServerRow(ctx: CardContext) {
             Text(stringResource(R.string.config_server_toggle), color = LocalTheme.current.primaryText, fontSize = 14.sp)
             Spacer(Modifier.weight(1f))
             Switch(
-                checked = ctx.configServerEnabled,
-                onCheckedChange = { ctx.setConfigServerEnabled(it) },
+                checked = ctx.deviceSettings.configServerEnabled,
+                onCheckedChange = { ctx.deviceSettings.setConfigServerEnabled(it) },
                 colors = SwitchDefaults.colors(checkedTrackColor = LocalTheme.current.accent)
             )
         }
@@ -359,8 +400,8 @@ private fun TapFeedbackRow(ctx: CardContext) {
             Text(stringResource(R.string.tap_feedback), color = LocalTheme.current.primaryText, fontSize = 14.sp)
             Spacer(Modifier.weight(1f))
             Switch(
-                checked = ctx.tapFeedbackEnabled,
-                onCheckedChange = { ctx.setTapFeedbackEnabled(it) },
+                checked = ctx.deviceSettings.tapFeedbackEnabled,
+                onCheckedChange = { ctx.deviceSettings.setTapFeedbackEnabled(it) },
                 colors = SwitchDefaults.colors(checkedTrackColor = LocalTheme.current.accent)
             )
         }
