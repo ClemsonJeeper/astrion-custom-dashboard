@@ -30,8 +30,10 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
@@ -253,6 +255,38 @@ class HaClient(
     }
 
     /**
+     * Fire-and-forget POST to a Home Assistant webhook (`<baseUrl>/api/webhook/<webhookId>`)
+     * — for pushing state (current page, active Activity per room) to a companion HA
+     * integration the instant it changes, instead of that integration having to poll
+     * ConfigServer on a timer. Webhooks need no `Authorization` header (the id itself
+     * is the secret, same as any other HA webhook trigger). Silently no-ops on a blank
+     * id/baseUrl or any network failure — this is a nice-to-have push, never something
+     * worth surfacing an error for or retrying; the polling endpoints keep working
+     * regardless of whether this succeeds.
+     */
+    fun pushWebhook(webhookId: String, payload: JsonObject) {
+        if (webhookId.isBlank() || baseUrl.isBlank()) {
+            // Previously silent — made it explicit because a blank webhookId/baseUrl at
+            // this exact call site is indistinguishable, from the outside, from the
+            // request having actually been sent and simply lost somewhere, which made
+            // this near-impossible to diagnose from logcat alone.
+            Log.d(TAG, "pushWebhook skipped: webhookId blank=${webhookId.isBlank()}, baseUrl blank=${baseUrl.isBlank()}")
+            return
+        }
+        scope.launch {
+            try {
+                val body = payload.toString().toRequestBody("application/json".toMediaType())
+                val req = Request.Builder().url("${baseUrl.trimEnd('/')}/api/webhook/$webhookId").post(body).build()
+                imageHttp.newCall(req).execute().use { resp ->
+                    Log.d(TAG, "pushWebhook($webhookId) -> HTTP ${resp.code}")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "pushWebhook($webhookId) failed", e)
+            }
+        }
+    }
+
+    /**
      * Browse a media_player's library via the standard `media_player/browse_media`
      * command. Returns the `result` object (title + children), or null on timeout.
      * Pass a null contentId/type to browse the root.
@@ -272,11 +306,7 @@ class HaClient(
         send(msg)
         val reply = withTimeoutOrNull(RESPONSE_TIMEOUT) { deferred.await() }
         pending.remove(id)
-        // Safe cast, not kotlinx.serialization's `.jsonObject` extension — that one
-        // throws IllegalStateException if "result" isn't a JsonObject (e.g. some
-        // media_player integrations return something else for certain folders)
-        // instead of returning null, which was crashing MediaBrowser on navigation.
-        return reply?.get("result") as? JsonObject
+        return reply?.get("result")?.jsonObject
     }
 
     /**
