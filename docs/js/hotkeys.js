@@ -74,6 +74,7 @@ function updateHotkeyActionInputs() {
   const container = document.getElementById('dynamicHotkeyInputs');
   if (action === 'page') {
     container.innerHTML = `<label>Target page name</label><input type="text" id="hkPage" placeholder="e.g., Media">`;
+    attachPageAutocomplete(document.getElementById('hkPage'));
   } else if (action === 'openOverlay') {
     container.innerHTML = `
       <label>Overlay</label>

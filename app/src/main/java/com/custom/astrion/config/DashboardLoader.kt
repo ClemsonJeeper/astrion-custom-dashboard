@@ -8,6 +8,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
@@ -121,7 +122,9 @@ object DashboardLoader {
                     val pageHotkeys = obj["hotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
                     val pageLongHotkeys = obj["longHotkeys"]?.jsonArray?.map { parseHotkey(it.jsonObject) } ?: emptyList()
                     val parent = obj["parent"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
-                    PageConfig(name, cards, pageHotkeys, pageLongHotkeys, parent)
+                    val swipeUp = obj["swipeUp"]?.jsonPrimitive?.content
+                    val hidden = obj["hidden"]?.jsonPrimitive?.booleanOrNull == true
+                    PageConfig(name, cards, pageHotkeys, pageLongHotkeys, parent, parentKey = "BACK", swipeUp = swipeUp, hidden = hidden)
                 }
             if (pages.isEmpty()) error("\"pages\" is empty")
             val start = root["startPage"]?.jsonPrimitive?.intOrNull ?: 0
@@ -314,6 +317,8 @@ object DashboardLoader {
                             )
                             if (page.hotkeys.isNotEmpty()) put("hotkeys", encodeHotkeys(page.hotkeys))
                             if (page.longHotkeys.isNotEmpty()) put("longHotkeys", encodeHotkeys(page.longHotkeys))
+                            page.swipeUp?.let { if (it.isNotBlank()) put("swipeUp", it) }
+                            if (page.hidden) put("hidden", true)
                         }
                     )
                 }

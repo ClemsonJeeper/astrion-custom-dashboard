@@ -356,6 +356,10 @@
         <div class="hint" style="margin-top:4px">Defaults to BACK. Pick a different button if BACK is already used for something else on this page, or if you'd rather reserve BACK entirely. If this page also binds its own hotkey on the chosen button, that hotkey wins and the parent-jump is skipped.</div>
       </div>
       <label class="inline-check" style="margin-top:10px"><input type="checkbox" id="pageDialogStart"> Start page (shown on launch)</label>
+      <label style="margin-top:10px">Swipe-up overlay (page name)</label>
+      <input type="text" id="pageDialogSwipeUp" placeholder="e.g., Scenes — leave blank to disable">
+      <div class="hint">Swiping up on this page opens the named page as a full-screen overlay (dismiss with swipe down / ✕ / Back).</div>
+      <label class="inline-check" style="margin-top:10px"><input type="checkbox" id="pageDialogHidden"> Hide from swipe pager (only reachable via swipe-up / hotkey)</label>
       <div class="btn-row" style="margin-top:12px">
         <button onclick="savePageDialog()">Save</button>
         <button class="secondary" onclick="closePageDialog()">Cancel</button>

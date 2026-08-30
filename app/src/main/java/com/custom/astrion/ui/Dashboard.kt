@@ -5,6 +5,8 @@ import android.hardware.ConsumerIrManager
 import android.media.AudioManager
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,17 +41,27 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.custom.astrion.R
@@ -66,7 +79,9 @@ import com.custom.astrion.ha.HaClient
 import com.custom.astrion.ha.HaLabels
 import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.harmony.HarmonyHubRegistry
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -106,6 +121,11 @@ fun Dashboard(
      * a card's navigateToPage) — MainActivity uses this to rebind hardware
      * hotkeys to the newly-visible page's own bindings. */
     onPageChanged: (Int) -> Unit = {},
+    /** Called with the swipe-up overlay page index when it opens, and null
+     * when it closes — MainActivity uses this to rebind hardware hotkeys to
+     * the overlay page while it's on top, and restore the underlying page's
+     * bindings on close. */
+    onOverlayPageChanged: (Int?) -> Unit = {},
     wakeOnMotionEnabled: Boolean = true,
     setWakeOnMotionEnabled: (Boolean) -> Unit = {},
     configServerEnabled: Boolean = true,
@@ -123,7 +143,7 @@ fun Dashboard(
      * without each card reading the preference itself. */
     tapFeedbackEnabled: Boolean = true,
     setTapFeedbackEnabled: (Boolean) -> Unit = {},
-    /** Fired once per [ActivityRuntime] instance (i.e. once per [ActivityRuntime] instance (i.e. once per config
+    /** Fired once per [ActivityRuntime] instance (i.e. once per config
      * load) so MainActivity can hold a live reference for ConfigServer's
      * `/activities*` routes — ActivityRuntime is created here, inside
      * Compose, rather than in MainActivity, so it can react to a
@@ -150,11 +170,10 @@ fun Dashboard(
     // play on touch. Compose's clickable doesn't call this by default, so
     // we fire it ourselves. Gated by tapFeedbackEnabled so the settings
     // switch silences it app-wide.
-    val feedbackContext = LocalContext.current
-    val tapFeedback: () -> Unit = remember(feedbackContext, tapFeedbackEnabled) {
+    val tapFeedback: () -> Unit = remember(context, tapFeedbackEnabled) {
         if (tapFeedbackEnabled) {
             {
-                val am = feedbackContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                 am?.playSoundEffect(AudioManager.FX_KEY_CLICK)
             }
         } else {
@@ -168,12 +187,150 @@ fun Dashboard(
             val harmonyConnected by (harmonyRegistry.client()?.connected ?: remember { MutableStateFlow(false) }).collectAsState()
             val scope = rememberCoroutineScope()
 
-            val pageCount = config.pages.size.coerceAtLeast(1)
-            val pagerState =
-                rememberPagerState(
-                    initialPage = config.startPage.coerceIn(0, pageCount - 1),
-                    pageCount = { pageCount }
-                )
+            // ── Swipe-up drawer state ──────────────────────────────────────────────
+            // The swipe-up overlay is rendered as a finger-tracking drawer: it slides
+            // up from the bottom following the user's drag, then settles open or closed
+            // with a short tween. `drawerOffset` is the px distance the overlay is
+            // pushed down from its open position — 0 = fully open, `containerHeightPx`
+            // = fully closed (off-screen below). It is read only inside `Modifier.offset`
+            // and `offset`/`drawBehind` lambdas (layout/draw phase), so dragging updates it
+            // without triggering recomposition — important on the weak MT6580.
+            //
+            // `containerHeightPx` is MEASURED from the actual root Box via onSizeChanged
+            // (seeded from the screen configuration so it's non-zero on the first frame).
+            // Using the screen-config height directly is unreliable in immersive
+            // fullscreen — it can be smaller than the real window, which would leave
+            // the drawer's opaque background peeking in at the bottom when "closed",
+            // making the underlying cards look like they vanished.
+            val seedHeightPx = with(LocalDensity.current) {
+                LocalConfiguration.current.screenHeightDp.dp.toPx()
+            }.coerceAtLeast(1f)
+            var containerHeightPx by remember { mutableFloatStateOf(seedHeightPx) }
+            val drawerHeightPx = containerHeightPx
+            var swipeUpPageIndex by remember { mutableStateOf<Int?>(null) }
+            var drawerOffset by remember { mutableFloatStateOf(0f) }
+            // Plain (non-snapshot) holder for the running settle-animation job so that
+            // starting/cancelling it never causes recomposition.
+            val drawerAnim = remember {
+                object {
+                    var job: Job? = null
+                }
+            }
+
+            fun cancelDrawerAnim() {
+                drawerAnim.job?.cancel()
+                drawerAnim.job = null
+            }
+
+            /**
+             * Animate the drawer to its open or closed end. The commit threshold is
+             * deliberately forgiving: a slow drag only needs to clear ~20% of the
+             * drawer height to snap open (so a "somewhat" swipe-up still wins), and a
+             * brisk flick opens/closes regardless of how far the finger actually
+             * travelled. [velocityY] is px/s, negative = upward (opening); 0 means
+             * "no velocity info, decide by position alone" (the bottom strip and the
+             * overlay handle, which don't expose fling velocity).
+             */
+            fun settleDrawer(velocityY: Float = 0f) {
+                val idx = swipeUpPageIndex ?: return
+                if (drawerHeightPx <= 0f) return
+                cancelDrawerAnim()
+                val openByPosition = drawerOffset < drawerHeightPx * 0.8f
+                val openByFlick = velocityY < -500f
+                val closeByFlick = velocityY > 500f
+                val target = when {
+                    openByFlick -> 0f
+                    closeByFlick -> drawerHeightPx
+                    openByPosition -> 0f
+                    else -> drawerHeightPx
+                }
+                drawerAnim.job = scope.launch {
+                    animate(initialValue = drawerOffset, targetValue = target, animationSpec = tween<Float>(220)) { v, _ ->
+                        drawerOffset = v
+                    }
+                    if (target == 0f) {
+                        onOverlayPageChanged(idx)
+                    } else {
+                        swipeUpPageIndex = null
+                        onOverlayPageChanged(null)
+                    }
+                }
+            }
+
+            /** Slide the drawer closed (✕ / Back). */
+            fun closeDrawer() {
+                if (swipeUpPageIndex == null) return
+                cancelDrawerAnim()
+                drawerAnim.job = scope.launch {
+                    animate(initialValue = drawerOffset, targetValue = drawerHeightPx, animationSpec = tween<Float>(220)) { v, _ ->
+                        drawerOffset = v
+                    }
+                    swipeUpPageIndex = null
+                    onOverlayPageChanged(null)
+                }
+            }
+
+            /** Open the drawer on a page (config index), animating in unless it is
+             *  already open — in which case just swap the content instantly. */
+            fun showOverlayPage(idx: Int) {
+                if (idx < 0 || idx >= config.pages.size) return
+                if (swipeUpPageIndex != null && drawerOffset <= 1f) {
+                    cancelDrawerAnim()
+                    swipeUpPageIndex = idx
+                    onOverlayPageChanged(idx)
+                    return
+                }
+                cancelDrawerAnim()
+                swipeUpPageIndex = idx
+                drawerOffset = drawerHeightPx
+                drawerAnim.job = scope.launch {
+                    animate(initialValue = drawerHeightPx, targetValue = 0f, animationSpec = tween<Float>(250)) { v, _ ->
+                        drawerOffset = v
+                    }
+                    onOverlayPageChanged(idx)
+                }
+            }
+
+            BackHandler(enabled = swipeUpPageIndex != null) { closeDrawer() }
+
+            // Gesture callbacks shared by the page overscroll connection and the bottom
+            // strip. `onSwipeUpBegin` materialises the drawer off-screen (closed) so the
+            // subsequent drag deltas have something to move; `onSwipeUpDrag` applies a
+            // px delta (negative = opening); `onSwipeUpSettle` resolves the gesture.
+            val onSwipeUpBegin: (String) -> Unit = { name ->
+                val i = config.pages.indexOfFirst { it.name.equals(name, ignoreCase = true) }
+                if (i >= 0) {
+                    cancelDrawerAnim()
+                    swipeUpPageIndex = i
+                    drawerOffset = drawerHeightPx
+                }
+            }
+            val onSwipeUpDrag: (Float) -> Unit = { delta ->
+                if (swipeUpPageIndex != null) {
+                    drawerOffset = (drawerOffset + delta).coerceIn(0f, drawerHeightPx)
+                }
+            }
+            val onSwipeUpSettle: (Float) -> Unit = { v -> settleDrawer(v) }
+
+            // Hidden pages are excluded from the horizontal pager and the dot row —
+            // they're only reachable via a swipe-up overlay or a hotkey that opens
+            // them as the overlay. The pager operates on visible-pages indices, so we
+            // keep a list of config indices that maps visible-position → config-position.
+            // All navigation (hotkeys, navigateToPage, dots) resolves names against the
+            // full config.pages list, then translates to a visible index (or opens the
+            // overlay if the target is hidden).
+            val visibleIndices = remember(config) {
+                config.pages.indices.filter { !config.pages[it].hidden }
+            }
+            val pageCount = visibleIndices.size.coerceAtLeast(1)
+            val initialVisible = remember(config) {
+                val start = config.startPage.coerceIn(0, config.pages.lastIndex.coerceAtLeast(0))
+                visibleIndices.indexOf(start).let { if (it < 0) 0 else it }
+            }
+            val pagerState = rememberPagerState(
+                initialPage = initialVisible,
+                pageCount = { pageCount }
+            )
 
             // Scans pages/hotkeys once per config load for every `"track": true`
             // item; re-scanned automatically whenever `config` itself changes
@@ -198,11 +355,17 @@ fun Dashboard(
             // intermediate page between the current one and the target, which reads
             // as "the wrong page flashes up" right before the real one lands —
             // especially noticeable on the HA100's weak CPU. A direct jump should
-            // land directly.
+            // land directly. A hidden target opens as the swipe-up overlay instead.
             val navigateToPage: (String) -> Unit = { pageName ->
-                val idx = config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
-                if (idx >= 0) {
-                    scope.launch { pagerState.scrollToPage(idx) }
+                val cfgIdx = config.pages.indexOfFirst { it.name.equals(pageName, ignoreCase = true) }
+                if (cfgIdx >= 0) {
+                    val visIdx = visibleIndices.indexOf(cfgIdx)
+                    if (visIdx >= 0) {
+                        scope.launch { pagerState.scrollToPage(visIdx) }
+                        if (swipeUpPageIndex != null) closeDrawer()
+                    } else {
+                        showOverlayPage(cfgIdx)
+                    }
                 }
             }
 
@@ -386,7 +549,10 @@ fun Dashboard(
             // not visibly scroll through every page in between.
             LaunchedEffect(navTarget) {
                 val target = navTarget ?: return@LaunchedEffect
-                if (target in 0 until pageCount) pagerState.scrollToPage(target)
+                val visIdx = visibleIndices.indexOf(target)
+                if (visIdx >= 0) {
+                    pagerState.scrollToPage(visIdx)
+                } else if (target in 0 until config.pages.size) showOverlayPage(target)
                 onNavHandled()
             }
 
@@ -394,7 +560,7 @@ fun Dashboard(
             // hotkeys to that page's own bindings (swipe, dot tap, hardware nav, or a
             // card's navigateToPage all funnel through pagerState.currentPage).
             LaunchedEffect(pagerState.currentPage) {
-                onPageChanged(pagerState.currentPage)
+                onPageChanged(visibleIndices.getOrNull(pagerState.currentPage) ?: return@LaunchedEffect)
             }
 
             var showSettings by remember { mutableStateOf(false) }
@@ -414,7 +580,11 @@ fun Dashboard(
                 if (overlayTarget != null) onOverlayHandled()
             }
 
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onSizeChanged { containerHeightPx = it.height.toFloat().coerceAtLeast(1f) }
+            ) {
                 Column(
                     modifier =
                     Modifier
@@ -432,21 +602,60 @@ fun Dashboard(
                             .weight(1f)
                             .fillMaxWidth()
                     ) { pageIndex ->
-                        PageContent(config.pages[pageIndex], ctx)
+                        val page = config.pages[visibleIndices[pageIndex]]
+                        PageContent(
+                            page = page,
+                            ctx = ctx,
+                            swipeUp = page.swipeUp,
+                            onSwipeUpBegin = onSwipeUpBegin,
+                            onSwipeUpDrag = onSwipeUpDrag,
+                            onSwipeUpSettle = onSwipeUpSettle
+                        )
+                    }
+
+                    // Bottom-edge swipe-up strip: catches bottom-originating upward
+                    // swipes that miss the pager's nestedScroll. Only activates when
+                    // the current page declares a swipeUp target.
+                    val currentSwipeUp = visibleIndices.getOrNull(pagerState.currentPage)
+                        ?.let { config.pages[it].swipeUp }
+                    if (!currentSwipeUp.isNullOrBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(18.dp)
+                                .pointerInput(currentSwipeUp) {
+                                    detectVerticalDragGestures(
+                                        onDragStart = { cancelDrawerAnim() },
+                                        onDragEnd = { settleDrawer() },
+                                        onDragCancel = { settleDrawer() }
+                                    ) { _, dragAmount ->
+                                        if (swipeUpPageIndex == null) {
+                                            if (dragAmount < 0f) {
+                                                currentSwipeUp?.let(onSwipeUpBegin)
+                                            } else {
+                                                return@detectVerticalDragGestures
+                                            }
+                                        }
+                                        onSwipeUpDrag(dragAmount)
+                                    }
+                                }
+                        )
                     }
 
                     PageIndicator(
-                        pages = config.pages,
+                        pages = visibleIndices.map { config.pages[it] },
                         current = pagerState.currentPage,
                         // Same instant scrollToPage as navigateToPage/hardware nav —
                         // a dot tap is a direct jump too, not a swipe gesture, so it
                         // shouldn't visibly scroll through pages in between.
                         onDotClick = { index -> scope.launch { pagerState.scrollToPage(index) } },
                         onNavigateToParent = {
-                            val parentName = config.pages.getOrNull(pagerState.currentPage)?.parent
+                            val cfgIdx = visibleIndices.getOrNull(pagerState.currentPage)
+                            val parentName = cfgIdx?.let { config.pages.getOrNull(it)?.parent }
                             val idx =
                                 parentName?.let { name ->
                                     config.pages.indexOfFirst { it.name.equals(name, ignoreCase = true) }
+                                        .let { if (it >= 0) visibleIndices.indexOf(it) else -1 }
                                 }
                             if (idx != null && idx >= 0) scope.launch { pagerState.scrollToPage(idx) }
                         },
@@ -464,6 +673,53 @@ fun Dashboard(
                         onStop = ::stopActivity,
                         onClose = { showActivities = false }
                     )
+                }
+            }
+
+            // Drawn below the settings overlay so settings still wins if both are
+            // somehow open (settings is reached via the top bar, which stays
+            // tappable through nothing — but ordering is belt-and-braces).
+            //
+            // The swipe-up drawer: a scrim that fades in with the open progress,
+            // then the overlay itself translated by `drawerOffset`. Both read
+            // `drawerOffset` in draw/layout lambdas (no recomposition while
+            // dragging) — important on the weak MT6580.
+            //
+            // The scrim uses `drawBehind { drawRect(Black, alpha = ...) }` rather
+            // than `background(Black).graphicsLayer { alpha }`: in Compose a
+            // modifier to the LEFT of `graphicsLayer` draws OUTSIDE the layer, so
+            // that ordering renders the background at full opacity regardless of
+            // `alpha` (the alpha only affects the layer's children, of which there
+            // are none). That made the scrim a solid black box the instant the
+            // overlay materialised — "screen goes black before the drawer slides."
+            // `drawBehind` reads the alpha in the draw phase and applies it to the
+            // rect directly, so it's truly transparent when the drawer is closed.
+            swipeUpPageIndex?.let { idx ->
+                config.pages.getOrNull(idx)?.let { page ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .drawBehind {
+                                val progress = (1f - drawerOffset / drawerHeightPx).coerceIn(0f, 1f)
+                                if (progress > 0f) drawRect(Color.Black, alpha = progress * 0.5f)
+                            }
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .offset { IntOffset(0, drawerOffset.roundToInt()) }
+                    ) {
+                        SwipeUpOverlay(
+                            page = page,
+                            ctx = ctx,
+                            onDragStart = { cancelDrawerAnim() },
+                            onDragDelta = { d ->
+                                drawerOffset = (drawerOffset + d).coerceIn(0f, drawerHeightPx)
+                            },
+                            onDragEnd = { v -> settleDrawer(v) },
+                            onClose = { closeDrawer() }
+                        )
+                    }
                 }
             }
         }
@@ -674,9 +930,37 @@ private fun ActivitiesOverlay(
 }
 
 @Composable
-private fun PageContent(page: PageConfig, ctx: CardContext) {
+private fun PageContent(
+    page: PageConfig,
+    ctx: CardContext,
+    swipeUp: String? = null,
+    onSwipeUpBegin: (String) -> Unit = {},
+    onSwipeUpDrag: (Float) -> Unit = {},
+    onSwipeUpSettle: (Float) -> Unit = {}
+) {
     val pinned = page.cards.filter { it.options["pin"] == "bottom" }
     val scrolling = page.cards.filter { it.options["pin"] != "bottom" }
+
+    // Swipe-up-to-open: only attach a nestedScroll overscroll consumer when
+    // this page actually declares a `swipeUp` target. The connection drives
+    // the finger-tracking drawer: on the first upward overscroll it asks the
+    // host to materialise the drawer off-screen, then each subsequent px of
+    // overscroll slides it up under the finger; on fling-end it settles.
+    // Using nestedScroll (not detectVerticalDragGestures) avoids the
+    // documented conflict with verticalScroll on the same node, and never
+    // blocks taps, so pinned-bottom cards keep working normally. Pointer
+    // capture keeps the in-progress scroll fed even once the drawer covers
+    // the page, so the finger stays tracked for the whole gesture.
+    val dragConnection = if (!swipeUp.isNullOrBlank()) {
+        rememberSwipeUpDragConnection(
+            targetName = swipeUp,
+            onBegin = onSwipeUpBegin,
+            onDrag = onSwipeUpDrag,
+            onSettle = onSwipeUpSettle
+        )
+    } else {
+        null
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -684,6 +968,7 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .then(if (dragConnection != null) Modifier.nestedScroll(dragConnection) else Modifier)
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -699,6 +984,222 @@ private fun PageContent(page: PageConfig, ctx: CardContext) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 pinned.forEach { RenderCard(it, ctx) }
+            }
+        }
+    }
+}
+
+/**
+ * [NestedScrollConnection] that closes the swipe-up drawer from a downward
+ * overscroll inside the overlay's scrollable content. When the content is
+ * scrolled to the top and the user drags further down, [onPostScroll] receives
+ * a positive `available.y`: on the first such event we call [onStart] to
+ * cancel any running settle animation, then forward each px to [onDrag] so the
+ * drawer slides down under the finger; [onPostFling] invokes [onSettle] with
+ * the fling velocity (px/s, positive = downward) so a brisk downward flick
+ * dismisses the drawer even from a short drag. Consumes the overscroll so the
+ * platform glow doesn't fire. This is the downward mirror of
+ * [rememberSwipeUpDragConnection], and exists for the same reason: putting
+ * `detectVerticalDragGestures` on the same node as `verticalScroll` does not
+ * work (the scroll consumer wins), so we hook the overscroll via nestedScroll
+ * instead.
+ */
+@Composable
+private fun rememberSwipeDownCloseConnection(
+    onStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onSettle: (Float) -> Unit
+): NestedScrollConnection {
+    val startRef = rememberUpdatedState(onStart)
+    val dragRef = rememberUpdatedState(onDrag)
+    val settleRef = rememberUpdatedState(onSettle)
+    val active = remember { booleanArrayOf(false) }
+    return remember(Unit) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y > 0f) {
+                    if (!active[0]) {
+                        active[0] = true
+                        startRef.value.invoke()
+                    }
+                    dragRef.value.invoke(available.y) // positive → closes
+                    return available // consume so the platform overscroll glow doesn't fire
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (active[0]) {
+                    active[0] = false
+                    settleRef.value.invoke(available.y)
+                }
+                return available
+            }
+        }
+    }
+}
+
+/**
+ * [NestedScrollConnection] that drives the swipe-up drawer from a page's
+ * upward overscroll. Upward overscroll arrives in [onPostScroll] as a negative
+ * `available.y` (the scrolling child couldn't consume the upward drag): on the
+ * first such event we call [onBegin] to materialise the drawer closed, then
+ * forward each px to [onDrag] so the drawer follows the finger. [onSettle] is
+ * invoked from [onPostFling] (which fires for both fling and plain lift) with
+ * the fling velocity (px/s, negative = upward) so a brisk flick opens the
+ * drawer even if the finger barely travelled. Only reacts to user drag, not
+ * fling momentum, for the open phase. Consumes the overscroll so the platform
+ * glow doesn't fire.
+ */
+@Composable
+private fun rememberSwipeUpDragConnection(
+    targetName: String,
+    onBegin: (String) -> Unit,
+    onDrag: (Float) -> Unit,
+    onSettle: (Float) -> Unit
+): NestedScrollConnection {
+    val beginRef = rememberUpdatedState(onBegin)
+    val dragRef = rememberUpdatedState(onDrag)
+    val settleRef = rememberUpdatedState(onSettle)
+    val active = remember { booleanArrayOf(false) }
+    return remember(targetName) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y < 0f) {
+                    if (!active[0]) {
+                        active[0] = true
+                        beginRef.value.invoke(targetName)
+                    }
+                    dragRef.value.invoke(available.y) // negative → opens
+                    return available // consume so the platform overscroll glow doesn't fire
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (active[0]) {
+                    active[0] = false
+                    settleRef.value.invoke(available.y)
+                }
+                return available
+            }
+        }
+    }
+}
+
+/**
+ * Full-screen overlay showing another page's cards, opened by swiping up from
+ * a page that declares a `swipeUp` target. Now rendered as a finger-tracking
+ * drawer: the host (Dashboard) translates it by `drawerOffset` and lays a
+ * scrim behind it. Dismissed by swiping down from the top handle (tracks the
+ * finger, then settles), tapping ✕, or pressing the system Back button
+ * (handled by the [BackHandler] in [Dashboard]). Renders the target page's
+ * cards with the same pinned/scrolling split as [PageContent] so pinned-bottom
+ * cards (e.g. a persistent media-player bar) keep their layout. Deliberately
+ * not part of the horizontal pager, so it doesn't show up in the page-indicator
+ * dots.
+ */
+@Composable
+private fun SwipeUpOverlay(
+    page: PageConfig,
+    ctx: CardContext,
+    onDragStart: () -> Unit,
+    onDragDelta: (Float) -> Unit,
+    onDragEnd: (Float) -> Unit,
+    onClose: () -> Unit
+) {
+    val pinned = page.cards.filter { it.options["pin"] == "bottom" }
+    val scrolling = page.cards.filter { it.options["pin"] != "bottom" }
+    val velocityTracker = remember { androidx.compose.ui.input.pointer.util.VelocityTracker() }
+
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0E2229))) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Top bar: swipe-down-to-close handle (centered) + close button (end).
+            // The drag tracks the drawer under the finger; on release the host
+            // settles it open or closed. Velocity is forwarded so a brisk
+            // downward flick closes the drawer even from near-open.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragStart = {
+                                onDragStart()
+                                velocityTracker.resetTracking()
+                            },
+                            onDragEnd = {
+                                val vy = if (velocityTracker.calculateVelocity().y.isNaN()) {
+                                    0f
+                                } else {
+                                    velocityTracker.calculateVelocity().y
+                                }
+                                onDragEnd(vy)
+                            },
+                            onDragCancel = { onDragEnd(0f) }
+                        ) { change, dragAmount ->
+                            velocityTracker.addPosition(change.uptimeMillis, change.position)
+                            onDragDelta(dragAmount)
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(40.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFF3A5560))
+                )
+                Text(
+                    "✕ " + stringResource(R.string.close),
+                    color = Color(0xFF93AFB6),
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 10.dp, top = 6.dp, bottom = 6.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .tapClickable { onClose() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
+
+            // Page cards: same pinned/scrolling split as PageContent. The
+            // scrolling column also carries a nestedScroll overscroll consumer
+            // that closes the drawer on a downward overscroll (content scrolled
+            // to top + drag down) — the mirror of the page's swipe-up open
+            // connection. This lets the user swipe down anywhere in the cards
+            // to dismiss the drawer, not just from the top handle. Using
+            // nestedScroll (not detectVerticalDragGestures) avoids the
+            // documented conflict with verticalScroll on the same node.
+            val closeConnection = rememberSwipeDownCloseConnection(
+                onStart = { onDragStart() },
+                onDrag = { d -> onDragDelta(d) },
+                onSettle = { v -> onDragEnd(v) }
+            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .nestedScroll(closeConnection)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    scrolling.forEach { RenderCard(it, ctx) }
+                }
+                if (pinned.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF13262D))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        pinned.forEach { RenderCard(it, ctx) }
+                    }
+                }
             }
         }
     }

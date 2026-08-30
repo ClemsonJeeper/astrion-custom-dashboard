@@ -346,6 +346,11 @@ function updateCardFormInputs() {
       : null; // giEntityId — any domain (scene.*, script.*, media_player.*, …)
     attachEntityAutocomplete(el, dom);
   });
+
+  // Page-name autocomplete for the scene_grid "Page to open instead" field.
+  if (document.getElementById('giPage')) {
+    attachPageAutocomplete(document.getElementById('giPage'));
+  }
 }
 
 // media_player card: top_buttons only make sense on the "full" variant

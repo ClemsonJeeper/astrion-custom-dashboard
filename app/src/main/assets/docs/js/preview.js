@@ -170,6 +170,106 @@ function attachEntityAutocomplete(inputEl, domain) {
   });
 }
 
+// ---- Page-name autocomplete -------------------------------------------------
+//
+// Mirrors attachEntityAutocomplete but sources from the dashboard's own page
+// names (dashboardData.pages) instead of HA entities. Used by every field that
+// references another page by name: the page dialog's "swipe-up overlay" target,
+// the hotkey "Go to page" action, and scene_grid items' "Page to open instead".
+// Reuses the same singleton _eaState dropdown so only one is ever open at once
+// and the shared scroll/resize/keydown helpers keep working across both kinds.
+
+function attachPageAutocomplete(inputEl) {
+  if (!inputEl) return;
+
+  // Build the candidate list lazily on each open — the page list can change
+  // after this input is attached (the page-dialog field is attached once on
+  // initEditor, before the user's real dashboard.json is loaded/imported), so
+  // capturing it eagerly would show a stale list (just the default "Home").
+  function buildItems() {
+    return (dashboardData.pages || [])
+      .map(p => p.name)
+      .filter((n, i, arr) => n && arr.indexOf(n) === i)
+      .map(name => ({ id: name, name, lower: name.toLowerCase(), nameLower: name.toLowerCase() }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  let debounceTimer = null;
+  let suppressOpen = false;
+
+  function closeDropdown() { _eaClose(); }
+
+  function openDropdown(query) {
+    _eaClose();
+    const items = buildItems();
+    const q = (query || '').toLowerCase();
+    const matches = q ? items.filter(it => it.lower.includes(q) || it.nameLower.includes(q)) : items;
+    if (matches.length === 0) return;
+
+    const dd = document.createElement('div');
+    dd.className = 'ea-dropdown';
+
+    const maxShow = 60;
+    matches.slice(0, maxShow).forEach((it) => {
+      const row = document.createElement('div');
+      row.className = 'ea-item';
+      row.dataset.id = it.id;
+      row.innerHTML = `<span class="ea-name">${it.name}</span>`;
+      row.addEventListener('mousedown', (e) => { e.preventDefault(); accept(it.id); });
+      dd.appendChild(row);
+    });
+    if (matches.length > maxShow) {
+      const more = document.createElement('div');
+      more.className = 'ea-more';
+      more.textContent = (matches.length - maxShow) + ' more — keep typing to narrow';
+      dd.appendChild(more);
+    }
+
+    document.body.appendChild(dd);
+    _eaState.dropdown = dd;
+    _eaState.input = inputEl;
+    _eaState.selectedIdx = -1;
+    _eaPosition();
+  }
+
+  function accept(id) {
+    inputEl.value = id;
+    closeDropdown();
+    suppressOpen = true;
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  if (!_eaState.globalListenersAttached) {
+    _eaState.globalListenersAttached = true;
+    document.addEventListener('scroll', () => {
+      if (_eaState.dropdown && _eaState.input) {
+        const r = _eaState.input.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > window.innerHeight) _eaClose();
+        else _eaPosition();
+      }
+    }, { passive: true, capture: true });
+    window.addEventListener('resize', () => { if (_eaState.dropdown) _eaPosition(); });
+  }
+
+  inputEl.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    if (suppressOpen) { suppressOpen = false; return; }
+    debounceTimer = setTimeout(() => openDropdown(inputEl.value), 80);
+  });
+  inputEl.addEventListener('focus', () => openDropdown(inputEl.value));
+  inputEl.addEventListener('blur', () => setTimeout(() => { if (_eaState.input === inputEl) _eaClose(); }, 150));
+  inputEl.addEventListener('keydown', (e) => {
+    if (!_eaState.dropdown || _eaState.input !== inputEl) return;
+    if (e.key === 'Escape') { closeDropdown(); return; }
+    const opts = _eaState.dropdown.querySelectorAll('.ea-item');
+    if (opts.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); _eaHighlight(Math.min(_eaState.selectedIdx + 1, opts.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); _eaHighlight(Math.max(_eaState.selectedIdx - 1, 0)); }
+    else if (e.key === 'Enter' && _eaState.selectedIdx >= 0) { e.preventDefault(); accept(opts[_eaState.selectedIdx].dataset.id); }
+    else if (e.key === 'Tab' && _eaState.selectedIdx >= 0) { accept(opts[_eaState.selectedIdx].dataset.id); }
+  });
+}
+
 // Module-level singleton state for the autocomplete dropdown. Only one
 // dropdown is ever alive at a time; these keep the global listeners
 // (scroll/resize) and the open/close/position/highlight helpers shared so
@@ -213,11 +313,12 @@ function renderTabs() {
   dashboardData.pages.forEach((page, index) => {
     const tab = document.createElement('div');
     const isActive = index === currentActivePage;
-    tab.className = `tab ${isActive ? 'active' : ''}`;
+    tab.className = `tab ${isActive ? 'active' : ''} ${page.hidden ? 'tab-hidden' : ''}`;
     tab.dataset.pageIdx = String(index);
+    tab.title = page.hidden ? `Hidden from swipe pager — only reachable via swipe-up / hotkey` : '';
 
     const label = document.createElement('span');
-    label.textContent = (page.parent ? '↳ ' : '') + page.name + (index === dashboardData.startPage ? ' 🏠' : '');
+    label.textContent = (page.parent ? '↳ ' : '') + page.name + (index === dashboardData.startPage ? ' 🏠' : '') + (page.hidden ? ' 👁' : '');
     if (page.parent) label.title = `Child of "${page.parent}"`;
     tab.appendChild(label);
     tab.onclick = () => onPageChange(index);
@@ -366,17 +467,22 @@ function renderPreview() {
   const pageKeys = (page.hotkeys || []).length + (page.longHotkeys || []).length;
   const hkInfo = document.getElementById('hotkeysInfo');
   if (hkInfo) {
-    if (globalKeys + pageKeys > 0) {
-      let hkHtml = `<div class="hotkeys-badge"><strong>⚡ Hotkeys active on this page:</strong><br>`;
-      (dashboardData.hotkeys || []).forEach(h => hkHtml += `• [Global] <b>${h.key}</b> ${describeHotkey(h)}<br>`);
-      (dashboardData.longHotkeys || []).forEach(h => hkHtml += `• [Global, long] <b>${h.key}</b> ${describeHotkey(h)}<br>`);
-      (page.hotkeys || []).forEach(h => hkHtml += `• [Page] <b>${h.key}</b> ${describeHotkey(h)}<br>`);
-      (page.longHotkeys || []).forEach(h => hkHtml += `• [Page, long] <b>${h.key}</b> ${describeHotkey(h)}<br>`);
-      hkHtml += `</div>`;
-      hkInfo.innerHTML = hkHtml;
-    } else {
-      hkInfo.innerHTML = '';
+    let metaHtml = '';
+    if (page.hidden) {
+      metaHtml += `<div class="hidden-badge"><strong>👁 Hidden from swipe pager</strong> — only reachable via swipe-up overlay or a hotkey that opens it.</div>`;
     }
+    if (page.swipeUp) {
+      metaHtml += `<div class="swipeup-badge"><strong>↑ Swipe-up overlay:</strong> opens page "${page.swipeUp}" (dismiss: swipe down / ✕ / Back)</div>`;
+    }
+    if (globalKeys + pageKeys > 0) {
+      metaHtml += `<div class="hotkeys-badge"><strong>⚡ Hotkeys active on this page:</strong><br>`;
+      (dashboardData.hotkeys || []).forEach(h => metaHtml += `• [Global] <b>${h.key}</b> ${describeHotkey(h)}<br>`);
+      (dashboardData.longHotkeys || []).forEach(h => metaHtml += `• [Global, long] <b>${h.key}</b> ${describeHotkey(h)}<br>`);
+      (page.hotkeys || []).forEach(h => metaHtml += `• [Page] <b>${h.key}</b> ${describeHotkey(h)}<br>`);
+      (page.longHotkeys || []).forEach(h => metaHtml += `• [Page, long] <b>${h.key}</b> ${describeHotkey(h)}<br>`);
+      metaHtml += `</div>`;
+    }
+    hkInfo.innerHTML = metaHtml;
   }
 
   if (!page.cards || page.cards.length === 0) {

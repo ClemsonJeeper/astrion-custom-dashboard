@@ -76,6 +76,8 @@ function applyParsedDashboard(parsed) {
       cards: p.cards || [],
       hotkeys: p.hotkeys || [],
       longHotkeys: p.longHotkeys || [],
+      swipeUp: p.swipeUp || "",
+      hidden: p.hidden === true,
     })),
     hotkeys: parsed.hotkeys || [],
     longHotkeys: parsed.longHotkeys || [],
@@ -84,7 +86,7 @@ function applyParsedDashboard(parsed) {
     theme: parsed.theme || {},
   };
   if (dashboardData.pages.length === 0) {
-    dashboardData.pages.push({ name: "Home", cards: [], hotkeys: [], longHotkeys: [] });
+    dashboardData.pages.push({ name: "Home", cards: [], hotkeys: [], longHotkeys: [], swipeUp: "", hidden: false });
   }
   currentActivePage = 0;
 }
