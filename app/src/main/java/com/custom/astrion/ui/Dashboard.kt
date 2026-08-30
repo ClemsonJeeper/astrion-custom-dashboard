@@ -350,9 +350,21 @@ fun Dashboard(
             }
 
             val startActivity: (String) -> Unit = { activityId ->
-                activitiesById[activityId]?.let { activity ->
-                    scope.launch { switchActivity(activity) }
-                } ?: Log.w("Dashboard", "startActivity: unknown activity \"$activityId\"")
+                val composed = activitiesById[activityId]
+                val tracked = activityRuntime.all.firstOrNull { it.id == activityId }
+                when {
+                    composed != null ->
+                        scope.launch { switchActivity(composed) }
+
+                    tracked?.harmonyActivityId != null ->
+                        harmonyRegistry.client(tracked.harmonyHub)?.startActivity(tracked.harmonyActivityId)
+                            ?: Log.w("Dashboard", "startActivity($activityId): hub ${tracked.harmonyHub} not configured")
+
+                    tracked != null ->
+                        activityRuntime.markActive(tracked)
+
+                    else -> Log.w("Dashboard", "startActivity: unknown activity \"$activityId\"")
+                }
             }
 
             // The missing counterpart to switchActivity/startActivity: stops
