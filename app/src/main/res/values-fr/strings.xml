@@ -16,6 +16,8 @@
     <string name="wake_on_motion">Réveil au mouvement</string>
     <string name="config_server_toggle">Serveur de configuration local</string>
     <string name="config_server_toggle_hint">Désactive aussi /builder/, l\'upload d\'icônes et l\'envoi/téléchargement de dashboard.json. Réactive-le ici pour reconfigurer.</string>
+    <string name="wifi_keep_awake">Garder le Wi-Fi éveillé</string>
+    <string name="wifi_keep_awake_hint">Désactivé par défaut. Corrige les échecs occasionnels de Home Assistant à joindre cet appareil (services, push) écran éteint — coûte un peu de batterie, car empêche la radio Wi-Fi d\'entrer en veille.</string>
     <string name="config_server_off_hint">Serveur de configuration local désactivé</string>
     <string name="tap_feedback">Retour tactile</string>
     <string name="tap_feedback_hint">Léger clic sonore quand vous tapotez une scène, un bouton ou un point — identique aux menus Android de l\'appareil.</string>
@@ -38,6 +40,8 @@
     <string name="web_config_ha_heading">Home Assistant</string>
     <string name="web_config_ha_url_label">URL Home Assistant</string>
     <string name="web_config_ha_token_label">Jeton d\'accès longue durée Home Assistant</string>
+    <string name="web_config_ha_webhook_label">ID webhook (optionnel — push instantané au lieu du polling)</string>
+    <string name="web_config_ha_webhook_hint">Si votre intégration Home Assistant compagnon enregistre un webhook, collez son id ici pour qu\'Astrion envoie la page en cours et l\'Activité active dès qu\'elles changent, plutôt que Home Assistant ait à les interroger périodiquement. Laissez vide pour rester en polling uniquement — tout continue de fonctionner dans les deux cas.</string>
 
     <!-- Web Config: Harmony Hubs -->
     <string name="web_config_harmony_heading">Hubs Harmony</string>

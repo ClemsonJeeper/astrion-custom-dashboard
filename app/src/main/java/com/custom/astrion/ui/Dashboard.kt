@@ -68,11 +68,13 @@ import com.custom.astrion.R
 import com.custom.astrion.cards.CardConfig
 import com.custom.astrion.cards.CardContext
 import com.custom.astrion.cards.CardRegistry
+import com.custom.astrion.cards.DeviceSettingsState
 import com.custom.astrion.config.ActivityConfig
 import com.custom.astrion.config.ActivityDeviceConfig
 import com.custom.astrion.config.ActivityRuntime
 import com.custom.astrion.config.AppConfig
 import com.custom.astrion.config.PageConfig
+import com.custom.astrion.config.RemoteSettings
 import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ha.EntityMap
 import com.custom.astrion.ha.HaClient
@@ -86,6 +88,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * Swipeable, paginated dashboard. Each config page is a horizontally-swipeable
@@ -126,10 +131,9 @@ fun Dashboard(
      * the overlay page while it's on top, and restore the underlying page's
      * bindings on close. */
     onOverlayPageChanged: (Int?) -> Unit = {},
-    wakeOnMotionEnabled: Boolean = true,
-    setWakeOnMotionEnabled: (Boolean) -> Unit = {},
-    configServerEnabled: Boolean = true,
-    setConfigServerEnabled: (Boolean) -> Unit = {},
+    /** The settings-page toggles (motion-wake, Wi-Fi-keep-awake, config
+     * server, tap feedback) — see [DeviceSettingsState]. */
+    deviceSettings: DeviceSettingsState = DeviceSettingsState(),
     /** Live screen-on/off state from MainActivity's ACTION_SCREEN_ON/OFF
      * receiver — threaded through to [CardContext.screenOn] so cards that do
      * continuous background work while composed (e.g. CameraCard's live
@@ -137,12 +141,6 @@ fun Dashboard(
      * `screenStateReceiver` doc for why this can't just be "the Activity
      * stopped". */
     screenOn: Boolean = true,
-    /** Whether tappable elements play the same "tap" sound the device's own
-     * Android UI menus do. Provided to descendants via [LocalTapFeedback] so a
-     * single toggle gates every [Modifier.tapClickable] in the dashboard
-     * without each card reading the preference itself. */
-    tapFeedbackEnabled: Boolean = true,
-    setTapFeedbackEnabled: (Boolean) -> Unit = {},
     /** Fired once per [ActivityRuntime] instance (i.e. once per config
      * load) so MainActivity can hold a live reference for ConfigServer's
      * `/activities*` routes — ActivityRuntime is created here, inside
@@ -170,10 +168,11 @@ fun Dashboard(
     // play on touch. Compose's clickable doesn't call this by default, so
     // we fire it ourselves. Gated by tapFeedbackEnabled so the settings
     // switch silences it app-wide.
-    val tapFeedback: () -> Unit = remember(context, tapFeedbackEnabled) {
-        if (tapFeedbackEnabled) {
+    val feedbackContext = LocalContext.current
+    val tapFeedback: () -> Unit = remember(feedbackContext, deviceSettings.tapFeedbackEnabled) {
+        if (deviceSettings.tapFeedbackEnabled) {
             {
-                val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                val am = feedbackContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                 am?.playSoundEffect(AudioManager.FX_KEY_CLICK)
             }
         } else {
@@ -347,6 +346,45 @@ fun Dashboard(
             }
             LaunchedEffect(activityRuntime) { onActivityRuntimeReady(activityRuntime) }
 
+            // Instant push to the companion HA integration's webhook, instead of it
+            // having to poll ConfigServer's GET /activities/active on a timer — same
+            // JSON shape as that endpoint, just delivered the moment activeByRoom
+            // changes rather than whenever HA next asks. One collector here covers
+            // every source of a change (markActive/clear calls throughout this file,
+            // and the Harmony bind() collector above), since they all funnel through
+            // that single StateFlow. No-ops silently if no webhook id is configured.
+            val webhookContext = LocalContext.current
+            LaunchedEffect(activityRuntime) {
+                val webhookId = RemoteSettings.haWebhookId(webhookContext)
+                if (webhookId.isBlank()) return@LaunchedEffect
+                activityRuntime.activeByRoom.collect { byRoom ->
+                    val rooms =
+                        buildJsonObject {
+                            byRoom.keys.forEach { room ->
+                                val active = activityRuntime.activeActivity(room)
+                                if (active == null) {
+                                    put(room, JsonNull)
+                                } else {
+                                    put(
+                                        room,
+                                        buildJsonObject {
+                                            put("id", active.id)
+                                            put("name", active.name)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    client.pushWebhook(
+                        webhookId,
+                        buildJsonObject {
+                            put("type", "activity")
+                            put("rooms", rooms)
+                        }
+                    )
+                }
+            }
+
             // Card-driven navigation: any card can call this with a page name (as it
             // appears in dashboard.json's "pages[].name", case-insensitive) to jump
             // there — same mechanism physical hotkeys use, just triggered by a tap.
@@ -476,9 +514,21 @@ fun Dashboard(
             }
 
             val startActivity: (String) -> Unit = { activityId ->
-                activitiesById[activityId]?.let { activity ->
-                    scope.launch { switchActivity(activity) }
-                } ?: Log.w("Dashboard", "startActivity: unknown activity \"$activityId\"")
+                val composed = activitiesById[activityId]
+                val tracked = activityRuntime.all.firstOrNull { it.id == activityId }
+                when {
+                    composed != null ->
+                        scope.launch { switchActivity(composed) }
+
+                    tracked?.harmonyActivityId != null ->
+                        harmonyRegistry.client(tracked.harmonyHub)?.startActivity(tracked.harmonyActivityId)
+                            ?: Log.w("Dashboard", "startActivity($activityId): hub ${tracked.harmonyHub} not configured")
+
+                    tracked != null ->
+                        activityRuntime.markActive(tracked)
+
+                    else -> Log.w("Dashboard", "startActivity: unknown activity \"$activityId\"")
+                }
             }
 
             // The missing counterpart to switchActivity/startActivity: stops
@@ -527,12 +577,7 @@ fun Dashboard(
                         harmonyRegistry.client(hub)?.sendCommand(deviceId, command)
                             ?: Log.w("Dashboard", "sendHarmonyCommand($deviceId, $command, hub=$hub) but that hub isn't configured")
                     },
-                    wakeOnMotionEnabled = wakeOnMotionEnabled,
-                    setWakeOnMotionEnabled = setWakeOnMotionEnabled,
-                    configServerEnabled = configServerEnabled,
-                    setConfigServerEnabled = setConfigServerEnabled,
-                    tapFeedbackEnabled = tapFeedbackEnabled,
-                    setTapFeedbackEnabled = setTapFeedbackEnabled,
+                    deviceSettings = deviceSettings,
                     harmonyConnected = harmonyConnected,
                     irDevices = irDevicesById,
                     sendIrCommand = ::sendIrCommand,
@@ -560,7 +605,20 @@ fun Dashboard(
             // hotkeys to that page's own bindings (swipe, dot tap, hardware nav, or a
             // card's navigateToPage all funnel through pagerState.currentPage).
             LaunchedEffect(pagerState.currentPage) {
-                onPageChanged(visibleIndices.getOrNull(pagerState.currentPage) ?: return@LaunchedEffect)
+                val cfgIdx = visibleIndices.getOrNull(pagerState.currentPage) ?: return@LaunchedEffect
+                onPageChanged(cfgIdx)
+                val webhookId = RemoteSettings.haWebhookId(webhookContext)
+                if (webhookId.isNotBlank()) {
+                    val page = config.pages.getOrNull(cfgIdx)
+                    client.pushWebhook(
+                        webhookId,
+                        buildJsonObject {
+                            put("type", "page")
+                            put("index", cfgIdx)
+                            put("name", page?.name ?: "")
+                        }
+                    )
+                }
             }
 
             var showSettings by remember { mutableStateOf(false) }

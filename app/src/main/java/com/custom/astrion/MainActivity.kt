@@ -13,6 +13,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.media.AudioManager
+import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -31,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
+import com.custom.astrion.cards.DeviceSettingsState
 import com.custom.astrion.config.ActivityRuntime
 import com.custom.astrion.config.DashboardConfig
 import com.custom.astrion.config.DashboardLoader
@@ -283,6 +285,23 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var configServer: ConfigServer
 
+    /**
+     * Off by default: this is a battery-powered handheld remote that spends
+     * most of its time idle/screen-off, and WIFI_MODE_FULL_HIGH_PERF disables
+     * the Wi-Fi radio's own power-save the whole time it's held — a real,
+     * continuous battery cost, not a one-off. When on, it fixes Home
+     * Assistant intermittently failing to reach this device while the
+     * screen's off (ConfigServer's listener itself never stops — see
+     * screenOn above — the radio going into power-save was the actual
+     * culprit). Worth it if you rely on the astrion.set_page/start_activity
+     * services or the push-webhook feature; not worth it if you don't call
+     * either from Home Assistant while the screen would otherwise be off.
+     * Persisted, toggled live via setWifiKeepAwake() — see
+     * WifiKeepAwakeRow in SettingsMenu.kt.
+     */
+    private var wifiKeepAwakeEnabled by mutableStateOf(false)
+    private var wifiLock: WifiManager.WifiLock? = null
+
     /** Latest [ActivityRuntime] handed up from Dashboard.kt's own
      * `remember(config) { ActivityRuntime(config) }` (see its
      * onActivityRuntimeReady doc) — ConfigServer reads this lazily via a
@@ -380,6 +399,8 @@ class MainActivity : ComponentActivity() {
         initClientsAndServer()
         configServerEnabled = prefs.getBoolean("config_server_enabled", true)
         tapFeedbackEnabled = prefs.getBoolean("tap_feedback_enabled", true)
+        wifiKeepAwakeEnabled = prefs.getBoolean("wifi_keep_awake_enabled", false)
+        if (wifiKeepAwakeEnabled) acquireWifiLock()
         if (configServerEnabled) startConfigServer()
         lifecycleScope.launch { harmonyRegistry.connectAll() }
 
@@ -462,13 +483,18 @@ class MainActivity : ComponentActivity() {
                     overlayPageIndex = overlayIdx
                     rebindHotkeysForCurrentPage()
                 },
-                wakeOnMotionEnabled = wakeOnMotionEnabled,
-                setWakeOnMotionEnabled = { enabled -> setWakeOnMotion(enabled) },
-                configServerEnabled = configServerEnabled,
-                setConfigServerEnabled = { enabled -> updateConfigServerEnabled(enabled) },
+                deviceSettings =
+                DeviceSettingsState(
+                    wakeOnMotionEnabled = wakeOnMotionEnabled,
+                    setWakeOnMotionEnabled = { enabled -> setWakeOnMotion(enabled) },
+                    wifiKeepAwakeEnabled = wifiKeepAwakeEnabled,
+                    setWifiKeepAwakeEnabled = { enabled -> setWifiKeepAwake(enabled) },
+                    configServerEnabled = configServerEnabled,
+                    setConfigServerEnabled = { enabled -> updateConfigServerEnabled(enabled) },
+                    tapFeedbackEnabled = tapFeedbackEnabled,
+                    setTapFeedbackEnabled = { enabled -> setTapFeedback(enabled) }
+                ),
                 screenOn = screenOn,
-                tapFeedbackEnabled = tapFeedbackEnabled,
-                setTapFeedbackEnabled = { enabled -> setTapFeedback(enabled) },
                 onActivityRuntimeReady = { activityRuntime = it },
                 onStartActivityReady = { fn -> startActivityFn = fn },
                 onStopActivityReady = { fn -> stopActivityFn = fn }
@@ -789,6 +815,41 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Called from the settings page switch — see [wifiKeepAwakeEnabled]'s doc
+     * for the battery-vs-reachability trade-off this toggles. */
+    private fun setWifiKeepAwake(enabled: Boolean) {
+        wifiKeepAwakeEnabled = enabled
+        prefs.edit { putBoolean("wifi_keep_awake_enabled", enabled) }
+        if (enabled) acquireWifiLock() else releaseWifiLock()
+    }
+
+    /**
+     * Grabs a high-perf Wi-Fi lock so the radio doesn't get suspended while
+     * the screen is off — see [wifiKeepAwakeEnabled]'s doc for the trade-off.
+     * Best-effort: a failure here (e.g. a device without the standard Wi-Fi
+     * stack) just means Home Assistant may see occasional connection drops
+     * while the screen's off, not a crash.
+     */
+    private fun acquireWifiLock() {
+        if (wifiLock?.isHeld == true) return
+        runCatching {
+            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            @Suppress("DEPRECATION")
+            wifiLock =
+                wifiManager
+                    .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "astrion:configserver")
+                    .apply {
+                        setReferenceCounted(false)
+                        acquire()
+                    }
+        }.onFailure { Log.w("MainActivity", "Failed to acquire Wi-Fi lock", it) }
+    }
+
+    private fun releaseWifiLock() {
+        runCatching { wifiLock?.takeIf { it.isHeld }?.release() }
+        wifiLock = null
+    }
+
     private fun startConfigServer() {
         runCatching { configServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false) }
             .onSuccess { Log.i("ConfigServer", "started on :8080") }
@@ -876,6 +937,7 @@ class MainActivity : ComponentActivity() {
         sensorManager?.unregisterListener(motionListener)
         Log.i(MOTION_TAG, "listener unregistered")
         runCatching { unregisterReceiver(screenStateReceiver) }
+        releaseWifiLock()
         client.disconnect()
         harmonyRegistry.disconnectAll()
         runCatching { configServer.stop() }
