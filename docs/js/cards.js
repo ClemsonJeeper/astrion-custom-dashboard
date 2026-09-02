@@ -219,7 +219,8 @@ function updateCardFormInputs() {
             <option value="">— none —</option>
             ${(dashboardData.irDevices || []).map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
           </select>
-          <select id="giIrCommand"><option value="">— select a device first —</option></select>
+          <input type="text" id="giIrCommand" list="giIrCommandHints" placeholder="command id, e.g. power, hdmi1, volume_up">
+          <datalist id="giIrCommandHints"></datalist>
           ${(dashboardData.irDevices || []).length === 0 ? '<div class="hint">No IR devices yet — create one in the "IR Devices" section below, then come back here.</div>' : ''}
           <label>Composed Activity (sequences multiple devices) — OR —</label>
           <select id="giActivityRef">
@@ -374,13 +375,26 @@ function onGiTrackChange() {
   document.getElementById('giRoomField').style.display = checked ? '' : 'none';
 }
 
+/**
+ * Refreshes the giIrCommand <datalist> for whichever IR device is
+ * currently picked — command ids are only actually *known* here for
+ * inline devices (their commands map is right there in dashboardData).
+ * For an ir-database *reference* device, the real command list only
+ * exists on the phone at runtime (the sdcard file); the best this builder
+ * can do is suggest whatever ids you typed into "known command ids" while
+ * creating that device (see saveIrDevice/irDeviceCommandHints in ir.js) —
+ * giIrCommand is a plain text input specifically so an unlisted id still
+ * works fine, it's just not autocompleted.
+ */
 function onGiIrDeviceChange() {
   const deviceId = document.getElementById('giIrDevice').value;
-  const cmdSel = document.getElementById('giIrCommand');
+  const datalist = document.getElementById('giIrCommandHints');
   const device = (dashboardData.irDevices || []).find(d => d.id === deviceId);
-  if (!device) { cmdSel.innerHTML = '<option value="">— select a device first —</option>'; return; }
-  cmdSel.innerHTML = '<option value="">— select a command —</option>' +
-    Object.entries(device.commands).map(([id, c]) => `<option value="${id}">${id} — ${c.label || id}</option>`).join('');
+  if (!device) { datalist.innerHTML = ''; return; }
+  const ids = device.commands
+    ? Object.keys(device.commands)
+    : (typeof irDeviceCommandHints !== 'undefined' ? (irDeviceCommandHints[deviceId] || []) : []);
+  datalist.innerHTML = ids.map(id => `<option value="${id}">`).join('');
 }
 
 function renderAppleTvHarmonyFields() {

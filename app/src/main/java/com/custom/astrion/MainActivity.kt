@@ -37,6 +37,7 @@ import com.custom.astrion.config.ActivityRuntime
 import com.custom.astrion.config.DashboardConfig
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HotkeyConfig
+import com.custom.astrion.config.IrDatabaseRuntime
 import com.custom.astrion.config.JsonPlain
 import com.custom.astrion.config.RemoteSettings
 import com.custom.astrion.ha.HaClient
@@ -663,11 +664,7 @@ class MainActivity : ComponentActivity() {
         val irDevice = hk.irDevice
         val irCommand = hk.irCommand
         if (irDevice != null && irCommand != null) {
-            val irStep =
-                dashboard.config.irDevices
-                    .firstOrNull { it.id == irDevice }
-                    ?.commands
-                    ?.get(irCommand)
+            val irStep = IrDatabaseRuntime.resolveFrom(dashboard.config.irDevices, irDevice, irCommand)
             if (irStep != null) {
                 runCatching { irManager?.transmit(irStep.freq, irStep.pattern.toIntArray()) }
                     .onFailure { Log.e("MainActivity", "hotkey IR send failed: $irDevice/$irCommand", it) }

@@ -19,6 +19,7 @@ import com.custom.astrion.R
 import com.custom.astrion.config.ActivityRuntime
 import com.custom.astrion.config.DashboardLoader
 import com.custom.astrion.config.HarmonyHubConfig
+import com.custom.astrion.config.IrDatabaseRuntime
 import com.custom.astrion.config.RemoteSettings
 import com.custom.astrion.ha.ConnectionState
 import com.custom.astrion.ha.HaClient
@@ -33,6 +34,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -188,6 +190,9 @@ class ConfigServer(
     private val iconsDir: File
         get() = File(Environment.getExternalStorageDirectory(), "astrion/icons").apply { mkdirs() }
 
+    private val irDatabaseDir: File
+        get() = File(Environment.getExternalStorageDirectory(), "astrion/ir-database").apply { mkdirs() }
+
     override fun serve(session: IHTTPSession): Response = try {
         val method = session.method
         when (val uri = session.uri) {
@@ -209,6 +214,12 @@ class ConfigServer(
             "/check-update" -> if (method == Method.GET) handleCheckUpdate() else methodNotAllowed()
             "/save-connection" -> if (method == Method.POST) handleSaveConnection(session) else methodNotAllowed()
             "/icons" -> if (method == Method.POST) handleIconUpload(session) else methodNotAllowed()
+            "/ir-database" ->
+                when (method) {
+                    Method.GET -> serveIrDatabaseList()
+                    Method.POST -> handleIrDatabaseUpload(session)
+                    else -> methodNotAllowed()
+                }
             "/install-update" -> if (method == Method.POST) handleInstallUpdate() else methodNotAllowed()
             "/install-beta-update" -> if (method == Method.POST) handleInstallBetaUpdate() else methodNotAllowed()
             "/pages" -> if (method == Method.GET) servePages() else methodNotAllowed()
@@ -234,6 +245,8 @@ class ConfigServer(
                         }
 
                     uri.startsWith("/icons/") -> if (method == Method.GET) serveIcon(uri) else methodNotAllowed()
+                    uri.startsWith("/ir-database/") ->
+                        if (method == Method.GET) serveIrDatabaseFile(uri) else methodNotAllowed()
                     else ->
                         newFixedLengthResponse(
                             Response.Status.NOT_FOUND,
@@ -481,6 +494,19 @@ class ConfigServer(
                 <button type="submit" class="btn btn-ghost">${context.getString(R.string.web_config_icons_upload_button)}</button>
               </form>
               <p class="note">${context.getString(R.string.web_config_icons_note)}</p>
+
+              <div class="divider"></div>
+
+              <label>${svgRemote()} ${context.getString(R.string.web_config_ir_database_heading)}</label>
+              <p class="panel-sub">${context.getString(R.string.web_config_ir_database_sub)}</p>
+              <a class="btn btn-ghost btn-block" href="https://dckiller51.github.io/astrion-ir-sniffer/" target="_blank" rel="noopener">${context.getString(
+                R.string.web_config_ir_database_picker_link
+            )}</a>
+              <form method="post" action="/ir-database" enctype="multipart/form-data">
+                <input type="file" name="file" accept="application/json,.json">
+                <button type="submit" class="btn btn-ghost">${context.getString(R.string.web_config_ir_database_upload_button)}</button>
+              </form>
+              <p class="note">${context.getString(R.string.web_config_ir_database_note)}</p>
             </div>
             </div>
 
@@ -1397,6 +1423,115 @@ class ConfigServer(
             session.parameters["file"]?.firstOrNull() ?: "icon_${System.currentTimeMillis()}.png"
         File(tmpPath).copyTo(File(iconsDir, sanitize(originalName)), overwrite = true)
         return redirectHome(context.getString(R.string.web_config_icon_uploaded))
+    }
+
+    /**
+     * Saves one curated ir-database category file (as produced by the
+     * ir-database picker — a separate, externally-hosted static site, not
+     * part of this app) straight to `/sdcard/astrion/ir-database/`,
+     * creating that folder on first use. IrDatabaseRuntime.kt picks up the
+     * change on the very next command send, no restart needed.
+     *
+     * Two callers, two response shapes needed on success — same endpoint
+     * either way, since it's the same operation either way:
+     *  - This device's own config page (`web_config_ir_database_upload_button`
+     *    above): a plain browser `<form>` POST, wants the usual
+     *    redirect-with-a-flash-message every other upload form on this
+     *    page gets (see handleIconUpload).
+     *  - The picker's own "Send to my remote" button: a cross-origin
+     *    `fetch()` call (blocked by most browsers' mixed-content policy
+     *    today, since this page is plain HTTP — see the picker's own
+     *    comments), which sends `Accept: application/json` and wants a
+     *    real JSON response body to show a status message from, not an
+     *    HTML redirect it would just silently follow.
+     * Picked apart into [validateIrDatabaseUpload] so this function itself
+     * stays a short, flat happy-path plus the one on-success branch.
+     */
+    private fun handleIrDatabaseUpload(session: IHTTPSession): Response {
+        val wantsJson = session.headers["accept"]?.contains("application/json") == true
+        val (tmpPath, target) = validateIrDatabaseUpload(session) ?: return irDatabaseError(
+            Response.Status.BAD_REQUEST,
+            "Expected a single .json ir-database category file (with \"category\"+\"brands\" keys)"
+        )
+
+        File(tmpPath).copyTo(File(irDatabaseDir, target), overwrite = true)
+        IrDatabaseRuntime.invalidate()
+
+        return if (wantsJson) {
+            jsonResponse(
+                Response.Status.OK,
+                buildJsonObject {
+                    put("status", "ok")
+                    put("file", target)
+                }
+            )
+        } else {
+            redirectHome(context.getString(R.string.web_config_ir_database_uploaded))
+        }
+    }
+
+    /** Null means invalid — caller responds with one generic error either
+     * way, so there's no need to thread a specific reason back out here. */
+    private fun validateIrDatabaseUpload(session: IHTTPSession): Pair<String, String>? {
+        val files = HashMap<String, String>()
+        session.parseBody(files)
+        val tmpPath = files["file"] ?: return null
+        val originalName = session.parameters["file"]?.firstOrNull() ?: return null
+        if (!originalName.endsWith(".json", ignoreCase = true)) return null
+        val parsed = runCatching { Json.parseToJsonElement(File(tmpPath).readText()).jsonObject }.getOrNull()
+        if (parsed?.containsKey("category") != true || !parsed.containsKey("brands")) return null
+        // Lowercased on write so files landing here stay consistent with
+        // the category ids elsewhere (the picker itself already does
+        // this) — IrDatabaseRuntime's own lookup is case-insensitive
+        // regardless, for files that arrive some other way (manual copy).
+        return tmpPath to sanitize(originalName).lowercase()
+    }
+
+    private fun jsonResponse(status: Response.Status, body: JsonObject): Response =
+        newFixedLengthResponse(status, "application/json", body.toString())
+            .apply { addHeader("Access-Control-Allow-Origin", "*") }
+
+    private fun irDatabaseError(status: Response.Status, message: String): Response =
+        jsonResponse(status, buildJsonObject { put("error", message) })
+
+    /**
+     * Lists the category ids actually present in [irDatabaseDir] — e.g.
+     * `["ac","tv"]` for a folder containing `ac.json` and `TV.json` (case
+     * doesn't matter, see [IrDatabaseRuntime]'s own lookup). Feeds the
+     * dashboard builder's "Reference the ir-database" device form
+     * (`docs/js/ir.js`): when this device actually has some files copied
+     * over already, the builder can offer them directly instead of asking
+     * for category/brand/model to be typed by hand. Only meaningful when
+     * the builder is opened from this device (`/builder/`) — same
+     * same-origin-only reasoning as `serveIconsList`.
+     */
+    private fun serveIrDatabaseList(): Response {
+        val ids =
+            irDatabaseDir
+                .listFiles()
+                ?.filter { it.isFile && it.name.endsWith(".json", ignoreCase = true) }
+                ?.map { it.name.removeSuffix(".json").removeSuffix(".JSON").lowercase() }
+                ?.sorted() ?: emptyList()
+        return newFixedLengthResponse(Response.Status.OK, "application/json", JSONArray(ids).toString())
+    }
+
+    /**
+     * Serves one category file straight out of [irDatabaseDir] — raw
+     * pass-through, same `{category, brands:[...]}` shape it was written
+     * in. The other half of `serveIrDatabaseList`: the builder fetches
+     * this once a category from that list is picked, to fill in
+     * brand/model (and, unlike the picker, know the *exact* command ids
+     * available — no more relying on hand-typed "known command ids" hints
+     * for a device that's already on this device's own sdcard).
+     */
+    private fun serveIrDatabaseFile(uri: String): Response {
+        val category = sanitize(uri.removePrefix("/ir-database/").removeSuffix(".json"))
+        val file =
+            irDatabaseDir.listFiles()?.firstOrNull { it.name.equals("$category.json", ignoreCase = true) }
+        if (category.isBlank() || file == null) {
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found: $category")
+        }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", file.readText())
     }
 
     /**
