@@ -70,6 +70,14 @@
     <string name="web_config_icons_note">Saved to /sdcard/astrion/icons/&lt;filename&gt; — reference it in dashboard.json as \"/sdcard/astrion/icons/&lt;filename&gt;\".</string>
     <string name="web_config_icon_uploaded">Icon uploaded</string>
 
+    <!-- Web Config: IR Database -->
+    <string name="web_config_ir_database_heading">IR devices</string>
+    <string name="web_config_ir_database_sub">Reference a device from the ir-database picker in the dashboard builder, or upload its curated files here so it works immediately.</string>
+    <string name="web_config_ir_database_picker_link">Pick your IR devices \u2192</string>
+    <string name="web_config_ir_database_upload_button">Upload ir-database file</string>
+    <string name="web_config_ir_database_note">Saved to /sdcard/astrion/ir-database/&lt;category&gt;.json — picked up immediately, no restart needed.</string>
+    <string name="web_config_ir_database_uploaded">ir-database file uploaded</string>
+
     <!-- Web Config: Find my remote (ring) -->
     <string name="web_config_ring_heading">Find my remote</string>
     <string name="web_config_ring_sub">Test the ring sound and volume right from here, before wiring it up in Home Assistant.</string>

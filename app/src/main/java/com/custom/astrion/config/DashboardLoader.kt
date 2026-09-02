@@ -193,10 +193,26 @@ object DashboardLoader {
     private fun parseIrDevice(obj: JsonObject): IrDeviceConfig {
         val id = obj["id"]?.jsonPrimitive?.content ?: error("irDevice missing \"id\"")
         val name = obj["name"]?.jsonPrimitive?.content ?: id
-        val commandsObj = obj["commands"]?.jsonObject ?: error("irDevice \"$id\" missing \"commands\"")
-        if (commandsObj.isEmpty()) error("irDevice \"$id\" has an empty \"commands\" map")
-        val commands = commandsObj.entries.associate { (cmdId, v) -> cmdId to parseIrStep(v.jsonObject) }
-        return IrDeviceConfig(id, name, commands)
+        val source = when {
+            obj.containsKey("commands") -> {
+                val commandsObj = obj["commands"]!!.jsonObject
+                if (commandsObj.isEmpty()) error("irDevice \"$id\" has an empty \"commands\" map")
+                val commands = commandsObj.entries.associate { (cmdId, v) -> cmdId to parseIrStep(v.jsonObject) }
+                IrDeviceSource.Inline(commands)
+            }
+            obj.containsKey("category") && obj.containsKey("brand") && obj.containsKey("model") -> {
+                IrDeviceSource.SdCardRef(
+                    category = obj["category"]!!.jsonPrimitive.content,
+                    brand = obj["brand"]!!.jsonPrimitive.content,
+                    model = obj["model"]!!.jsonPrimitive.content
+                )
+            }
+            else -> error(
+                "irDevice \"$id\" needs either a \"commands\" map (inline, hand-resolved) " +
+                    "or \"category\"+\"brand\"+\"model\" (a reference into /sdcard/astrion/ir-database/)"
+            )
+        }
+        return IrDeviceConfig(id, name, source)
     }
 
     private fun parseIrStep(obj: JsonObject): IrStepConfig {
@@ -330,20 +346,27 @@ object DashboardLoader {
                             buildJsonObject {
                                 put("id", device.id)
                                 put("name", device.name)
-                                put(
-                                    "commands",
-                                    buildJsonObject {
-                                        device.commands.forEach { (cmdId, step) ->
-                                            put(
-                                                cmdId,
-                                                buildJsonObject {
-                                                    put("freq", step.freq)
-                                                    put("pattern", buildJsonArray { step.pattern.forEach { add(JsonPrimitive(it)) } })
-                                                }
-                                            )
+                                when (val source = device.source) {
+                                    is IrDeviceSource.Inline -> put(
+                                        "commands",
+                                        buildJsonObject {
+                                            source.commands.forEach { (cmdId, step) ->
+                                                put(
+                                                    cmdId,
+                                                    buildJsonObject {
+                                                        put("freq", step.freq)
+                                                        put("pattern", buildJsonArray { step.pattern.forEach { add(JsonPrimitive(it)) } })
+                                                    }
+                                                )
+                                            }
                                         }
+                                    )
+                                    is IrDeviceSource.SdCardRef -> {
+                                        put("category", source.category)
+                                        put("brand", source.brand)
+                                        put("model", source.model)
                                     }
-                                )
+                                }
                             }
                         )
                     }

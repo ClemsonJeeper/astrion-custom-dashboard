@@ -60,6 +60,7 @@ import com.custom.astrion.config.ActivityConfig
 import com.custom.astrion.config.ActivityDeviceConfig
 import com.custom.astrion.config.ActivityRuntime
 import com.custom.astrion.config.AppConfig
+import com.custom.astrion.config.IrDatabaseRuntime
 import com.custom.astrion.config.PageConfig
 import com.custom.astrion.config.RemoteSettings
 import com.custom.astrion.ha.ConnectionState
@@ -257,11 +258,15 @@ fun Dashboard(
 
             fun sendIrCommand(deviceId: String, command: String) {
                 val device = irDevicesById[deviceId]
-                val step = device?.commands?.get(command)
+                val step = device?.let { IrDatabaseRuntime.resolve(it, command) }
                 val manager = irManager
                 when {
                     device == null -> Log.w("Dashboard", "sendIrCommand: unknown irDevice \"$deviceId\"")
-                    step == null -> Log.w("Dashboard", "sendIrCommand: device \"$deviceId\" has no command \"$command\"")
+                    step == null -> Log.w(
+                        "Dashboard",
+                        "sendIrCommand: device \"$deviceId\" has no command \"$command\" " +
+                            "(if it's an ir-database reference, check /sdcard/astrion/ir-database/ — see IrDatabaseRuntime logs above)"
+                    )
                     manager == null -> Log.w("Dashboard", "sendIrCommand: no IR blaster on this device")
                     else ->
                         runCatching { manager.transmit(step.freq, step.pattern.toIntArray()) }
@@ -350,21 +355,9 @@ fun Dashboard(
             }
 
             val startActivity: (String) -> Unit = { activityId ->
-                val composed = activitiesById[activityId]
-                val tracked = activityRuntime.all.firstOrNull { it.id == activityId }
-                when {
-                    composed != null ->
-                        scope.launch { switchActivity(composed) }
-
-                    tracked?.harmonyActivityId != null ->
-                        harmonyRegistry.client(tracked.harmonyHub)?.startActivity(tracked.harmonyActivityId)
-                            ?: Log.w("Dashboard", "startActivity($activityId): hub ${tracked.harmonyHub} not configured")
-
-                    tracked != null ->
-                        activityRuntime.markActive(tracked)
-
-                    else -> Log.w("Dashboard", "startActivity: unknown activity \"$activityId\"")
-                }
+                activitiesById[activityId]?.let { activity ->
+                    scope.launch { switchActivity(activity) }
+                } ?: Log.w("Dashboard", "startActivity: unknown activity \"$activityId\"")
             }
 
             // The missing counterpart to switchActivity/startActivity: stops

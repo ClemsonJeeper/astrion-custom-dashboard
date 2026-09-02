@@ -32,11 +32,30 @@ function irDevicesById() {
   return Object.fromEntries((dashboardData.irDevices || []).map(d => [d.id, d]));
 }
 
+/**
+ * [value, label] entries for an IR device's command dropdowns. Only
+ * *actually* known for inline devices (commands map right there in
+ * dashboardData). For an ir-database reference device, falls back to
+ * whatever "known command ids" were typed in when it was created (see
+ * ir.js's irDeviceCommandHints) — no friendly label available for those,
+ * just the id twice. Empty either way if there's nothing to suggest;
+ * these are real `<select>`s here (unlike scene_grid's free-text
+ * giIrCommand) since a wrong powerOn/powerOff/input command silently
+ * breaks Activity switching, so typos matter more here.
+ */
+function irDeviceCommandEntries(dev) {
+  if (!dev) return [];
+  if (dev.commands) return Object.entries(dev.commands).map(([id, c]) => [id, `${id} — ${c.label || id}`]);
+  const hints = (typeof irDeviceCommandHints !== 'undefined' ? irDeviceCommandHints[dev.id] : null) || [];
+  return hints.map(id => [id, id]);
+}
+
 function deviceRefLabel(ref) {
   if (ref.source === 'ir') return `${irDevicesById()[ref.deviceId]?.name || ref.deviceId} (IR)`;
   if (ref.source === 'harmony') return `${ref.deviceLabel || ref.deviceId} (Harmony)`;
   return `${ref.deviceId} (HA)`;
 }
+
 
 const WIZARD_STEP_LABELS = {
   type: 'What kind of Activity?',
@@ -261,11 +280,14 @@ function renderWizardConfigure() {
       <input type="text" id="wizInputText" value="${cfg.inputCommand || ''}" placeholder="e.g. Apple TV">
     ` : `
       <label>Power-on command (optional)</label>
-      <select id="wizPowerOn"><option value="">— none —</option></select>
+      <input type="text" id="wizPowerOn" list="wizPowerOnHints">
+      <datalist id="wizPowerOnHints"></datalist>
       <label>Power-off command (optional)</label>
-      <select id="wizPowerOff"><option value="">— none —</option></select>
+      <input type="text" id="wizPowerOff" list="wizPowerOffHints">
+      <datalist id="wizPowerOffHints"></datalist>
       <label>Input/source command (optional — sent after power-on, or on its own if this device is shared with the outgoing Activity)</label>
-      <select id="wizInput"><option value="">— none —</option></select>
+      <input type="text" id="wizInput" list="wizInputHints">
+      <datalist id="wizInputHints"></datalist>
     `}
 
     <label class="inline-check" style="margin-top:10px"><input type="checkbox" id="wizPowerOnFirst" ${cfg.powerOnFirst !== false ? 'checked' : ''}> Power on when this Activity starts (uncheck for an always-on device)</label>
@@ -291,11 +313,14 @@ function renderWizardVolumeCommands() {
   return `
     <div class="hint">Which commands on <strong>${deviceRefLabel(ref)}</strong> are volume up, volume down, and mute?</div>
     <label>Volume up</label>
-    <select id="wizVolUp"><option value="">— none —</option></select>
+    <input type="text" id="wizVolUp" list="wizVolUpHints">
+    <datalist id="wizVolUpHints"></datalist>
     <label>Volume down</label>
-    <select id="wizVolDown"><option value="">— none —</option></select>
+    <input type="text" id="wizVolDown" list="wizVolDownHints">
+    <datalist id="wizVolDownHints"></datalist>
     <label>Mute</label>
-    <select id="wizMute"><option value="">— none —</option></select>
+    <input type="text" id="wizMute" list="wizMuteHints">
+    <datalist id="wizMuteHints"></datalist>
   `;
 }
 
@@ -334,8 +359,7 @@ function wireWizardPhase(phase) {
     const ref = wizard.deviceRefs[wizard.configureIndex];
     const cfg = wizard.deviceConfig[wizard.configureIndex] || {};
     if (ref.source === 'ir') {
-      const dev = irDevicesById()[ref.deviceId];
-      const entries = dev ? Object.entries(dev.commands).map(([id, c]) => [id, `${id} — ${c.label || id}`]) : [];
+      const entries = irDeviceCommandEntries(irDevicesById()[ref.deviceId]);
       fillWizCommandOptions('wizPowerOn', entries);
       fillWizCommandOptions('wizPowerOff', entries);
       fillWizCommandOptions('wizInput', entries);
@@ -357,8 +381,7 @@ function wireWizardPhase(phase) {
   } else if (phase === 'volumeCommands') {
     const ref = volumeDeviceRef();
     if (ref.source === 'ir') {
-      const dev = irDevicesById()[ref.deviceId];
-      const entries = dev ? Object.entries(dev.commands).map(([id, c]) => [id, `${id} — ${c.label || id}`]) : [];
+      const entries = irDeviceCommandEntries(irDevicesById()[ref.deviceId]);
       fillWizCommandOptions('wizVolUp', entries);
       fillWizCommandOptions('wizVolDown', entries);
       fillWizCommandOptions('wizMute', entries);
@@ -382,11 +405,19 @@ function wireWizardPhase(phase) {
   }
 }
 
-function fillWizCommandOptions(selectId, commandEntries) {
-  const sel = document.getElementById(selectId);
-  if (!sel) return;
-  sel.innerHTML = '<option value="">— none —</option>' +
-    commandEntries.map(([id, label]) => `<option value="${id}">${label}</option>`).join('');
+/**
+ * Populates the `<datalist>` suggestions for one of the wizard's IR/Harmony
+ * command fields (now plain text inputs with a list= attribute, not
+ * selects — see renderWizardDeviceConfig/renderWizardVolumeCommands).
+ * A free-text input, unlike a select, means an id this builder doesn't
+ * know about (an ir-database reference device with no typed-in hints, or
+ * just a typo) doesn't leave the field stuck on "— none —" with nothing
+ * pickable — you can always just type the id.
+ */
+function fillWizCommandOptions(inputId, commandEntries) {
+  const datalist = document.getElementById(inputId + 'Hints');
+  if (!datalist) return;
+  datalist.innerHTML = commandEntries.map(([id, label]) => `<option value="${id}">${label}</option>`).join('');
 }
 
 function renderWizardHarmonyAddFields() {
