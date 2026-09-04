@@ -29,6 +29,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
@@ -45,7 +46,10 @@ import com.custom.astrion.ha.ServiceCall
 import com.custom.astrion.harmony.HarmonyHubRegistry
 import com.custom.astrion.input.HardwareKey
 import com.custom.astrion.input.HardwareKeyRouter
+import com.custom.astrion.ui.ChargingScreen
 import com.custom.astrion.ui.Dashboard
+import com.custom.astrion.ui.ProvideTheme
+import com.custom.astrion.ui.toColors
 import com.custom.astrion.web.ConfigServer
 import fi.iki.elonen.NanoHTTPD
 import kotlin.math.acos
@@ -270,6 +274,19 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    /** See ChargeDockMonitor.kt for what this actually does — kept as a
+     * single delegate here rather than inline so this class doesn't
+     * accumulate yet another self-contained feature's receiver/state/timer
+     * on top of everything else already here. */
+    private val chargeDockMonitor = ChargeDockMonitor(this)
+
+    /** Any touch/key event anywhere in the Activity, regardless of which
+     * view (or Compose node) actually consumed it. */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        chargeDockMonitor.onUserInteraction()
+    }
+
     private lateinit var client: HaClient
 
     /** Owns one HarmonyHubClient per configured Harmony hub. */
@@ -391,6 +408,8 @@ class MainActivity : ComponentActivity() {
         }
         Log.i(SCREEN_TAG, "onCreate — initial screenOn=$screenOn pm.isInteractive=$pmInteractive")
 
+        chargeDockMonitor.start()
+
         initClientsAndServer()
         configServerEnabled = prefs.getBoolean("config_server_enabled", true)
         tapFeedbackEnabled = prefs.getBoolean("tap_feedback_enabled", true)
@@ -457,6 +476,11 @@ class MainActivity : ComponentActivity() {
 
     private fun composeContent() {
         setContent {
+            if (chargeDockMonitor.state.isDocked) {
+                val theme = remember(dashboard.config.theme) { dashboard.config.theme.toColors() }
+                ProvideTheme(theme) { ChargingScreen(dimmed = chargeDockMonitor.dimmed) }
+                return@setContent
+            }
             val entities = client.entities.collectAsState()
             val connection = client.connection.collectAsState()
             Dashboard(
@@ -921,6 +945,7 @@ class MainActivity : ComponentActivity() {
         sensorManager?.unregisterListener(motionListener)
         Log.i(MOTION_TAG, "listener unregistered")
         runCatching { unregisterReceiver(screenStateReceiver) }
+        chargeDockMonitor.stop()
         releaseWifiLock()
         client.disconnect()
         harmonyRegistry.disconnectAll()

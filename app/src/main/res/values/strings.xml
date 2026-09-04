@@ -78,6 +78,10 @@
     <string name="web_config_ir_database_note">Saved to /sdcard/astrion/ir-database/&lt;category&gt;.json — picked up immediately, no restart needed.</string>
     <string name="web_config_ir_database_uploaded">ir-database file uploaded</string>
 
+    <!-- Charging screen -->
+    <string name="charging_screen_charging">Charging</string>
+    <string name="charging_screen_full">Charged</string>
+
     <!-- Web Config: Find my remote (ring) -->
     <string name="web_config_ring_heading">Find my remote</string>
     <string name="web_config_ring_sub">Test the ring sound and volume right from here, before wiring it up in Home Assistant.</string>
