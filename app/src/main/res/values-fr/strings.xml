@@ -78,6 +78,10 @@
     <string name="web_config_ir_database_note">Enregistré dans /sdcard/astrion/ir-database/&lt;catégorie&gt;.json — pris en compte immédiatement, pas besoin de redémarrer.</string>
     <string name="web_config_ir_database_uploaded">Fichier ir-database envoyé</string>
 
+    <!-- Charging screen -->
+    <string name="charging_screen_charging">En charge</string>
+    <string name="charging_screen_full">Chargée</string>
+
     <!-- Web Config: Find my remote (ring) -->
     <string name="web_config_ring_heading">Où est ma télécommande</string>
     <string name="web_config_ring_sub">Teste le son et le volume de la sonnerie directement ici, avant de la configurer dans Home Assistant.</string>
