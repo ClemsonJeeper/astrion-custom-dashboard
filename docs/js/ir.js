@@ -39,15 +39,19 @@ const irDeviceCommandHints = {};   // deviceId -> [commandId, ...]
 const IR_CATEGORIES = [
   { id: 'ac', label: 'AC' },
   { id: 'audio', label: 'Audio' },
-  { id: 'camera', label: 'Camera' },
-  { id: 'fan', label: 'Fan' },
-  { id: 'lights', label: 'Lights' },
-  { id: 'player', label: 'Player' },
-  { id: 'plug', label: 'Plug' },
+  { id: 'camera', label: 'Camera', key: 'web_ir_category_camera' },
+  { id: 'fan', label: 'Fan', key: 'web_ir_category_fan' },
+  { id: 'lights', label: 'Lights', key: 'web_ir_category_lights' },
+  { id: 'player', label: 'Player', key: 'web_ir_category_player' },
+  { id: 'plug', label: 'Plug', key: 'web_ir_category_plug' },
   { id: 'robot', label: 'Robot' },
-  { id: 'set-top-box', label: 'Set-Top Box' },
+  { id: 'set-top-box', label: 'Set-Top Box', key: 'web_ir_category_set_top_box' },
   { id: 'tv', label: 'TV' }
 ];
+
+function irCategoryLabel(c) {
+  return c.key ? I18N.t(c.key) : c.label;
+}
 
 /**
  * Decodes a "learned" Pronto Hex code (type 0000 — raw timing, not a
@@ -63,7 +67,7 @@ function prontoToPattern(pronto) {
   const words = pronto.trim().split(/\s+/).map(w => parseInt(w, 16));
   const [type, freqCode, onceLen, repeatLen] = words;
   if (type !== 0x0000) {
-    throw new Error('Only "learned" Pronto codes (type 0000) are supported, got type ' + type.toString(16));
+    throw new Error(I18N.t('web_ir_err_pronto_type', type.toString(16)));
   }
   const carrierHz = Math.round(4145146 / freqCode);
   const periodUs = 1000000 / carrierHz;
@@ -71,7 +75,7 @@ function prontoToPattern(pronto) {
   const once = rest.slice(0, onceLen * 2);
   const repeat = rest.slice(onceLen * 2, onceLen * 2 + repeatLen * 2);
   const chosen = once.length ? once : repeat;
-  if (!chosen.length) throw new Error('Pronto code has neither a "once" nor a "repeat" section');
+  if (!chosen.length) throw new Error(I18N.t('web_ir_err_pronto_sections'));
   return { freq: carrierHz, pattern: chosen.map(c => Math.round(c * periodUs)) };
 }
 
@@ -80,7 +84,7 @@ function prontoToPattern(pronto) {
 function initIrCategorySelect() {
   const sel = document.getElementById('irRefCategory');
   if (!sel) return;
-  sel.innerHTML = IR_CATEGORIES.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+  sel.innerHTML = IR_CATEGORIES.map(c => `<option value="${c.id}">${irCategoryLabel(c)}</option>`).join('');
 }
 
 function onIrSourceModeChange() {
@@ -103,6 +107,7 @@ function onIrSourceModeChange() {
 let irOnDeviceCache = {}; // categoryId -> parsed {category, brands:[...]} file, fetched once per category
 
 async function tryLoadOnDeviceIrDatabase() {
+  await I18N.ready;
   const quickPick = document.getElementById('irOnDeviceQuickPick');
   try {
     const res = await fetch('/ir-database');
@@ -111,10 +116,10 @@ async function tryLoadOnDeviceIrDatabase() {
     if (!Array.isArray(categoryIds) || !categoryIds.length) return;
 
     const sel = document.getElementById('irOnDeviceCategory');
-    sel.innerHTML = '<option value="">— category —</option>' +
+    sel.innerHTML = `<option value="">${I18N.t('web_ir_ph_category')}</option>` +
       categoryIds.map(id => {
         const known = IR_CATEGORIES.find(c => c.id === id);
-        return `<option value="${id}">${known ? known.label : id}</option>`;
+        return `<option value="${id}">${known ? irCategoryLabel(known) : id}</option>`;
       }).join('');
     quickPick.style.display = '';
   } catch (e) {
@@ -132,8 +137,8 @@ async function onIrOnDeviceCategoryChange() {
   const categoryId = document.getElementById('irOnDeviceCategory').value;
   const brandSel = document.getElementById('irOnDeviceBrand');
   const modelSel = document.getElementById('irOnDeviceModel');
-  resetIrOnDeviceSelect(modelSel, '— select a brand first —');
-  if (!categoryId) { resetIrOnDeviceSelect(brandSel, '— select a category first —'); return; }
+  resetIrOnDeviceSelect(modelSel, I18N.t('web_ir_ph_brand_first'));
+  if (!categoryId) { resetIrOnDeviceSelect(brandSel, I18N.t('web_ir_ph_category_first')); return; }
 
   try {
     if (!irOnDeviceCache[categoryId]) {
@@ -142,11 +147,11 @@ async function onIrOnDeviceCategoryChange() {
       irOnDeviceCache[categoryId] = await res.json();
     }
     const brands = irOnDeviceCache[categoryId].brands || [];
-    brandSel.innerHTML = '<option value="">— select a brand —</option>' +
+    brandSel.innerHTML = `<option value="">${I18N.t('web_ir_ph_brand')}</option>` +
       brands.map((b, i) => `<option value="${i}">${b.brand_name}</option>`).join('');
     brandSel.disabled = false;
   } catch (e) {
-    brandSel.innerHTML = '<option value="">(failed to load)</option>';
+    brandSel.innerHTML = `<option value="">${I18N.t('web_ir_ph_failed')}</option>`;
     console.error('Failed to load on-device ir-database category', e);
   }
 }
@@ -155,9 +160,9 @@ function onIrOnDeviceBrandChange() {
   const categoryId = document.getElementById('irOnDeviceCategory').value;
   const brandIdx = document.getElementById('irOnDeviceBrand').value;
   const modelSel = document.getElementById('irOnDeviceModel');
-  if (brandIdx === '') { resetIrOnDeviceSelect(modelSel, '— select a brand first —'); return; }
+  if (brandIdx === '') { resetIrOnDeviceSelect(modelSel, I18N.t('web_ir_ph_brand_first')); return; }
   const models = irOnDeviceCache[categoryId].brands[brandIdx].models || [];
-  modelSel.innerHTML = '<option value="">— select a model —</option>' +
+  modelSel.innerHTML = `<option value="">${I18N.t('web_ir_ph_model')}</option>` +
     models.map((m, i) => `<option value="${i}">${m.model_name}</option>`).join('');
   modelSel.disabled = false;
 }
@@ -197,16 +202,16 @@ let renamingCommandId = null; // commandId currently shown with an inline rename
 
 function addIrCommand() {
   const commandId = document.getElementById('irCommandId').value.trim();
-  if (!commandId) { alert('Give this command an id, e.g. "power", "hdmi1", "volume_up".'); return; }
+  if (!commandId) { alert(I18N.t('web_ir_err_command_id')); return; }
 
   const manualPronto = document.getElementById('irManualPronto').value.trim();
-  if (!manualPronto) { alert('Paste a Pronto Hex code.'); return; }
+  if (!manualPronto) { alert(I18N.t('web_ir_err_pronto')); return; }
 
   let resolved;
   try {
     resolved = prontoToPattern(manualPronto);
   } catch (e) {
-    alert('Couldn\'t decode this Pronto code: ' + e.message);
+    alert(I18N.t('web_ir_err_decode', e.message));
     return;
   }
   const label = document.getElementById('irManualLabel').value.trim() || commandId;
@@ -231,8 +236,8 @@ function startRenameIrCommand(commandId) {
 
 function confirmRenameIrCommand(oldId) {
   const newId = document.getElementById('irRenameInput').value.trim();
-  if (!newId) { alert('Command id can\'t be empty.'); return; }
-  if (newId !== oldId && pendingIrCommands[newId]) { alert('That id is already used by another command on this device.'); return; }
+  if (!newId) { alert(I18N.t('web_ir_err_id_empty')); return; }
+  if (newId !== oldId && pendingIrCommands[newId]) { alert(I18N.t('web_ir_err_id_duplicate')); return; }
   if (newId !== oldId) {
     pendingIrCommands[newId] = pendingIrCommands[oldId];
     delete pendingIrCommands[oldId];
@@ -246,7 +251,7 @@ function renderIrCommandsList() {
   if (!list) return;
   const ids = Object.keys(pendingIrCommands);
   if (!ids.length) {
-    list.innerHTML = '<div class="hint">No commands yet — add one above, or import all of them from a picked model.</div>';
+    list.innerHTML = `<div class="hint">${I18N.t('web_ir_no_commands')}</div>`;
     return;
   }
   list.innerHTML = '';
@@ -273,9 +278,10 @@ function renderIrDevicesList() {
   if (!list) return;
   list.innerHTML = '';
   (dashboardData.irDevices || []).forEach(dev => {
+    const cmdCount = dev.commands ? Object.keys(dev.commands).length : 0;
     const summary = dev.commands
-      ? `${Object.keys(dev.commands).length} command${Object.keys(dev.commands).length === 1 ? '' : 's'}, inline`
-      : `${dev.brand} ${dev.model} (${dev.category}) — via ir-database`;
+      ? I18N.t(cmdCount === 1 ? 'web_ir_summary_inline_one' : 'web_ir_summary_inline_many', cmdCount)
+      : I18N.t('web_ir_summary_reference', dev.brand, dev.model, dev.category);
     const el = document.createElement('div');
     el.className = 'list-item';
     el.innerHTML = `<span>${dev.name} <span style="color:#888">(${summary})</span></span><span><span class="remove" style="color:#00E5FF" onclick="editIrDevice('${dev.id}')">✎</span> <span class="remove" onclick="removeIrDevice('${dev.id}')">✕</span></span>`;
@@ -285,20 +291,20 @@ function renderIrDevicesList() {
 
 function saveIrDevice() {
   const name = document.getElementById('irDevName').value.trim();
-  if (!name) { alert('Give this device a name.'); return; }
+  if (!name) { alert(I18N.t('web_ir_err_name')); return; }
 
   const mode = document.querySelector('input[name="irSourceMode"]:checked')?.value || 'inline';
   let deviceFields; // fields merged into the dashboardData.irDevices entry — shape depends on mode
   let hints = null; // commandId hints for this device, client-side-only (see irDeviceCommandHints)
 
   if (mode === 'inline') {
-    if (!Object.keys(pendingIrCommands).length) { alert('Add at least one command.'); return; }
+    if (!Object.keys(pendingIrCommands).length) { alert(I18N.t('web_ir_err_no_commands')); return; }
     deviceFields = { commands: pendingIrCommands, category: undefined, brand: undefined, model: undefined };
   } else {
     const category = document.getElementById('irRefCategory').value;
     const brand = document.getElementById('irRefBrand').value.trim();
     const model = document.getElementById('irRefModel').value.trim();
-    if (!category || !brand || !model) { alert('Fill in category, brand, and model — matching exactly what you copied into /sdcard/astrion/ir-database/.'); return; }
+    if (!category || !brand || !model) { alert(I18N.t('web_ir_err_ref_fields')); return; }
     deviceFields = { category, brand, model, commands: undefined };
     const rawHints = document.getElementById('irRefKnownCommands').value.trim();
     hints = rawHints ? rawHints.split(',').map(s => s.trim()).filter(Boolean) : [];
@@ -361,7 +367,7 @@ function editIrDevice(id) {
     pendingIrCommands = JSON.parse(JSON.stringify(dev.commands || {}));
   }
   renderIrCommandsList();
-  document.getElementById('saveIrDeviceBtn').textContent = 'Save device';
+  document.getElementById('saveIrDeviceBtn').textContent = I18N.t('web_ir_save_device');
   document.getElementById('cancelIrDeviceEditBtn').style.display = '';
 }
 
@@ -374,7 +380,7 @@ function cancelIrDeviceEdit() {
   document.getElementById('irRefKnownCommands').value = '';
   document.querySelector('input[name="irSourceMode"][value="inline"]').checked = true;
   onIrSourceModeChange();
-  document.getElementById('saveIrDeviceBtn').textContent = 'Save device';
+  document.getElementById('saveIrDeviceBtn').textContent = I18N.t('web_ir_save_device');
   document.getElementById('cancelIrDeviceEditBtn').style.display = 'none';
   renderIrCommandsList();
 }
@@ -389,8 +395,10 @@ function removeIrDevice(id) {
   updateJsonOutput();
 }
 
-initIrCategorySelect();
 onIrSourceModeChange();
-renderIrCommandsList();
-renderIrDevicesList();
+I18N.ready.then(() => {
+  initIrCategorySelect();
+  renderIrCommandsList();
+  renderIrDevicesList();
+});
 tryLoadOnDeviceIrDatabase();

@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Astrion Custom — dashboard.json Editor</title>
+    <title data-i18n="web_ui_title">Astrion Custom — dashboard.json Editor</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<h1>Astrion Custom — dashboard.json Editor</h1>
-<div class="subtitle">Build your dashboard visually, no hand-written JSON required. Matches the exact schema the app reads.</div>
+<h1 data-i18n="web_ui_title">Astrion Custom — dashboard.json Editor</h1>
+<div class="subtitle" data-i18n="web_ui_subtitle">Build your dashboard visually, no hand-written JSON required. Matches the exact schema the app reads.</div>
 <div id="deviceModeBanner" class="note" style="display:none"></div>
 
 <div class="release-info-row" style="display:flex;align-items:center;gap:16px;margin-top:6px;flex-wrap:wrap;">
@@ -26,30 +26,30 @@
     <!-- LEFT PANE -->
     <div class="editor-pane">
 
-        <h2>Load an existing dashboard.json (optional)</h2>
+        <h2 data-i18n="web_ui_load_heading">Load an existing dashboard.json (optional)</h2>
         <div class="section-box">
-            <textarea id="importBox" rows="4" placeholder="Paste your current dashboard.json here to edit it, or leave empty to start fresh."></textarea>
+            <textarea id="importBox" rows="4" data-i18n-attr="placeholder:web_ui_import_placeholder" placeholder="Paste your current dashboard.json here to edit it, or leave empty to start fresh."></textarea>
             <div class="btn-row">
-                <button onclick="importJson()">Load</button>
-                <button class="secondary" onclick="resetAll()">Start over</button>
+                <button data-i18n="web_ui_load_button" onclick="importJson()">Load</button>
+                <button class="secondary" data-i18n="web_ui_start_over" onclick="resetAll()">Start over</button>
             </div>
         </div>
 
-        <h2>1. Hotkeys</h2>
+        <h2 data-i18n="web_ui_section_hotkeys">1. Hotkeys</h2>
         <div class="section-box">
-            <label>Scope</label>
+            <label data-i18n="web_ui_scope_label">Scope</label>
             <select id="hkScope">
-                <option value="page">This page only (overrides global while page is active)</option>
-                <option value="global">Global (every page)</option>
+                <option value="page" data-i18n="web_ui_scope_page">This page only (overrides global while page is active)</option>
+                <option value="global" data-i18n="web_ui_scope_global">Global (every page)</option>
             </select>
 
-            <label>Press type</label>
+            <label data-i18n="web_ui_press_type_label">Press type</label>
             <select id="hkType">
-                <option value="hotkeys">Single press</option>
-                <option value="longHotkeys">Long press (~500ms hold)</option>
+                <option value="hotkeys" data-i18n="web_ui_press_single">Single press</option>
+                <option value="longHotkeys" data-i18n="web_ui_press_long">Long press (~500ms hold)</option>
             </select>
 
-            <label>Physical key</label>
+            <label data-i18n="web_ui_physical_key_label">Physical key</label>
             <select id="hkKey">
                 <option>BACK</option><option>HOME</option><option>POWER</option>
                 <option>VOLUME_UP</option><option>VOLUME_DOWN</option><option>MUTE</option>
@@ -60,55 +60,55 @@
                 <option>RED_BUTTON</option><option>GREEN_BUTTON</option><option>BLUE_BUTTON</option><option>YELLOW_BUTTON</option>
             </select>
 
-            <label>Action</label>
+            <label data-i18n="web_ui_action_label">Action</label>
             <select id="hkAction" onchange="updateHotkeyActionInputs()">
-                <option value="page">Go to page</option>
-                <option value="openOverlay">Open overlay (Settings / Active Activities)</option>
-                <option value="openCurrentActivity">Return to current Activity (for one room)</option>
-                <option value="service">Home Assistant service call</option>
-                <option value="remoteCommand">Home Assistant remote command</option>
-                <option value="harmonyCommand">Harmony IR command (direct to hub)</option>
-                <option value="harmonyActivity">Harmony activity (direct to hub)</option>
+                <option value="page" data-i18n="web_ui_action_page">Go to page</option>
+                <option value="openOverlay" data-i18n="web_ui_action_open_overlay">Open overlay (Settings / Active Activities)</option>
+                <option value="openCurrentActivity" data-i18n="web_ui_action_return_activity">Return to current Activity (for one room)</option>
+                <option value="service" data-i18n="web_ui_action_service">Home Assistant service call</option>
+                <option value="remoteCommand" data-i18n="web_ui_action_remote_command">Home Assistant remote command</option>
+                <option value="harmonyCommand" data-i18n="web_ui_action_harmony_command">Harmony IR command (direct to hub)</option>
+                <option value="harmonyActivity" data-i18n="web_ui_action_harmony_activity">Harmony activity (direct to hub)</option>
             </select>
 
             <div id="dynamicHotkeyInputs"></div>
             <div class="btn-row">
-                <button id="addHotkeyBtn" onclick="addHotkey()">Add hotkey</button>
-                <button id="cancelHotkeyEditBtn" class="secondary" style="display:none" onclick="cancelHotkeyEdit()">Cancel edit</button>
+                <button id="addHotkeyBtn" data-i18n="web_ui_add_hotkey" onclick="addHotkey()">Add hotkey</button>
+                <button id="cancelHotkeyEditBtn" class="secondary" style="display:none" data-i18n="web_cancel_edit" onclick="cancelHotkeyEdit()">Cancel edit</button>
             </div>
             <div id="hotkeysList" style="margin-top:12px"></div>
         </div>
 
-        <h2>2. IR Devices</h2>
+        <h2 data-i18n="web_ui_section_ir_devices">2. IR Devices</h2>
         <div class="section-box">
-            <div class="hint">
+            <div class="hint" data-i18n="web_ui_ir_hint">
                 A registry of named IR commands per physical device — works fully offline,
                 no Harmony hub, no Home Assistant, no cloud. Used by scene_grid tiles
                 (IR device + command) and by Activities' IR-sourced devices below.
             </div>
 
-            <label>Device name</label>
-            <input type="text" id="irDevName" placeholder="e.g., TV Salon">
+            <label data-i18n="web_ui_device_name_label">Device name</label>
+            <input type="text" id="irDevName" data-i18n-attr="placeholder:web_ui_device_name_placeholder" placeholder="e.g., TV Salon">
 
-            <label style="margin-top:10px">Where do this device's commands come from?</label>
+            <label style="margin-top:10px" data-i18n="web_ui_ir_source_question">Where do this device's commands come from?</label>
             <label class="inline-check">
                 <input type="radio" name="irSourceMode" value="inline" checked onchange="onIrSourceModeChange()">
-                Paste Pronto codes by hand — for a one-off button, or something you learned yourself
+                <span data-i18n="web_ui_ir_source_inline">Paste Pronto codes by hand — for a one-off button, or something you learned yourself</span>
             </label>
             <label class="inline-check">
                 <input type="radio" name="irSourceMode" value="reference" onchange="onIrSourceModeChange()">
-                Reference the ir-database — for a device you picked with the ir-database picker and copied onto the remote
+                <span data-i18n="web_ui_ir_source_reference">Reference the ir-database — for a device you picked with the ir-database picker and copied onto the remote</span>
             </label>
 
             <div id="irInlineForm">
-                <label style="margin-top:10px">Paste a Pronto Hex code</label>
+                <label style="margin-top:10px" data-i18n="web_ui_pronto_label">Paste a Pronto Hex code</label>
                 <input type="text" id="irManualPronto" placeholder="0000 006D 0022 0000 00AC 00AC 0016 0016 ...">
-                <input type="text" id="irManualLabel" placeholder='Label (optional, e.g. "Power")' style="margin-top:6px">
+                <input type="text" id="irManualLabel" data-i18n-attr="placeholder:web_ui_command_label_placeholder" placeholder='Label (optional, e.g. "Power")' style="margin-top:6px">
 
-                <label style="margin-top:10px">Save this command as</label>
-                <input type="text" id="irCommandId" placeholder="e.g., power, hdmi1, volume_up">
+                <label style="margin-top:10px" data-i18n="web_ui_save_command_as">Save this command as</label>
+                <input type="text" id="irCommandId" data-i18n-attr="placeholder:web_ui_command_id_placeholder" placeholder="e.g., power, hdmi1, volume_up">
                 <div class="btn-row">
-                    <button type="button" class="secondary" onclick="addIrCommand()">+ Add command</button>
+                    <button type="button" class="secondary" data-i18n="web_ui_add_command" onclick="addIrCommand()">+ Add command</button>
                 </div>
 
                 <div id="irCommandsList" style="margin-top:12px"></div>
@@ -116,38 +116,36 @@
 
             <div id="irRefForm" style="display:none">
                 <div class="hint" style="margin-top:10px" id="irRefHint">
-                    Must match exactly what you copied into <code>/sdcard/astrion/ir-database/</code> on the
-                    remote — the app resolves the actual commands from that file at runtime, this builder
-                    never touches ir-database/ itself.
+                    <span data-i18n="web_ui_irref_hint_1">Must match exactly what you copied into </span><code>/sdcard/astrion/ir-database/</code><span data-i18n="web_ui_irref_hint_2"> on the remote — the app resolves the actual commands from that file at runtime, this builder never touches ir-database/ itself.</span>
                 </div>
 
                 <div id="irOnDeviceQuickPick" style="display:none">
-                    <label style="margin-top:10px">Already on this remote — pick one</label>
-                    <select id="irOnDeviceCategory" onchange="onIrOnDeviceCategoryChange()"><option value="">— category —</option></select>
-                    <select id="irOnDeviceBrand" onchange="onIrOnDeviceBrandChange()" disabled><option value="">— select a category first —</option></select>
-                    <select id="irOnDeviceModel" onchange="onIrOnDeviceModelChange()" disabled><option value="">— select a brand first —</option></select>
+                    <label style="margin-top:10px" data-i18n="web_ui_ir_ondevice_label">Already on this remote — pick one</label>
+                    <select id="irOnDeviceCategory" onchange="onIrOnDeviceCategoryChange()"><option value="" data-i18n="web_ui_pick_category">— category —</option></select>
+                    <select id="irOnDeviceBrand" onchange="onIrOnDeviceBrandChange()" disabled><option value="" data-i18n="web_ui_pick_brand_disabled">— select a category first —</option></select>
+                    <select id="irOnDeviceModel" onchange="onIrOnDeviceModelChange()" disabled><option value="" data-i18n="web_ui_pick_model_disabled">— select a brand first —</option></select>
                 </div>
 
-                <label style="margin-top:10px">Category</label>
+                <label style="margin-top:10px" data-i18n="web_ui_category_label">Category</label>
                 <select id="irRefCategory"></select>
-                <label>Brand</label>
-                <input type="text" id="irRefBrand" placeholder="e.g., LG">
-                <label>Model</label>
-                <input type="text" id="irRefModel" placeholder="e.g., OLED65B8">
-                <label style="margin-top:10px">Known command ids (optional, comma-separated — just for autocomplete below and in scene_grid tiles)</label>
+                <label data-i18n="web_ui_brand_label">Brand</label>
+                <input type="text" id="irRefBrand" data-i18n-attr="placeholder:web_ui_brand_placeholder" placeholder="e.g., LG">
+                <label data-i18n="web_ui_model_label">Model</label>
+                <input type="text" id="irRefModel" data-i18n-attr="placeholder:web_ui_model_placeholder" placeholder="e.g., OLED65B8">
+                <label style="margin-top:10px" data-i18n="web_ui_known_commands_label">Known command ids (optional, comma-separated — just for autocomplete below and in scene_grid tiles)</label>
                 <input type="text" id="irRefKnownCommands" placeholder="power, hdmi1, volume_up, mute">
             </div>
 
             <div class="btn-row">
-                <button id="saveIrDeviceBtn" onclick="saveIrDevice()">Save device</button>
-                <button id="cancelIrDeviceEditBtn" class="secondary" style="display:none" onclick="cancelIrDeviceEdit()">Cancel edit</button>
+                <button id="saveIrDeviceBtn" data-i18n="web_ui_save_device" onclick="saveIrDevice()">Save device</button>
+                <button id="cancelIrDeviceEditBtn" class="secondary" style="display:none" data-i18n="web_cancel_edit" onclick="cancelIrDeviceEdit()">Cancel edit</button>
             </div>
             <div id="irDevicesList" style="margin-top:12px"></div>
         </div>
 
-        <h2>3. Activities</h2>
+        <h2 data-i18n="web_ui_section_activities">3. Activities</h2>
         <div class="section-box">
-            <div class="hint">
+            <div class="hint" data-i18n="web_ui_activities_hint">
                 A composed AV Activity ("Watch Apple TV", "Listen to Music"...) that
                 orchestrates more than one device, mixing IR/Harmony/HA freely. Scoped
                 to one room — at runtime, only one Activity is active per room at a
@@ -156,29 +154,29 @@
                 "Track as Activity" on a scene_grid tile instead.
             </div>
             <div class="btn-row">
-                <button onclick="startActivityWizard()">+ New Activity</button>
+                <button data-i18n="web_ui_new_activity_button" onclick="startActivityWizard()">+ New Activity</button>
             </div>
             <div id="activitiesList" style="margin-top:12px"></div>
         </div>
 
-        <h2>4. Theme & Colors</h2>
+        <h2 data-i18n="web_ui_section_theme">4. Theme &amp; Colors</h2>
         <div class="section-box" id="themeBox"></div>
 
-        <h2>5. Generated JSON</h2>
+        <h2 data-i18n="web_ui_section_json">5. Generated JSON</h2>
         <textarea id="jsonOutput" readonly></textarea>
         <div class="btn-row">
-            <button onclick="copyJson()">Copy JSON</button>
-            <button class="secondary" onclick="downloadJson()">Download dashboard.json</button>
-            <button id="saveToDeviceBtn" style="display:none" onclick="saveDashboardToDevice()">Save to device</button>
+            <button data-i18n="web_ui_copy_json" onclick="copyJson()">Copy JSON</button>
+            <button class="secondary" data-i18n="web_ui_download_json" onclick="downloadJson()">Download dashboard.json</button>
+            <button id="saveToDeviceBtn" style="display:none" data-i18n="web_ui_save_to_device" onclick="saveDashboardToDevice()">Save to device</button>
         </div>
     </div>
 
     <!-- RIGHT PANE -->
     <div class="preview-pane">
-        <h2 style="margin-top:0">Preview</h2>
+        <h2 style="margin-top:0" data-i18n="web_ui_preview">Preview</h2>
         <div class="ha-toolbar">
             <div id="tabs" class="tabs"></div>
-            <button type="button" class="ha-icon-btn" title="Add page" onclick="openPageDialog(null)">+</button>
+            <button type="button" class="ha-icon-btn" data-i18n-attr="title:web_modal_add_page" title="Add page" onclick="openPageDialog(null)">+</button>
         </div>
         <div class="remote-frame-scale-wrap">
             <div class="remote-frame">
@@ -192,7 +190,7 @@
                                 <span class="sb-battery">🔋</span>
                             </div>
                             <div id="content" class="remote-screen-content"></div>
-                            <button type="button" class="preview-add-fab" title="Add card" onclick="event.stopPropagation(); openCardDialog(null)">+</button>
+                            <button type="button" class="preview-add-fab" data-i18n-attr="title:web_modal_add_card" title="Add card" onclick="event.stopPropagation(); openCardDialog(null)">+</button>
                         </div>
                     </div>
                 </div>
@@ -296,61 +294,61 @@
 
             </div>
         </div>
-        <div class="remote-tap-hint">🔍 Tap the screen to edit at full size</div>
+        <div class="remote-tap-hint" data-i18n="web_ui_tap_hint">🔍 Tap the screen to edit at full size</div>
         <div id="hotkeysInfo"></div>
     </div>
 </div>
 
 <div id="previewModal" class="preview-modal" onclick="if (event.target === this) closePreviewModal()">
     <div class="preview-modal-inner">
-        <button class="preview-modal-close" onclick="closePreviewModal()">✕ Close</button>
+        <button class="preview-modal-close" data-i18n="web_modal_close" onclick="closePreviewModal()">✕ Close</button>
         <div id="modalScreenSlot"></div>
     </div>
 </div>
 
 <div id="cardEditorModal" class="preview-modal" onclick="if (event.target === this) cancelCardEdit()">
     <div class="preview-modal-inner ha-dialog">
-        <button class="preview-modal-close" onclick="cancelCardEdit()">✕ Close</button>
-        <h2 style="margin-top:0" id="cardEditorTitle">Add card</h2>
+        <button class="preview-modal-close" data-i18n="web_modal_close" onclick="cancelCardEdit()">✕ Close</button>
+        <h2 style="margin-top:0" id="cardEditorTitle" data-i18n="web_modal_add_card">Add card</h2>
         <div class="section-box">
-            <label>Card type</label>
+            <label data-i18n="web_modal_card_type">Card type</label>
             <select id="cardTypeSelect" onchange="updateCardFormInputs()">
-                <optgroup label="Common">
-                    <option value="title">Title (title)</option>
-                    <option value="light">Light (light)</option>
-                    <option value="switch">Switch (switch)</option>
-                    <option value="cover">Cover / Shutter (cover)</option>
-                    <option value="fan">Fan (fan)</option>
-                    <option value="climate">Climate (climate)</option>
-                    <option value="source_select">Source selector (source_select)</option>
-                    <option value="select">Select / dropdown (select)</option>
+                <optgroup data-i18n-attr="label:web_modal_optgroup_common" label="Common">
+                    <option value="title" data-i18n="web_modal_type_title">Title (title)</option>
+                    <option value="light" data-i18n="web_modal_type_light">Light (light)</option>
+                    <option value="switch" data-i18n="web_modal_type_switch">Switch (switch)</option>
+                    <option value="cover" data-i18n="web_modal_type_cover">Cover / Shutter (cover)</option>
+                    <option value="fan" data-i18n="web_modal_type_fan">Fan (fan)</option>
+                    <option value="climate" data-i18n="web_modal_type_climate">Climate (climate)</option>
+                    <option value="source_select" data-i18n="web_modal_type_source_select">Source selector (source_select)</option>
+                    <option value="select" data-i18n="web_modal_type_select">Select / dropdown (select)</option>
                 </optgroup>
-                <optgroup label="Grids">
-                    <option value="button_grid">Button grid (button_grid)</option>
-                    <option value="scene_grid">Scene grid (scene_grid)</option>
+                <optgroup data-i18n-attr="label:web_modal_optgroup_grids" label="Grids">
+                    <option value="button_grid" data-i18n="web_modal_type_button_grid">Button grid (button_grid)</option>
+                    <option value="scene_grid" data-i18n="web_modal_type_scene_grid">Scene grid (scene_grid)</option>
                 </optgroup>
-                <optgroup label="Remotes">
-                    <option value="apple_tv_remote">Apple TV remote (apple_tv_remote)</option>
-                    <option value="tv_remote">TV / media remote (tv_remote)</option>
+                <optgroup data-i18n-attr="label:web_modal_optgroup_remotes" label="Remotes">
+                    <option value="apple_tv_remote" data-i18n="web_modal_type_apple_tv_remote">Apple TV remote (apple_tv_remote)</option>
+                    <option value="tv_remote" data-i18n="web_modal_type_tv_remote">TV / media remote (tv_remote)</option>
                 </optgroup>
-                <optgroup label="Advanced (raw options)">
-                    <option value="clock_weather">Clock &amp; weather (clock_weather)</option>
-                    <option value="media_player">Media player (media_player)</option>
-                    <option value="camera">Camera (camera)</option>
-                    <option value="speaker_group">Speaker group (speaker_group)</option>
-                    <option value="monitor">System monitor (monitor)</option>
-                    <option value="picture_elements">Picture elements (picture_elements)</option>
-                    <option value="plex">Plex (plex)</option>
-                    <option value="row">Row layout (row)</option>
-                    <option value="vacuum">Vacuum (vacuum)</option>
-                    <option value="custom">Other / custom type…</option>
+                <optgroup data-i18n-attr="label:web_modal_optgroup_advanced" label="Advanced (raw options)">
+                    <option value="clock_weather" data-i18n="web_modal_type_clock_weather">Clock &amp; weather (clock_weather)</option>
+                    <option value="media_player" data-i18n="web_modal_type_media_player">Media player (media_player)</option>
+                    <option value="camera" data-i18n="web_modal_type_camera">Camera (camera)</option>
+                    <option value="speaker_group" data-i18n="web_modal_type_speaker_group">Speaker group (speaker_group)</option>
+                    <option value="monitor" data-i18n="web_modal_type_monitor">System monitor (monitor)</option>
+                    <option value="picture_elements" data-i18n="web_modal_type_picture_elements">Picture elements (picture_elements)</option>
+                    <option value="plex" data-i18n="web_modal_type_plex">Plex (plex)</option>
+                    <option value="row" data-i18n="web_modal_type_row">Row layout (row)</option>
+                    <option value="vacuum" data-i18n="web_modal_type_vacuum">Vacuum (vacuum)</option>
+                    <option value="custom" data-i18n="web_modal_type_custom">Other / custom type…</option>
                 </optgroup>
             </select>
 
             <div id="dynamicCardInputs"></div>
             <div class="btn-row">
-                <button id="addCardBtn" onclick="addCardToPage()">Add card to page</button>
-                <button id="cancelCardEditBtn" class="secondary" onclick="cancelCardEdit()">Cancel</button>
+                <button id="addCardBtn" data-i18n="web_modal_add_card_to_page" onclick="addCardToPage()">Add card to page</button>
+                <button id="cancelCardEditBtn" class="secondary" data-i18n="web_cancel" onclick="cancelCardEdit()">Cancel</button>
             </div>
         </div>
     </div>
@@ -358,16 +356,16 @@
 
 <div id="pageDialogModal" class="preview-modal" onclick="if (event.target === this) closePageDialog()">
     <div class="preview-modal-inner ha-dialog">
-        <button class="preview-modal-close" onclick="closePageDialog()">✕ Close</button>
-        <h2 style="margin-top:0" id="pageDialogTitle">Add page</h2>
+        <button class="preview-modal-close" data-i18n="web_modal_close" onclick="closePageDialog()">✕ Close</button>
+        <h2 style="margin-top:0" id="pageDialogTitle" data-i18n="web_modal_add_page">Add page</h2>
         <div class="section-box">
-            <label>Page name</label>
-            <input type="text" id="pageDialogName" placeholder="e.g., Living Room, Apple TV...">
-            <label style="margin-top:10px">Parent page (optional)</label>
+            <label data-i18n="web_modal_page_name">Page name</label>
+            <input type="text" id="pageDialogName" data-i18n-attr="placeholder:web_modal_page_name_placeholder" placeholder="e.g., Living Room, Apple TV...">
+            <label style="margin-top:10px" data-i18n="web_modal_parent_page_label">Parent page (optional)</label>
             <select id="pageDialogParent" onchange="onPageDialogParentChange()"></select>
-            <div class="hint" style="margin-top:4px">Makes this a child page — navigate to it via a card's own "Page to open" (e.g. a scene_grid tile), and a physical button jumps back to the parent automatically.</div>
+            <div class="hint" style="margin-top:4px" data-i18n="web_modal_parent_hint">Makes this a child page — navigate to it via a card's own "Page to open" (e.g. a scene_grid tile), and a physical button jumps back to the parent automatically.</div>
             <div id="pageDialogParentKeyRow" style="display:none">
-                <label style="margin-top:10px">Return-to-parent button</label>
+                <label style="margin-top:10px" data-i18n="web_modal_parent_key_label">Return-to-parent button</label>
                 <select id="pageDialogParentKey">
                     <option>BACK</option><option>HOME</option><option>POWER</option>
                     <option>VOLUME_UP</option><option>VOLUME_DOWN</option><option>MUTE</option>
@@ -377,13 +375,13 @@
                     <option>REWIND</option><option>PLAY</option><option>STOP</option><option>FASTFORWARD</option>
                     <option>RED_BUTTON</option><option>GREEN_BUTTON</option><option>BLUE_BUTTON</option><option>YELLOW_BUTTON</option>
                 </select>
-                <div class="hint" style="margin-top:4px">Defaults to BACK. Pick a different button if BACK is already used for something else on this page, or if you'd rather reserve BACK entirely. If this page also binds its own hotkey on the chosen button, that hotkey wins and the parent-jump is skipped.</div>
+                <div class="hint" style="margin-top:4px" data-i18n="web_modal_parent_key_hint">Defaults to BACK. Pick a different button if BACK is already used for something else on this page, or if you'd rather reserve BACK entirely. If this page also binds its own hotkey on the chosen button, that hotkey wins and the parent-jump is skipped.</div>
             </div>
-            <label class="inline-check" style="margin-top:10px"><input type="checkbox" id="pageDialogStart"> Start page (shown on launch)</label>
+            <label class="inline-check" style="margin-top:10px"><input type="checkbox" id="pageDialogStart"> <span data-i18n="web_modal_start_page">Start page (shown on launch)</span></label>
             <div class="btn-row" style="margin-top:12px">
-                <button onclick="savePageDialog()">Save</button>
-                <button class="secondary" onclick="closePageDialog()">Cancel</button>
-                <button id="pageDialogDeleteBtn" class="danger" style="display:none" onclick="deletePageFromDialog()">Delete page</button>
+                <button data-i18n="web_save" onclick="savePageDialog()">Save</button>
+                <button class="secondary" data-i18n="web_cancel" onclick="closePageDialog()">Cancel</button>
+                <button id="pageDialogDeleteBtn" class="danger" style="display:none" data-i18n="web_delete_page" onclick="deletePageFromDialog()">Delete page</button>
             </div>
         </div>
     </div>
@@ -391,15 +389,15 @@
 
 <div id="activityWizardModal" class="preview-modal" onclick="if (event.target === this) closeActivityWizard()">
     <div class="preview-modal-inner ha-dialog">
-        <button class="preview-modal-close" onclick="closeActivityWizard()">✕ Close</button>
-        <h2 style="margin-top:0" id="activityWizardTitle">New Activity</h2>
+        <button class="preview-modal-close" data-i18n="web_modal_close" onclick="closeActivityWizard()">✕ Close</button>
+        <h2 style="margin-top:0" id="activityWizardTitle" data-i18n="web_modal_new_activity">New Activity</h2>
         <div id="wizStepLabel" class="hint" style="margin-bottom:10px"></div>
         <div class="section-box">
             <div id="wizBody"></div>
             <div class="btn-row" style="margin-top:14px">
-                <button id="wizBackBtn" class="secondary" onclick="wizardBack()">Back</button>
-                <button id="wizNextBtn" onclick="wizardNext()">Next</button>
-                <button id="wizSaveBtn" style="display:none" onclick="saveActivityWizard()">Save Activity</button>
+                <button id="wizBackBtn" class="secondary" data-i18n="web_back" onclick="wizardBack()">Back</button>
+                <button id="wizNextBtn" data-i18n="web_next" onclick="wizardNext()">Next</button>
+                <button id="wizSaveBtn" style="display:none" data-i18n="web_modal_save_activity" onclick="saveActivityWizard()">Save Activity</button>
             </div>
         </div>
     </div>
@@ -407,9 +405,9 @@
 
 <div id="iconPickerModal" class="preview-modal" onclick="if (event.target === this) closeIconPicker()">
     <div class="preview-modal-inner icon-picker-inner">
-        <button class="preview-modal-close" onclick="closeIconPicker()">✕ Close</button>
-        <h2 style="margin-top:0">Choose an icon</h2>
-        <div class="hint">Icons already uploaded via the "Icons" section on the device's home page (<code>/</code>).</div>
+        <button class="preview-modal-close" data-i18n="web_modal_close" onclick="closeIconPicker()">✕ Close</button>
+        <h2 style="margin-top:0" data-i18n="web_modal_choose_icon">Choose an icon</h2>
+        <div class="hint"><span data-i18n="web_modal_icon_hint_1">Icons already uploaded via the "Icons" section on the device's home page (</span><code>/</code>).</div>
         <div id="iconPickerGrid" class="icon-picker-grid"></div>
     </div>
 </div>
@@ -428,6 +426,6 @@
 <script src="js/export.js"></script>
 <script src="js/preview.js"></script>
 <script src="js/device.js"></script>
-<script>initEditor(); loadStableBadge(); I18N.ready.then(applyUiI18n);</script>
+<script>I18N.ready.then(() => { initEditor(); loadStableBadge(); applyUiI18n(); });</script>
 </body>
 </html>

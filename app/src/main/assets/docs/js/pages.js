@@ -55,9 +55,9 @@ function importJson() {
     if (dashboardData.pages.length === 0) dashboardData.pages.push({ name: "Home", cards: [], hotkeys: [], longHotkeys: [] });
     currentActivePage = 0;
     initEditor();
-    alert('dashboard.json loaded — you can now edit it below.');
+    alert(I18N.t('web_page_imported'));
   } catch (e) {
-    alert('Invalid JSON: ' + e.message);
+    alert(I18N.t('web_page_invalid_json', e.message));
   }
 }
 
@@ -92,7 +92,7 @@ function onPageChange(index) {
 function openPageDialog(index) {
   editingPage = index; // null = adding a new page
   const isNew = index === null;
-  document.getElementById('pageDialogTitle').textContent = isNew ? 'Add page' : 'Page settings';
+  document.getElementById('pageDialogTitle').textContent = isNew ? I18N.t('web_modal_add_page') : I18N.t('web_modal_page_settings');
   document.getElementById('pageDialogName').value = isNew ? '' : dashboardData.pages[index].name;
   populatePageParentSelect(index);
   document.getElementById('pageDialogParent').value = isNew ? '' : (dashboardData.pages[index].parent || '');
@@ -135,7 +135,7 @@ function pagesUnavailableAsParentOf(excludeIndex) {
 function populatePageParentSelect(excludeIndex) {
   const select = document.getElementById('pageDialogParent');
   const unavailable = pagesUnavailableAsParentOf(excludeIndex);
-  select.innerHTML = '<option value="">— None (top-level page) —</option>' +
+  select.innerHTML = '<option value="">' + I18N.t('web_page_parent_none') + '</option>' +
     dashboardData.pages
       .filter(p => !unavailable.has(p.name))
       .map(p => `<option value="${p.name.replace(/"/g, '&quot;')}">${p.name}</option>`)
@@ -149,7 +149,7 @@ function closePageDialog() {
 
 function savePageDialog() {
   const name = document.getElementById('pageDialogName').value.trim();
-  if (!name) { alert('Give the page a name.'); return; }
+  if (!name) { alert(I18N.t('web_page_need_name')); return; }
   const parent = document.getElementById('pageDialogParent').value || undefined;
   const parentKey = document.getElementById('pageDialogParentKey').value || 'BACK';
   const makeStart = document.getElementById('pageDialogStart').checked;
@@ -192,13 +192,13 @@ function savePageDialog() {
 function deletePageFromDialog() {
   const i = editingPage;
   if (i === null) return;
-  if (dashboardData.pages.length <= 1) { alert('You need at least one page.'); return; }
+  if (dashboardData.pages.length <= 1) { alert(I18N.t('web_page_need_one')); return; }
   const deletedName = dashboardData.pages[i].name;
   const children = dashboardData.pages.filter(p => p.parent === deletedName);
   const childWarning = children.length
-    ? ` ${children.length} child page(s) (${children.map(c => c.name).join(', ')}) will become top-level pages instead of being deleted.`
+    ? ' ' + I18N.t('web_page_delete_child_warning', children.length, children.map(c => c.name).join(', '))
     : '';
-  if (!confirm(`Delete page "${deletedName}" and everything on it (cards, page hotkeys)?${childWarning}`)) return;
+  if (!confirm(I18N.t('web_page_delete_confirm', deletedName) + childWarning)) return;
   children.forEach(c => delete c.parent);
   dashboardData.pages.splice(i, 1);
   if (currentActivePage >= dashboardData.pages.length) currentActivePage = dashboardData.pages.length - 1;

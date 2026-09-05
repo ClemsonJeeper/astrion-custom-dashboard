@@ -18,12 +18,12 @@
 // activityId. See cards.js's scene_grid form for both paths.
 
 const ACTIVITY_TYPES = [
-  { id: 'watch_tv', label: 'Watch TV' },
-  { id: 'watch_movie', label: 'Watch a Movie' },
-  { id: 'listen_music', label: 'Listen to Music' },
-  { id: 'smart_tv', label: 'Smart TV' },
-  { id: 'netflix', label: 'Netflix' },
-  { id: 'custom', label: 'Custom' },
+  { id: 'watch_tv', labelKey: 'web_activity_type_watch_tv' },
+  { id: 'watch_movie', labelKey: 'web_activity_type_watch_movie' },
+  { id: 'listen_music', labelKey: 'web_activity_type_listen_music' },
+  { id: 'smart_tv', labelKey: 'web_activity_type_smart_tv' },
+  { id: 'netflix', labelKey: 'web_activity_type_netflix' },
+  { id: 'custom', labelKey: 'web_activity_type_custom' },
 ];
 
 let wizard = null; // null when the wizard modal is closed; see startActivityWizard()
@@ -51,20 +51,20 @@ function irDeviceCommandEntries(dev) {
 }
 
 function deviceRefLabel(ref) {
-  if (ref.source === 'ir') return `${irDevicesById()[ref.deviceId]?.name || ref.deviceId} (IR)`;
-  if (ref.source === 'harmony') return `${ref.deviceLabel || ref.deviceId} (Harmony)`;
-  return `${ref.deviceId} (HA)`;
+  if (ref.source === 'ir') return `${irDevicesById()[ref.deviceId]?.name || ref.deviceId} ${I18N.t('web_activity_ref_ir')}`;
+  if (ref.source === 'harmony') return `${ref.deviceLabel || ref.deviceId} ${I18N.t('web_activity_ref_harmony')}`;
+  return `${ref.deviceId} ${I18N.t('web_activity_ref_ha')}`;
 }
 
 
 const WIZARD_STEP_LABELS = {
-  type: 'What kind of Activity?',
-  info: 'Name & room',
-  devices: 'Devices',
-  configure: 'Configure device',
-  volume: 'Volume',
-  volumeCommands: 'Volume commands',
-  review: 'Review',
+  type: 'web_activity_step_type',
+  info: 'web_activity_step_info',
+  devices: 'web_activity_step_devices',
+  configure: 'web_activity_step_configure',
+  volume: 'web_activity_step_volume',
+  volumeCommands: 'web_activity_step_volume_commands',
+  review: 'web_activity_step_review',
 };
 
 // ---- opening / closing / navigating the wizard -----------------------------
@@ -125,11 +125,11 @@ function wizardNext() {
     wizard.room = document.getElementById('wizRoom').value.trim();
     wizard.icon = document.getElementById('wizIcon').value.trim();
     wizard.page = document.getElementById('wizPage').value.trim();
-    if (!wizard.name) { alert('Give this Activity a name.'); return; }
-    if (!wizard.room) { alert('An Activity needs a room — that\'s what makes it exclusive at runtime.'); return; }
+    if (!wizard.name) { alert(I18N.t('web_activity_alert_need_name')); return; }
+    if (!wizard.room) { alert(I18N.t('web_activity_alert_need_room')); return; }
     wizard.phase = 'devices';
   } else if (phase === 'devices') {
-    if (!wizard.deviceRefs.length) { alert('Add at least one device.'); return; }
+    if (!wizard.deviceRefs.length) { alert(I18N.t('web_activity_alert_need_device')); return; }
     wizard.configureIndex = 0;
     wizard.phase = 'configure';
   } else if (phase === 'configure') {
@@ -196,8 +196,8 @@ function saveCurrentDeviceConfig() {
 function renderWizard() {
   if (!wizard) return;
   const phase = wizard.phase;
-  document.getElementById('wizStepLabel').textContent = WIZARD_STEP_LABELS[phase] || phase;
-  document.getElementById('activityWizardTitle').textContent = wizard.editingId ? `Edit Activity: ${wizard.name}` : 'New Activity';
+  document.getElementById('wizStepLabel').textContent = WIZARD_STEP_LABELS[phase] ? I18N.t(WIZARD_STEP_LABELS[phase]) : phase;
+  document.getElementById('activityWizardTitle').textContent = wizard.editingId ? I18N.t('web_activity_edit_title', wizard.name) : I18N.t('web_modal_new_activity');
 
   const body = document.getElementById('wizBody');
   const renderers = {
@@ -219,22 +219,22 @@ function renderWizard() {
 
 function renderWizardType() {
   return `
-    <div class="hint">What is this Activity for? (just picks a starting name — everything else is up to you)</div>
+    <div class="hint">${I18N.t('web_activity_type_hint')}</div>
     <div class="btn-row" style="flex-wrap:wrap;margin-top:10px">
-      ${ACTIVITY_TYPES.map(t => `<button type="button" class="secondary" onclick="pickActivityType('${t.id}')">${t.label}</button>`).join('')}
+      ${ACTIVITY_TYPES.map(t => `<button type="button" class="secondary" onclick="pickActivityType('${t.id}')">${I18N.t(t.labelKey)}</button>`).join('')}
     </div>
   `;
 }
 
 function renderWizardInfo() {
   return `
-    <label>Name</label>
-    <input type="text" id="wizName" value="${wizard.name}" placeholder="e.g., Apple TV">
-    <label>Room</label>
-    <input type="text" id="wizRoom" value="${wizard.room}" placeholder="e.g., Living Room">
+    <label>${I18N.t('web_activity_label_name')}</label>
+    <input type="text" id="wizName" value="${wizard.name}" placeholder="${I18N.t('web_activity_name_placeholder')}">
+    <label>${I18N.t('web_activity_label_room')}</label>
+    <input type="text" id="wizRoom" value="${wizard.room}" placeholder="${I18N.t('web_activity_room_placeholder')}">
     <div id="wizIconField"></div>
-    <label>Page to open when this Activity starts (optional)</label>
-    <input type="text" id="wizPage" value="${wizard.page}" placeholder="e.g., Apple TV">
+    <label>${I18N.t('web_activity_page_label')}</label>
+    <input type="text" id="wizPage" value="${wizard.page}" placeholder="${I18N.t('web_activity_page_placeholder')}">
   `;
 }
 
@@ -242,10 +242,10 @@ function renderWizardDevices() {
   const irDevices = dashboardData.irDevices || [];
   const selectedIrIds = new Set(wizard.deviceRefs.filter(r => r.source === 'ir').map(r => r.deviceId));
   return `
-    <div class="hint">Which devices does this Activity involve? You'll pick an input/command for each on the next screens.</div>
+    <div class="hint">${I18N.t('web_activity_devices_hint')}</div>
 
-    <h3>Local IR devices</h3>
-    ${irDevices.length === 0 ? '<div class="hint">No IR devices yet — create one in the "IR Devices" section, then reopen this wizard.</div>' :
+    <h3>${I18N.t('web_activity_ir_devices_heading')}</h3>
+    ${irDevices.length === 0 ? `<div class="hint">${I18N.t('web_activity_no_ir_devices')}</div>` :
       irDevices.map(d => `
         <label class="inline-check">
           <input type="checkbox" ${selectedIrIds.has(d.id) ? 'checked' : ''} onchange="toggleIrDeviceRef('${d.id}', this.checked)">
@@ -253,16 +253,16 @@ function renderWizardDevices() {
         </label>
       `).join('')}
 
-    <h3 style="margin-top:14px">Harmony device</h3>
+    <h3 style="margin-top:14px">${I18N.t('web_activity_harmony_heading')}</h3>
     <div id="wizHarmonyAddFields"></div>
 
-    <h3 style="margin-top:14px">Home Assistant entity</h3>
+    <h3 style="margin-top:14px">${I18N.t('web_activity_ha_heading')}</h3>
     <input type="text" id="wizHaEntityId" placeholder="media_player.salon_ampli">
     <div class="btn-row" style="margin-top:6px">
-      <button type="button" class="secondary" onclick="addHaDeviceRef()">+ Add HA entity</button>
+      <button type="button" class="secondary" onclick="addHaDeviceRef()">${I18N.t('web_activity_add_ha_entity')}</button>
     </div>
 
-    <h3 style="margin-top:14px">Selected devices</h3>
+    <h3 style="margin-top:14px">${I18N.t('web_activity_selected_devices')}</h3>
     <div id="wizDeviceRefsList"></div>
   `;
 }
@@ -273,52 +273,52 @@ function renderWizardConfigure() {
   const n = wizard.configureIndex + 1;
   const total = wizard.deviceRefs.length;
   return `
-    <div class="hint">Device ${n} of ${total}: <strong>${deviceRefLabel(ref)}</strong></div>
+    <div class="hint">${I18N.t('web_activity_device_n_of_m', n, total)} <strong>${deviceRefLabel(ref)}</strong></div>
 
     ${ref.source === 'ha' ? `
-      <label>Source (optional, passed to media_player.select_source)</label>
-      <input type="text" id="wizInputText" value="${cfg.inputCommand || ''}" placeholder="e.g. Apple TV">
+      <label>${I18N.t('web_activity_source_label')}</label>
+      <input type="text" id="wizInputText" value="${cfg.inputCommand || ''}" placeholder="${I18N.t('web_activity_source_placeholder')}">
     ` : `
-      <label>Power-on command (optional)</label>
+      <label>${I18N.t('web_activity_power_on_label')}</label>
       <input type="text" id="wizPowerOn" list="wizPowerOnHints">
       <datalist id="wizPowerOnHints"></datalist>
-      <label>Power-off command (optional)</label>
+      <label>${I18N.t('web_activity_power_off_label')}</label>
       <input type="text" id="wizPowerOff" list="wizPowerOffHints">
       <datalist id="wizPowerOffHints"></datalist>
-      <label>Input/source command (optional — sent after power-on, or on its own if this device is shared with the outgoing Activity)</label>
+      <label>${I18N.t('web_activity_input_label')}</label>
       <input type="text" id="wizInput" list="wizInputHints">
       <datalist id="wizInputHints"></datalist>
     `}
 
-    <label class="inline-check" style="margin-top:10px"><input type="checkbox" id="wizPowerOnFirst" ${cfg.powerOnFirst !== false ? 'checked' : ''}> Power on when this Activity starts (uncheck for an always-on device)</label>
-    <label class="inline-check"><input type="checkbox" id="wizPowerOffOnExit" ${cfg.powerOffOnExit !== false ? 'checked' : ''}> Power off when this Activity ends and another one takes the room</label>
-    <label>Delay before the next device (ms)</label>
+    <label class="inline-check" style="margin-top:10px"><input type="checkbox" id="wizPowerOnFirst" ${cfg.powerOnFirst !== false ? 'checked' : ''}> ${I18N.t('web_activity_power_on_first')}</label>
+    <label class="inline-check"><input type="checkbox" id="wizPowerOffOnExit" ${cfg.powerOffOnExit !== false ? 'checked' : ''}> ${I18N.t('web_activity_power_off_on_exit')}</label>
+    <label>${I18N.t('web_activity_delay_label')}</label>
     <input type="number" id="wizDelay" value="${cfg.delayAfterMs || 0}" min="0">
   `;
 }
 
 function renderWizardVolume() {
   return `
-    <div class="hint">Which device should VOLUME_UP/DOWN/MUTE target while this Activity is active?</div>
+    <div class="hint">${I18N.t('web_activity_volume_hint')}</div>
     <select id="wizVolumeDevice">
-      <option value="">— none —</option>
+      <option value="">${I18N.t('web_none')}</option>
       ${wizard.deviceRefs.map(r => `<option value="${r.deviceId}" ${wizard.volumeDeviceId === r.deviceId ? 'selected' : ''}>${deviceRefLabel(r)}</option>`).join('')}
     </select>
-    <div class="hint" style="margin-top:8px">If this Activity has a "Page", these get written as page-scoped hotkeys on it (overriding whatever VOLUME_UP/DOWN/MUTE do elsewhere) once saved.</div>
+    <div class="hint" style="margin-top:8px">${I18N.t('web_activity_volume_hotkey_hint')}</div>
   `;
 }
 
 function renderWizardVolumeCommands() {
   const ref = volumeDeviceRef();
   return `
-    <div class="hint">Which commands on <strong>${deviceRefLabel(ref)}</strong> are volume up, volume down, and mute?</div>
-    <label>Volume up</label>
+    <div class="hint">${I18N.t('web_activity_volume_commands_hint', `<strong>${deviceRefLabel(ref)}</strong>`)}</div>
+    <label>${I18N.t('web_activity_vol_up_label')}</label>
     <input type="text" id="wizVolUp" list="wizVolUpHints">
     <datalist id="wizVolUpHints"></datalist>
-    <label>Volume down</label>
+    <label>${I18N.t('web_activity_vol_down_label')}</label>
     <input type="text" id="wizVolDown" list="wizVolDownHints">
     <datalist id="wizVolDownHints"></datalist>
-    <label>Mute</label>
+    <label>${I18N.t('web_activity_mute_label')}</label>
     <input type="text" id="wizMute" list="wizMuteHints">
     <datalist id="wizMuteHints"></datalist>
   `;
@@ -333,15 +333,15 @@ function renderWizardReview() {
   let volLine = '';
   if (volRef) {
     volLine = volRef.source === 'ha'
-      ? `Volume: ${deviceRefLabel(volRef)} (via media_player.volume_up/volume_down/volume_mute)`
-      : `Volume: ${deviceRefLabel(volRef)} — up: ${wizard.volumeUpCommand || '—'}, down: ${wizard.volumeDownCommand || '—'}, mute: ${wizard.muteCommand || '—'}`;
-    if (!wizard.page) volLine += ' — no "page" set on this Activity, so these won\'t be written anywhere as hotkeys yet.';
+      ? I18N.t('web_activity_review_volume_ha', deviceRefLabel(volRef))
+      : I18N.t('web_activity_review_volume_cmds', deviceRefLabel(volRef), wizard.volumeUpCommand || '—', wizard.volumeDownCommand || '—', wizard.muteCommand || '—');
+    if (!wizard.page) volLine += I18N.t('web_activity_review_volume_no_page');
   }
   return `
-    <div class="hint"><strong>${wizard.name}</strong> — ${wizard.room}${wizard.page ? ' — opens "' + wizard.page + '"' : ''}</div>
+    <div class="hint">${I18N.t('web_activity_review_title', `<strong>${wizard.name}</strong>`, wizard.room)}${wizard.page ? I18N.t('web_activity_review_opens', wizard.page) : ''}</div>
     <div id="wizReviewList" style="margin-top:10px"></div>
     ${volLine ? `<div class="hint" style="margin-top:8px">${volLine}</div>` : ''}
-    ${noCmdCount > 0 ? `<div class="hint" style="color:#e5984a;margin-top:8px">${noCmdCount} device${noCmdCount === 1 ? '' : 's'} have no commands set — they won't do anything when this Activity runs.</div>` : ''}
+    ${noCmdCount > 0 ? `<div class="hint" style="color:#e5984a;margin-top:8px">${I18N.t(noCmdCount === 1 ? 'web_activity_review_no_commands_one' : 'web_activity_review_no_commands_many', noCmdCount)}</div>` : ''}
   `;
 }
 
@@ -423,13 +423,13 @@ function fillWizCommandOptions(inputId, commandEntries) {
 function renderWizardHarmonyAddFields() {
   const container = document.getElementById('wizHarmonyAddFields');
   if (!harmonyAvailable) {
-    container.innerHTML = '<div class="hint">No Harmony hub reachable from this builder session — configure one in the app first, or use a local IR device / HA entity instead.</div>';
+    container.innerHTML = `<div class="hint">${I18N.t('web_activity_no_harmony')}</div>`;
     return;
   }
   container.innerHTML = `
     <div id="wizHarmonyPicker"></div>
     <div class="btn-row" style="margin-top:6px">
-      <button type="button" class="secondary" onclick="addHarmonyDeviceRef()">+ Add Harmony device</button>
+      <button type="button" class="secondary" onclick="addHarmonyDeviceRef()">${I18N.t('web_activity_add_harmony_device')}</button>
     </div>
   `;
   // Renders into its OWN sub-container (#wizHarmonyPicker), not the outer
@@ -445,7 +445,7 @@ function renderWizardHarmonyAddFields() {
 function renderWizardDeviceRefsList() {
   const list = document.getElementById('wizDeviceRefsList');
   if (!wizard.deviceRefs.length) {
-    list.innerHTML = '<div class="hint">None yet.</div>';
+    list.innerHTML = `<div class="hint">${I18N.t('web_activity_none_yet')}</div>`;
     return;
   }
   list.innerHTML = '';
@@ -463,13 +463,13 @@ function renderWizardReviewList() {
   wizard.deviceRefs.forEach((ref, i) => {
     const cfg = wizard.deviceConfig[i] || {};
     const parts = [];
-    if (cfg.powerOnCommand) parts.push(`on: ${cfg.powerOnCommand}`);
-    if (cfg.powerOffCommand) parts.push(`off: ${cfg.powerOffCommand}`);
-    if (cfg.inputCommand) parts.push(`input: ${cfg.inputCommand}`);
+    if (cfg.powerOnCommand) parts.push(I18N.t('web_activity_review_on', cfg.powerOnCommand));
+    if (cfg.powerOffCommand) parts.push(I18N.t('web_activity_review_off', cfg.powerOffCommand));
+    if (cfg.inputCommand) parts.push(I18N.t('web_activity_review_input', cfg.inputCommand));
     const isVolume = wizard.volumeDeviceId === ref.deviceId;
     const el = document.createElement('div');
     el.className = 'list-item';
-    el.innerHTML = `<span>${deviceRefLabel(ref)}${isVolume ? ' 🔊' : ''} <span style="color:#888">${parts.join(', ') || 'no commands'}</span></span>`;
+    el.innerHTML = `<span>${deviceRefLabel(ref)}${isVolume ? ' 🔊' : ''} <span style="color:#888">${parts.join(', ') || I18N.t('web_activity_review_no_commands')}</span></span>`;
     list.appendChild(el);
   });
 }
@@ -479,7 +479,7 @@ function renderWizardReviewList() {
 function pickActivityType(typeId) {
   const type = ACTIVITY_TYPES.find(t => t.id === typeId);
   wizard.type = typeId;
-  if (!wizard.name && type.id !== 'custom') wizard.name = type.label;
+  if (!wizard.name && type.id !== 'custom') wizard.name = I18N.t(type.labelKey);
   wizard.phase = 'info';
   renderWizard();
 }
@@ -497,9 +497,9 @@ function toggleIrDeviceRef(deviceId, checked) {
 function addHarmonyDeviceRef() {
   const hub = document.getElementById('wizHarmonyHub')?.value;
   const deviceId = document.getElementById('wizHarmonyDeviceSelect')?.value;
-  if (!hub || !deviceId) { alert('Pick a Harmony hub and device.'); return; }
+  if (!hub || !deviceId) { alert(I18N.t('web_activity_alert_pick_harmony')); return; }
   if (wizard.deviceRefs.some(r => r.source === 'harmony' && r.hub === hub && r.deviceId === deviceId)) {
-    alert('That device is already added.');
+    alert(I18N.t('web_activity_alert_device_dup'));
     return;
   }
   const deviceLabel = document.getElementById('wizHarmonyDeviceSelect').selectedOptions[0]?.textContent || deviceId;
@@ -509,9 +509,9 @@ function addHarmonyDeviceRef() {
 
 function addHaDeviceRef() {
   const deviceId = document.getElementById('wizHaEntityId').value.trim();
-  if (!deviceId) { alert('Enter an entity id.'); return; }
+  if (!deviceId) { alert(I18N.t('web_activity_alert_enter_entity')); return; }
   if (wizard.deviceRefs.some(r => r.source === 'ha' && r.deviceId === deviceId)) {
-    alert('That entity is already added.');
+    alert(I18N.t('web_activity_alert_entity_dup'));
     return;
   }
   wizard.deviceRefs.push({ source: 'ha', deviceId });
@@ -593,7 +593,7 @@ function applyVolumeHotkeysToPage() {
   if (!ref) return;
   const page = dashboardData.pages.find(p => p.name === wizard.page);
   if (!page) {
-    alert(`Heads up: this Activity's page "${wizard.page}" doesn't exist yet, so volume hotkeys weren't written anywhere. Create the page, then reopen and re-save this Activity.`);
+    alert(I18N.t('web_activity_alert_page_missing', wizard.page));
     return;
   }
 
@@ -621,8 +621,7 @@ function applyVolumeHotkeysToPage() {
     .filter(key => page.hotkeys.some(h => h.key === key));
   if (conflictingKeys.length) {
     const proceed = confirm(
-      `Page "${wizard.page}" already has a hotkey for ${conflictingKeys.join('/')}. ` +
-      `Overwrite with this Activity's volume device (${deviceRefLabel(ref)})?`,
+      I18N.t('web_activity_confirm_overwrite_hotkeys', wizard.page, conflictingKeys.join('/'), deviceRefLabel(ref)),
     );
     if (!proceed) return;
   }
@@ -646,7 +645,7 @@ function renderActivitiesList() {
     byRoom[room].forEach(act => {
       const el = document.createElement('div');
       el.className = 'list-item';
-      el.innerHTML = `<span>${act.name} <span style="color:#888">(${act.devices.length} device${act.devices.length === 1 ? '' : 's'})</span></span><span><span class="remove" style="color:#00E5FF" onclick="startActivityWizard('${act.id}')">✎</span> <span class="remove" onclick="removeActivity('${act.id}')">✕</span></span>`;
+      el.innerHTML = `<span>${act.name} <span style="color:#888">${I18N.t(act.devices.length === 1 ? 'web_activity_device_count_one' : 'web_activity_device_count_many', act.devices.length)}</span></span><span><span class="remove" style="color:#00E5FF" onclick="startActivityWizard('${act.id}')">✎</span> <span class="remove" onclick="removeActivity('${act.id}')">✕</span></span>`;
       list.appendChild(el);
     });
   });
@@ -659,4 +658,4 @@ function removeActivity(id) {
   updateJsonOutput();
 }
 
-renderActivitiesList();
+I18N.ready.then(renderActivitiesList);

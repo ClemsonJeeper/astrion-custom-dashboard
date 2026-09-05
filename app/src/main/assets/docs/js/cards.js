@@ -8,242 +8,241 @@ function updateCardFormInputs() {
 
   if (NAME_ENTITY_TYPES.includes(type)) {
     container.innerHTML = `
-      <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room">
-      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., light.living_room">
+      <label>${I18N.t('web_card_name')}</label><input type="text" id="optName" placeholder="${I18N.t('web_card_ph_name_room')}">
+      <label>${I18N.t('web_card_entity_id')}</label><input type="text" id="optEntityId" placeholder="${I18N.t('web_card_ph_light')}">
       ${iconFieldHtml('optIcon')}
     `;
   } else if (type === 'title') {
     container.innerHTML = `
-      <label>Title</label><input type="text" id="optTitle" placeholder="e.g., Living Room">
-      <label>Subtitle (optional)</label><input type="text" id="optSubtitle" placeholder="e.g., 3 lights on">
-      <label>Alignment</label>
+      <label>${I18N.t('web_card_title')}</label><input type="text" id="optTitle" placeholder="${I18N.t('web_card_ph_name_room')}">
+      <label>${I18N.t('web_card_subtitle_opt')}</label><input type="text" id="optSubtitle" placeholder="${I18N.t('web_card_ph_subtitle')}">
+      <label>${I18N.t('web_card_alignment')}</label>
       <select id="optTitleAlignment">
-        <option value="start">Start (left)</option>
-        <option value="center">Center</option>
-        <option value="end">End (right)</option>
-        <option value="justify">Justify</option>
+        <option value="start">${I18N.t('web_card_align_start')}</option>
+        <option value="center">${I18N.t('web_card_align_center')}</option>
+        <option value="end">${I18N.t('web_card_align_end')}</option>
+        <option value="justify">${I18N.t('web_card_align_justify')}</option>
       </select>
       ${iconFieldHtml('optTitleIcon')}
-      <label class="inline-check"><input type="checkbox" id="optTitleDivider"> Divider line (fills the rest of the row after the title)</label>
-      <label>Color (optional, ARGB/RGB hex — defaults to the standard title color, also tints the divider line)</label><input type="text" id="optTitleColor" placeholder="#7FB3C4">
-      <div class="hint">A section header for grouping the cards below it — no entity of its own. Setting an icon or the divider always left-aligns the title row regardless of Alignment (that layout has no sensible centered/right-aligned form) — the subtitle below is unaffected. For a tappable title/subtitle (e.g. a "see all" link to another page), use "Other / custom type…" below instead and add title_page / subtitle_page — or any of scene_grid's other action fields with a title_/subtitle_ prefix — directly in the JSON; like every type here, re-saving through this simple form overwrites the card's options from scratch, so those fields wouldn't survive a later edit through it.</div>
+      <label class="inline-check"><input type="checkbox" id="optTitleDivider"> ${I18N.t('web_card_title_divider')}</label>
+      <label>${I18N.t('web_card_title_color_label')}</label><input type="text" id="optTitleColor" placeholder="#7FB3C4">
+      <div class="hint">${I18N.t('web_card_title_hint')}</div>
     `;
   } else if (type === 'switch') {
     container.innerHTML = `
-      <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room">
-      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., switch.living_room">
-      <label>"On" color (optional, ARGB hex — defaults to green)</label>${colorFieldHtml('optOnColor', '', '#FF2E5A46')}
+      <label>${I18N.t('web_card_name')}</label><input type="text" id="optName" placeholder="${I18N.t('web_card_ph_name_room')}">
+      <label>${I18N.t('web_card_entity_id')}</label><input type="text" id="optEntityId" placeholder="${I18N.t('web_card_ph_switch')}">
+      <label>${I18N.t('web_card_switch_on_color')}</label>${colorFieldHtml('optOnColor', '', '#FF2E5A46')}
       ${iconFieldHtml('optIcon')}
     `;
   } else if (type === 'cover') {
     container.innerHTML = `
-      <label>Name (optional, defaults to the entity's friendly name)</label><input type="text" id="optName" placeholder="e.g., Volet Chambre">
-      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., cover.volet_chambre">
+      <label>${I18N.t('web_card_name_optional_friendly')}</label><input type="text" id="optName" placeholder="${I18N.t('web_card_ph_cover_name')}">
+      <label>${I18N.t('web_card_entity_id')}</label><input type="text" id="optEntityId" placeholder="${I18N.t('web_card_ph_cover')}">
       ${iconFieldHtml('optIcon')}
-      <label>Layout</label>
+      <label>${I18N.t('web_card_layout')}</label>
       <select id="optCoverLayout">
-        <option value="default">Default (icon + name/state, controls full-width below)</option>
-        <option value="horizontal">Horizontal (icon + name/state left, controls right)</option>
-        <option value="vertical">Vertical (icon, name, state, controls — all centered/stacked)</option>
+        <option value="default">${I18N.t('web_card_cover_layout_default')}</option>
+        <option value="horizontal">${I18N.t('web_card_cover_layout_horizontal')}</option>
+        <option value="vertical">${I18N.t('web_card_cover_layout_vertical')}</option>
       </select>
-      <label>Controls (Mushroom-style — same options as the Home Assistant Mushroom cover card)</label>
+      <label>${I18N.t('web_card_controls_mushroom_cover')}</label>
       <div class="hint-row">
-        <label class="inline-check"><input type="checkbox" id="optCoverCtrlButtons" checked> Buttons (open/stop/close)</label>
-        <label class="inline-check"><input type="checkbox" id="optCoverCtrlPosition"> Position slider</label>
-        <label class="inline-check"><input type="checkbox" id="optCoverCtrlTilt"> Tilt slider</label>
+        <label class="inline-check"><input type="checkbox" id="optCoverCtrlButtons" checked> ${I18N.t('web_card_cover_ctrl_buttons')}</label>
+        <label class="inline-check"><input type="checkbox" id="optCoverCtrlPosition"> ${I18N.t('web_card_cover_ctrl_position')}</label>
+        <label class="inline-check"><input type="checkbox" id="optCoverCtrlTilt"> ${I18N.t('web_card_cover_ctrl_tilt')}</label>
       </div>
-      <div class="hint">Status shows "Open"/"Closed" at 0%/100%, otherwise "N% open" — translated automatically in the app. Up/down buttons auto-disable once fully open/closed. If several controls are checked, only one shows at a time on the card — a small button cycles through them, same as Mushroom. Position/tilt sliders only appear if the entity actually reports that attribute.</div>
+      <div class="hint">${I18N.t('web_card_cover_hint')}</div>
     `;
   } else if (type === 'select') {
     container.innerHTML = `
-      <label>Name (optional, defaults to the entity's friendly name)</label><input type="text" id="optName" placeholder="e.g., Living room output">
-      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., input_select.video_output_living_room">
-      <label>Icon color (optional, hex — tints the icon, same as the Mushroom select card's own icon_color)</label><input type="text" id="optSelectIconColor" placeholder="#6EA8FE">
-      <label>Layout</label>
+      <label>${I18N.t('web_card_name_optional_friendly')}</label><input type="text" id="optName" placeholder="${I18N.t('web_card_ph_select_name')}">
+      <label>${I18N.t('web_card_entity_id')}</label><input type="text" id="optEntityId" placeholder="${I18N.t('web_card_ph_input_select')}">
+      <label>${I18N.t('web_card_select_icon_color')}</label><input type="text" id="optSelectIconColor" placeholder="#6EA8FE">
+      <label>${I18N.t('web_card_layout')}</label>
       <select id="optSelectLayout">
-        <option value="default">Default (icon + name/state, control full-width below)</option>
-        <option value="horizontal">Horizontal (icon + name/state left, control right)</option>
-        <option value="vertical">Vertical (icon, name, state, control — all centered/stacked)</option>
+        <option value="default">${I18N.t('web_card_select_layout_default')}</option>
+        <option value="horizontal">${I18N.t('web_card_select_layout_horizontal')}</option>
+        <option value="vertical">${I18N.t('web_card_select_layout_vertical')}</option>
       </select>
-      <div class="hint">For any input_select.* or select.* entity — shows the current option and, tapped, a dropdown of every option from the entity's own list; picking one calls the right select_option service automatically. For a media_player's own source list (HDMI inputs, apps, etc.) use "Source selector (source_select)" instead — that one reads a different HA attribute/service and won't work here.</div>
+      <div class="hint">${I18N.t('web_card_select_hint')}</div>
     `;
   } else if (type === 'light') {
     container.innerHTML = `
-      <label>Name (optional, defaults to the entity's friendly name)</label><input type="text" id="optName" placeholder="e.g., Kitchen">
-      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., light.kitchen">
-      <label>Layout</label>
+      <label>${I18N.t('web_card_name_optional_friendly')}</label><input type="text" id="optName" placeholder="${I18N.t('web_card_ph_kitchen')}">
+      <label>${I18N.t('web_card_entity_id')}</label><input type="text" id="optEntityId" placeholder="${I18N.t('web_card_ph_light_kitchen')}">
+      <label>${I18N.t('web_card_layout')}</label>
       <select id="optLightLayout">
-        <option value="default">Default (icon + name/state, controls full-width below)</option>
-        <option value="horizontal">Horizontal (icon + name/state, controls right)</option>
-        <option value="vertical">Vertical (icon, name, state, controls — centered/stacked)</option>
+        <option value="default">${I18N.t('web_card_light_layout_default')}</option>
+        <option value="horizontal">${I18N.t('web_card_light_layout_horizontal')}</option>
+        <option value="vertical">${I18N.t('web_card_light_layout_vertical')}</option>
       </select>
-      <label><input type="checkbox" id="optLightUseColor"> Tint the icon with the light's own colour (when it reports one)</label>
-      <label><input type="checkbox" id="optLightShowBrightness" checked> Show brightness ("N%") instead of just "On"</label>
-      <label>Controls (Mushroom-style — same options as the Home Assistant Mushroom light card)</label>
+      <label><input type="checkbox" id="optLightUseColor"> ${I18N.t('web_card_light_use_color')}</label>
+      <label><input type="checkbox" id="optLightShowBrightness" checked> ${I18N.t('web_card_light_show_brightness')}</label>
+      <label>${I18N.t('web_card_controls_mushroom_light')}</label>
       <div class="hint-row">
-        <label class="inline-check"><input type="checkbox" id="optLightCtrlBrightness" checked> Brightness slider</label>
-        <label class="inline-check"><input type="checkbox" id="optLightCtrlColorTemp"> Colour temperature slider</label>
-        <label class="inline-check"><input type="checkbox" id="optLightCtrlColor"> Colour swatches</label>
+        <label class="inline-check"><input type="checkbox" id="optLightCtrlBrightness" checked> ${I18N.t('web_card_light_ctrl_brightness')}</label>
+        <label class="inline-check"><input type="checkbox" id="optLightCtrlColorTemp"> ${I18N.t('web_card_light_ctrl_color_temp')}</label>
+        <label class="inline-check"><input type="checkbox" id="optLightCtrlColor"> ${I18N.t('web_card_light_ctrl_color')}</label>
       </div>
-      <label><input type="checkbox" id="optLightCollapsible"> Hide the controls area entirely while the light is off</label>
-      <div class="hint">Tap toggles the light; long-press opens the brightness/colour detail popup. Status shows "Éteint"/"Off" at 0%, otherwise the live "N%" brightness — translated automatically in the app. If several controls are checked, only one shows at a time on the card — a small button cycles through them, same as Mushroom. Colour temperature/swatches only appear if the entity actually supports them.</div>
+      <label><input type="checkbox" id="optLightCollapsible"> ${I18N.t('web_card_light_collapsible')}</label>
+      <div class="hint">${I18N.t('web_card_light_hint')}</div>
     `;
   } else if (type === 'media_player') {
     container.innerHTML = `
-      <label>Name (optional override — otherwise the media title/friendly name is used)</label><input type="text" id="optName" placeholder="e.g., Salon">
-      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., media_player.nest_hub_max_salon">
-      <label>Variant</label>
+      <label>${I18N.t('web_card_media_name_label')}</label><input type="text" id="optName" placeholder="${I18N.t('web_card_ph_media_name')}">
+      <label>${I18N.t('web_card_entity_id')}</label><input type="text" id="optEntityId" placeholder="${I18N.t('web_card_ph_media_player')}">
+      <label>${I18N.t('web_card_variant')}</label>
       <select id="optMediaVariant">
-        <option value="compact">Compact (Mushroom-style tile, for a grid/list of players)</option>
-        <option value="full">Full (big album art + progress bar, for a dedicated media page)</option>
+        <option value="compact">${I18N.t('web_card_media_variant_compact')}</option>
+        <option value="full">${I18N.t('web_card_media_variant_full')}</option>
       </select>
-      <label><input type="checkbox" id="optMediaUseInfo" checked> Show what's playing (title/artist/app) instead of just the friendly name/state</label>
-      <label><input type="checkbox" id="optMediaShowVolume"> Append the volume level ("⸱ N%") to the state line</label>
-      <label>Transport controls (shown in the compact tile's control row / full page's main row)</label>
+      <label><input type="checkbox" id="optMediaUseInfo" checked> ${I18N.t('web_card_media_use_info')}</label>
+      <label><input type="checkbox" id="optMediaShowVolume"> ${I18N.t('web_card_media_show_volume')}</label>
+      <label>${I18N.t('web_card_media_transport_controls')}</label>
       <div class="hint-row">
-        <label class="inline-check"><input type="checkbox" id="optMediaCtrlOnOff"> Power</label>
-        <label class="inline-check"><input type="checkbox" id="optMediaCtrlShuffle"> Shuffle</label>
-        <label class="inline-check"><input type="checkbox" id="optMediaCtrlPrevious" checked> Previous</label>
-        <label class="inline-check"><input type="checkbox" id="optMediaCtrlPlayPause" checked> Play/Pause</label>
-        <label class="inline-check"><input type="checkbox" id="optMediaCtrlNext" checked> Next</label>
-        <label class="inline-check"><input type="checkbox" id="optMediaCtrlRepeat"> Repeat</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaCtrlOnOff"> ${I18N.t('web_card_media_ctrl_power')}</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaCtrlShuffle"> ${I18N.t('web_card_media_ctrl_shuffle')}</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaCtrlPrevious" checked> ${I18N.t('web_card_media_ctrl_previous')}</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaCtrlPlayPause" checked> ${I18N.t('web_card_media_ctrl_play_pause')}</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaCtrlNext" checked> ${I18N.t('web_card_media_ctrl_next')}</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaCtrlRepeat"> ${I18N.t('web_card_media_ctrl_repeat')}</label>
       </div>
-      <label>Volume controls</label>
+      <label>${I18N.t('web_card_media_volume_controls')}</label>
       <div class="hint-row">
-        <label class="inline-check"><input type="checkbox" id="optMediaVolMute" checked> Mute</label>
-        <label class="inline-check"><input type="checkbox" id="optMediaVolButtons" checked> -/+ buttons</label>
-        <label class="inline-check"><input type="checkbox" id="optMediaVolSet"> Slider</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaVolMute" checked> ${I18N.t('web_card_media_vol_mute')}</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaVolButtons" checked> ${I18N.t('web_card_media_vol_buttons')}</label>
+        <label class="inline-check"><input type="checkbox" id="optMediaVolSet"> ${I18N.t('web_card_media_vol_slider')}</label>
       </div>
-      <div class="hint">Every button above is still hidden automatically when the entity doesn't actually support it (checked live against its <code>supported_features</code>) — these checkboxes just control what's requested. In the compact tile, transport and volume controls share one row with a small swap button when both are present.</div>
+      <div class="hint">${I18N.t('web_card_media_hint')}</div>
       <div id="mediaTopButtonsField" style="display:none">
-        <label>Top buttons (full variant only — optional, JSON array)</label>
+        <label>${I18N.t('web_card_media_top_buttons_label')}</label>
         <textarea id="optMediaTopButtons" rows="3" placeholder='[{"name":"Group","service":"media_player.join","entity_id":"media_player.salon","data":{"group_members":["media_player.cuisine"]}}]'>[]</textarea>
-        <div class="hint">Each entry fires an arbitrary service call as a full-width button above the album art — e.g. speaker grouping.</div>
+        <div class="hint">${I18N.t('web_card_media_top_buttons_hint')}</div>
       </div>
     `;
     document.getElementById('optMediaVariant').addEventListener('change', updateMediaTopButtonsVisibility);
     updateMediaTopButtonsVisibility();
   } else if (type === 'camera') {
     container.innerHTML = `
-      <label>Name (optional, defaults to the entity's friendly name)</label><input type="text" id="optName" placeholder="e.g., Front Door">
-      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., camera.front_door">
-      <label>Mode</label>
+      <label>${I18N.t('web_card_name_optional_friendly')}</label><input type="text" id="optName" placeholder="${I18N.t('web_card_ph_camera_name')}">
+      <label>${I18N.t('web_card_entity_id')}</label><input type="text" id="optEntityId" placeholder="${I18N.t('web_card_ph_camera')}">
+      <label>${I18N.t('web_card_mode')}</label>
       <select id="optCameraMode">
-        <option value="stream">Live stream (MJPEG — real motion)</option>
-        <option value="snapshot">Snapshot only (refresh a still — lowest CPU)</option>
+        <option value="stream">${I18N.t('web_card_camera_mode_stream')}</option>
+        <option value="snapshot">${I18N.t('web_card_camera_mode_snapshot')}</option>
       </select>
-      <label>Snapshot interval (seconds — snapshot mode, and stream-drop fallback)</label><input type="number" id="optCameraInterval" value="2" min="1" max="60">
-      <label>Aspect ratio (width ÷ height)</label>
+      <label>${I18N.t('web_card_camera_interval')}</label><input type="number" id="optCameraInterval" value="2" min="1" max="60">
+      <label>${I18N.t('web_card_camera_aspect')}</label>
       <select id="optCameraAspect">
-        <option value="1.7778">16:9 (widescreen)</option>
-        <option value="1.3333">4:3 (standard)</option>
-        <option value="1">1:1 (square)</option>
-        <option value="0.75">3:4 (portrait)</option>
+        <option value="1.7778">${I18N.t('web_card_aspect_16_9')}</option>
+        <option value="1.3333">${I18N.t('web_card_aspect_4_3')}</option>
+        <option value="1">${I18N.t('web_card_aspect_1_1')}</option>
+        <option value="0.75">${I18N.t('web_card_aspect_3_4')}</option>
       </select>
-      <label>Fit</label>
+      <label>${I18N.t('web_card_camera_fit')}</label>
       <select id="optCameraFit">
-        <option value="cover">Cover (fill the card, crop edges)</option>
-        <option value="contain">Contain (show the whole frame, letterbox)</option>
+        <option value="cover">${I18N.t('web_card_fit_cover')}</option>
+        <option value="contain">${I18N.t('web_card_fit_contain')}</option>
       </select>
-      <div class="hint">"Live stream" decodes Home Assistant's MJPEG feed for real motion; if it stalls it auto-falls-back to still snapshots, then retries. If a camera feels laggy on the remote, switch that card to "Snapshot only" — no reinstall needed. The preview below pulls one real frame from this device when it's connected to HA.</div>
+      <div class="hint">${I18N.t('web_card_camera_hint')}</div>
     `;
   } else if (type === 'fan') {
     container.innerHTML = `
-      <label>Name</label><input type="text" id="optName" placeholder="e.g., Standing Fan">
-      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., fan.mi_smart_standing_fan_2">
-      <label>Layout</label>
+      <label>${I18N.t('web_card_name')}</label><input type="text" id="optName" placeholder="${I18N.t('web_card_ph_fan_name')}">
+      <label>${I18N.t('web_card_entity_id')}</label><input type="text" id="optEntityId" placeholder="${I18N.t('web_card_ph_fan')}">
+      <label>${I18N.t('web_card_layout')}</label>
       <select id="optFanStyle">
-        <option value="auto">Auto (detect from entity)</option>
-        <option value="simple">Simple (percentage tile)</option>
-        <option value="step">Step (increase/decrease fan speed)</option>
-        <option value="full">Full (presets + oscillate)</option>
+        <option value="auto">${I18N.t('web_card_fan_style_auto')}</option>
+        <option value="simple">${I18N.t('web_card_fan_style_simple')}</option>
+        <option value="step">${I18N.t('web_card_fan_style_step')}</option>
+        <option value="full">${I18N.t('web_card_fan_style_full')}</option>
       </select>
-      <label>Preset modes override (optional, comma-separated, in display order — normally read from the entity)</label><input type="text" id="optFanPresetModes" placeholder="Level 1,Level 2,Level 3,Level 4">
+      <label>${I18N.t('web_card_fan_preset_modes')}</label><input type="text" id="optFanPresetModes" placeholder="${I18N.t('web_card_ph_fan_presets')}">
       <div id="fanStepWrap">
-        <label>Percentage step (simple/full layouts)</label><input type="number" id="optFanStep" value="20" min="1" max="100">
+        <label>${I18N.t('web_card_fan_step')}</label><input type="number" id="optFanStep" value="20" min="1" max="100">
       </div>
-      <label><input type="checkbox" id="optFanShowCaptions" checked> Show captions ("Preset"/"Oscillate") above chip rows</label>
-      <div class="hint">"Auto" shows the full layout (power button, presets, oscillate toggle) whenever the entity reports preset_modes or an oscillating attribute; otherwise it falls back to the simple percentage tile. "Step" uses HA's increase/decrease speed services. Force one with Layout above.</div>
+      <label><input type="checkbox" id="optFanShowCaptions" checked> ${I18N.t('web_card_fan_show_captions')}</label>
+      <div class="hint">${I18N.t('web_card_fan_hint')}</div>
     `;
     document.getElementById('optFanStyle').addEventListener('change', updateFanStepVisibility);
     updateFanStepVisibility();
   } else if (type === 'climate') {
     container.innerHTML = `
-      <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room AC">
-      <label>Entity ID</label><input type="text" id="optEntityId" placeholder="e.g., climate.living_room">
-      <label>HVAC modes override (optional, comma-separated, in display order — normally read from the entity)</label><input type="text" id="optHvacModes" placeholder="heat_cool,cool">
-      <label>HVAC mode display</label>
+      <label>${I18N.t('web_card_name')}</label><input type="text" id="optName" placeholder="${I18N.t('web_card_ph_climate_name')}">
+      <label>${I18N.t('web_card_entity_id')}</label><input type="text" id="optEntityId" placeholder="${I18N.t('web_card_ph_climate')}">
+      <label>${I18N.t('web_card_climate_hvac_modes')}</label><input type="text" id="optHvacModes" placeholder="heat_cool,cool">
+      <label>${I18N.t('web_card_climate_hvac_display')}</label>
       <select id="optHvacModeStyle">
-        <option value="icons">Icon</option>
-        <option value="label">Text label</option>
+        <option value="icons">${I18N.t('web_card_display_icon')}</option>
+        <option value="label">${I18N.t('web_card_display_label')}</option>
       </select>
-      <label>Fan modes override (optional, comma-separated, in display order — normally read from the entity)</label><input type="text" id="optFanModes" placeholder="low,medium,high,auto">
-      <label>Fan mode display</label>
+      <label>${I18N.t('web_card_climate_fan_modes')}</label><input type="text" id="optFanModes" placeholder="low,medium,high,auto">
+      <label>${I18N.t('web_card_climate_fan_display')}</label>
       <select id="optFanModeStyle">
-        <option value="label">Text label</option>
-        <option value="icons">Icon</option>
+        <option value="label">${I18N.t('web_card_display_label')}</option>
+        <option value="icons">${I18N.t('web_card_display_icon')}</option>
       </select>
-      <label>Swing modes override (optional, comma-separated, in display order — normally read from the entity)</label><input type="text" id="optSwingModes" placeholder="stop,swing">
-      <label>Swing mode display</label>
+      <label>${I18N.t('web_card_climate_swing_modes')}</label><input type="text" id="optSwingModes" placeholder="stop,swing">
+      <label>${I18N.t('web_card_climate_swing_display')}</label>
       <select id="optSwingModeStyle">
-        <option value="label">Text label</option>
-        <option value="icons">Icon</option>
+        <option value="label">${I18N.t('web_card_display_label')}</option>
+        <option value="icons">${I18N.t('web_card_display_icon')}</option>
       </select>
-      <div class="hint">HVAC/fan/swing mode names ("Cooling", "Auto", "Swing"...) are translated automatically via assets/ha_labels/&lt;lang&gt;.json. The "off" mode never shows as a chip — it's already covered by the power button.</div>
-      <label><input type="checkbox" id="optShowCaptions" checked> Show captions ("Mode"/"Fan"/"Swing") above chip rows</label>
+      <div class="hint">${I18N.t('web_card_climate_hint')}</div>
+      <label><input type="checkbox" id="optShowCaptions" checked> ${I18N.t('web_card_climate_show_captions')}</label>
     `;
   } else if (type === 'button_grid' || type === 'scene_grid') {
-    const label = type === 'button_grid' ? 'Button' : 'Scene';
     container.innerHTML = `
-      <label>Columns</label><input type="number" id="optColumns" value="2" min="1">
-      ${type === 'scene_grid' ? `<label><input type="checkbox" id="optShowLabels" checked> Show name under icon (when any scene has one — applies to the whole grid)</label><label><input type="checkbox" id="optIconFill"> Fill tile with icon (hide name recommended; icon scales to fill tile height)</label><label>Tile height (dp, optional)</label><input type="number" id="optTileHeight" min="40" max="300" placeholder="120 when fill on, 74 otherwise">` : ''}
+      <label>${I18N.t('web_card_columns')}</label><input type="number" id="optColumns" value="2" min="1">
+      ${type === 'scene_grid' ? `<label><input type="checkbox" id="optShowLabels" checked> ${I18N.t('web_card_grid_show_labels')}</label><label><input type="checkbox" id="optIconFill"> ${I18N.t('web_card_grid_icon_fill')}</label><label>${I18N.t('web_card_grid_tile_height')}</label><input type="number" id="optTileHeight" min="40" max="300" placeholder="${I18N.t('web_card_ph_tile_height')}">` : ''}
       <div id="gridItemsList"></div>
       <div class="section-box" style="margin-top:8px">
-        <label>${label} name</label><input type="text" id="giName" placeholder="e.g., ${type === 'button_grid' ? 'Netflix' : 'Movie Night'}">
+        <label>${type === 'button_grid' ? I18N.t('web_card_grid_button_name') : I18N.t('web_card_grid_scene_name')}</label><input type="text" id="giName" placeholder="${type === 'button_grid' ? I18N.t('web_card_ph_button_name') : I18N.t('web_card_ph_scene_name')}">
         ${type === 'button_grid' ? `
-          <label>Service (domain.service)</label><input type="text" id="giService" placeholder="e.g., media_player.play_media">
-          <label>Entity ID (optional)</label><input type="text" id="giEntityId" placeholder="e.g., media_player.tv">
-          <label>Extra data (optional, JSON)</label><input type="text" id="giData" placeholder='{"media_content_type":"app"}'>
+          <label>${I18N.t('web_card_grid_service')}</label><input type="text" id="giService" placeholder="${I18N.t('web_card_ph_service')}">
+          <label>${I18N.t('web_card_entity_id_optional')}</label><input type="text" id="giEntityId" placeholder="${I18N.t('web_card_ph_media_tv')}">
+          <label>${I18N.t('web_card_grid_data_label')}</label><input type="text" id="giData" placeholder='{"media_content_type":"app"}'>
         ` : `
-          <label>Entity ID (activates a scene/script) — OR —</label><input type="text" id="giEntityId" placeholder="e.g., scene.night">
-          <label>Page to open instead — OR —</label><input type="text" id="giPage" placeholder="e.g., Apple TV">
-          <label>Harmony action (optional) — OR —</label>
+          <label>${I18N.t('web_card_grid_scene_entity')}</label><input type="text" id="giEntityId" placeholder="${I18N.t('web_card_ph_scene_entity')}">
+          <label>${I18N.t('web_card_grid_page')}</label><input type="text" id="giPage" placeholder="${I18N.t('web_card_ph_page')}">
+          <label>${I18N.t('web_card_grid_harmony_action')}</label>
           <select id="giHarmonyMode" onchange="onGiHarmonyModeChange()">
-            <option value="">— none —</option>
-            <option value="activity">Activity</option>
-            <option value="command">Device command</option>
+            <option value="">${I18N.t('web_none')}</option>
+            <option value="activity">${I18N.t('web_card_harmony_activity')}</option>
+            <option value="command">${I18N.t('web_card_harmony_device_command')}</option>
           </select>
           <div id="giHarmonyPicker"></div>
-          <label>IR device + command (sends locally, no hub needed) — OR —</label>
+          <label>${I18N.t('web_card_grid_ir')}</label>
           <select id="giIrDevice" onchange="onGiIrDeviceChange()">
-            <option value="">— none —</option>
+            <option value="">${I18N.t('web_none')}</option>
             ${(dashboardData.irDevices || []).map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
           </select>
-          <input type="text" id="giIrCommand" list="giIrCommandHints" placeholder="command id, e.g. power, hdmi1, volume_up">
+          <input type="text" id="giIrCommand" list="giIrCommandHints" placeholder="${I18N.t('web_card_ph_ir_command')}">
           <datalist id="giIrCommandHints"></datalist>
-          ${(dashboardData.irDevices || []).length === 0 ? '<div class="hint">No IR devices yet — create one in the "IR Devices" section below, then come back here.</div>' : ''}
-          <label>Composed Activity (sequences multiple devices) — OR —</label>
+          ${(dashboardData.irDevices || []).length === 0 ? `<div class="hint">${I18N.t('web_card_grid_no_ir_hint')}</div>` : ''}
+          <label>${I18N.t('web_card_grid_composed_activity')}</label>
           <select id="giActivityRef">
-            <option value="">— none —</option>
+            <option value="">${I18N.t('web_none')}</option>
             ${(dashboardData.activities || []).map(a => `<option value="${a.id}">${a.name} (${a.room})</option>`).join('')}
           </select>
-          ${(dashboardData.activities || []).length === 0 ? '<div class="hint">No Activities yet — create one in the "Activities" section below for multi-device setups (e.g. IR-only, no Harmony/HA).</div>' : ''}
-          <label>Color (optional, ARGB hex — defaults to the standard tile color)</label>${colorFieldHtml('giColor', '', '#66009688')}
+          ${(dashboardData.activities || []).length === 0 ? `<div class="hint">${I18N.t('web_card_grid_no_activities_hint')}</div>` : ''}
+          <label>${I18N.t('web_card_grid_color')}</label>${colorFieldHtml('giColor', '', '#66009688')}
           <div class="divider" style="margin:12px 0"></div>
-          <label><input type="checkbox" id="giTrack" onchange="onGiTrackChange()"> Track as Activity</label>
-          <div class="hint">Makes this tile show up as the active AV Activity for its room — see ActivityRuntime. At most one tracked Activity is active per room at a time. Not needed if you picked a Composed Activity above — that's always tracked automatically, using its own room.</div>
+          <label><input type="checkbox" id="giTrack" onchange="onGiTrackChange()"> ${I18N.t('web_card_grid_track')}</label>
+          <div class="hint">${I18N.t('web_card_grid_track_hint')}</div>
           <div id="giRoomField" style="display:none">
-            <label>Room</label><input type="text" id="giRoom" placeholder="e.g., Living Room">
-            <label>Physical devices this Activity involves (optional — IR/Harmony device ids, comma-separated)</label>
-            <input type="text" id="giDevices" placeholder="e.g., samsung_hw_m550, lg_oled_65b8">
-            <div class="hint">Lets a later *composed* Activity in the same room know this device was already on, so it doesn't needlessly re-toggle it (matters most for a device with only a Power Toggle command, no discrete on/off). Especially worth setting for a Harmony-backed tile — Astrion has no other way to know which physical devices a Harmony Activity touches.</div>
+            <label>${I18N.t('web_card_room')}</label><input type="text" id="giRoom" placeholder="${I18N.t('web_card_ph_name_room')}">
+            <label>${I18N.t('web_card_grid_devices_label')}</label>
+            <input type="text" id="giDevices" placeholder="${I18N.t('web_card_ph_device_ids')}">
+            <div class="hint">${I18N.t('web_card_grid_devices_hint')}</div>
           </div>
         `}
         ${iconFieldHtml('giIcon')}
-        <button type="button" class="secondary" onclick="addGridItem('${type}')" id="giSubmitBtn">+ Add ${label.toLowerCase()} to this card</button>
-        <button type="button" class="secondary" onclick="cancelGridItemEdit()" id="giCancelBtn" style="display:none">Cancel edit</button>
+        <button type="button" class="secondary" onclick="addGridItem('${type}')" id="giSubmitBtn" data-add-key="${type === 'button_grid' ? 'web_card_grid_add_button' : 'web_card_grid_add_scene'}">${type === 'button_grid' ? I18N.t('web_card_grid_add_button') : I18N.t('web_card_grid_add_scene')}</button>
+        <button type="button" class="secondary" onclick="cancelGridItemEdit()" id="giCancelBtn" style="display:none">${I18N.t('web_cancel_edit')}</button>
       </div>
-      <div class="hint">Click a ${label.toLowerCase()} below to edit it. Add every ${label.toLowerCase()}, then click "Add card to page" once below.</div>
+      <div class="hint">${type === 'button_grid' ? I18N.t('web_card_grid_button_list_hint') : I18N.t('web_card_grid_scene_list_hint')}</div>
     `;
     window._pendingGridItems = window._pendingGridItems || [];
     renderGridItemsList(type);
@@ -252,75 +251,75 @@ function updateCardFormInputs() {
     renderAppleTvHarmonyFields();
   } else if (type === 'tv_remote') {
     container.innerHTML = `
-      <label>Name</label><input type="text" id="optName" placeholder="e.g., Living Room TV">
-      <label>Remote entity ID</label><input type="text" id="optRemoteEntity" placeholder="e.g., remote.living_room_tv">
-      <label>Media entity ID (optional)</label><input type="text" id="optMediaEntity" placeholder="e.g., media_player.tv">
-      <label>Mute entity ID (optional)</label><input type="text" id="optMuteEntity" placeholder="e.g., media_player.soundbar">
+      <label>${I18N.t('web_card_name')}</label><input type="text" id="optName" placeholder="${I18N.t('web_card_ph_tv_name')}">
+      <label>${I18N.t('web_card_remote_entity_id')}</label><input type="text" id="optRemoteEntity" placeholder="${I18N.t('web_card_ph_remote')}">
+      <label>${I18N.t('web_card_media_entity_id_opt')}</label><input type="text" id="optMediaEntity" placeholder="${I18N.t('web_card_ph_media_tv')}">
+      <label>${I18N.t('web_card_mute_entity_id_opt')}</label><input type="text" id="optMuteEntity" placeholder="${I18N.t('web_card_ph_soundbar')}">
     `;
   } else if (type === 'clock_weather') {
     container.innerHTML = `
-      <label>Weather entity ID</label><input type="text" id="optEntityId" placeholder="e.g., weather.forecast_home">
-      <label>Time format</label>
+      <label>${I18N.t('web_card_weather_entity_id')}</label><input type="text" id="optEntityId" placeholder="${I18N.t('web_card_ph_weather')}">
+      <label>${I18N.t('web_card_time_format')}</label>
       <select id="optTimeFormat">
-        <option value="12">12-hour (e.g., 9:41 PM)</option>
-        <option value="24">24-hour (e.g., 21:41)</option>
+        <option value="12">${I18N.t('web_card_time_12h')}</option>
+        <option value="24">${I18N.t('web_card_time_24h')}</option>
       </select>
-      <label>Forecast rows (days shown below the clock)</label><input type="number" id="optForecastRows" value="4" min="0" max="10">
-      <label>Calendar entity (optional — shows today's event under the date)</label><input type="text" id="optCalendarEntity" placeholder="e.g., calendar.family">
-      <div class="hint">The condition text ("Partly cloudy", "Rainy"...) is translated automatically via assets/ha_labels/&lt;lang&gt;.json — no field needed here.</div>
+      <label>${I18N.t('web_card_forecast_rows')}</label><input type="number" id="optForecastRows" value="4" min="0" max="10">
+      <label>${I18N.t('web_card_calendar_entity')}</label><input type="text" id="optCalendarEntity" placeholder="${I18N.t('web_card_ph_calendar')}">
+      <div class="hint">${I18N.t('web_card_clock_weather_hint')}</div>
     `;
   } else if (type === 'vacuum') {
     container.innerHTML = `
-      <label>Name (optional, defaults to the entity's friendly name)</label><input type="text" id="optName" placeholder="e.g., Robot vacuum">
-      <label>Vacuum entity ID</label><input type="text" id="optEntityId" placeholder="e.g., vacuum.roborock">
-      <label>Map image entity (optional)</label><input type="text" id="optMapImage" placeholder="e.g., image.roborock_map">
-      <label>Map rotation (degrees clockwise)</label><input type="number" id="optMapRotation" value="0" step="90">
-      <label>Map height (px)</label><input type="number" id="optMapHeight" value="200" min="0">
+      <label>${I18N.t('web_card_name_optional_friendly')}</label><input type="text" id="optName" placeholder="${I18N.t('web_card_ph_vacuum_name')}">
+      <label>${I18N.t('web_card_vacuum_entity_id')}</label><input type="text" id="optEntityId" placeholder="${I18N.t('web_card_ph_vacuum')}">
+      <label>${I18N.t('web_card_map_image')}</label><input type="text" id="optMapImage" placeholder="${I18N.t('web_card_ph_map_image')}">
+      <label>${I18N.t('web_card_map_rotation')}</label><input type="number" id="optMapRotation" value="0" step="90">
+      <label>${I18N.t('web_card_map_height')}</label><input type="number" id="optMapHeight" value="200" min="0">
       <div id="vacuumRoomsList"></div>
       <div class="section-box" style="margin-top:8px">
-        <label>Room name</label><input type="text" id="vrName" placeholder="e.g., Kitchen">
-        <label>Room / segment ID (from your map)</label><input type="number" id="vrId" placeholder="e.g., 18">
-        <button type="button" class="secondary" onclick="addVacuumRoom()">+ Add room to this card</button>
+        <label>${I18N.t('web_card_room_name')}</label><input type="text" id="vrName" placeholder="${I18N.t('web_card_ph_kitchen')}">
+        <label>${I18N.t('web_card_room_segment_id')}</label><input type="number" id="vrId" placeholder="${I18N.t('web_card_ph_room_id')}">
+        <button type="button" class="secondary" onclick="addVacuumRoom()">${I18N.t('web_card_vacuum_add_room')}</button>
       </div>
-      <div class="hint">Add every room, then click "Add card to page" once below. The vacuum's state ("Cleaning", "Docked"...) is translated automatically via assets/ha_labels/&lt;lang&gt;.json.</div>
+      <div class="hint">${I18N.t('web_card_vacuum_hint')}</div>
 
-      <label style="margin-top:10px">Room-clean service (optional — defaults to Roborock/Xiaomi's <code>vacuum.send_command</code>)</label>
-      <input type="text" id="optRoomCleanDomain" placeholder="Domain, e.g. dreame_vacuum">
-      <input type="text" id="optRoomCleanService" placeholder="Service, e.g. vacuum_clean_segment" style="margin-top:6px">
-      <input type="text" id="optRoomCleanParameter" placeholder="Field for the room ID, e.g. segments" style="margin-top:6px">
-      <div class="hint">Only needed if your vacuum's HA integration doesn't understand <code>app_segment_clean</code> — e.g. Dreame uses its own <code>dreame_vacuum.vacuum_clean_segment</code> service with a <code>segments</code> field instead. Leave all three blank to keep the default. Fill in all three together, or none.</div>
+      <label style="margin-top:10px">${I18N.t('web_card_vacuum_room_clean_label')}</label>
+      <input type="text" id="optRoomCleanDomain" placeholder="${I18N.t('web_card_ph_room_clean_domain')}">
+      <input type="text" id="optRoomCleanService" placeholder="${I18N.t('web_card_ph_room_clean_service')}" style="margin-top:6px">
+      <input type="text" id="optRoomCleanParameter" placeholder="${I18N.t('web_card_ph_room_clean_field')}" style="margin-top:6px">
+      <div class="hint">${I18N.t('web_card_vacuum_room_clean_hint')}</div>
     `;
     window._pendingVacuumRooms = window._pendingVacuumRooms || [];
     renderVacuumRoomsList();
   } else if (type === 'plex') {
     container.innerHTML = `
-      <label>Plex server URL</label><input type="text" id="optPlexHost" placeholder="e.g., http://192.168.1.50:32400">
-      <label>Plex token (X-Plex-Token)</label><input type="text" id="optPlexToken" placeholder="e.g., aBcDeFgHiJkLmNoPqRsT">
-      <label>Playback entity (Android TV media_player — used to open Plex when no direct client entity is set)</label><input type="text" id="optPlexMediaEntity" placeholder="e.g., media_player.tv">
-      <label>Source name (as it appears in that player's source list)</label><input type="text" id="optPlexSource" value="Plex" placeholder="Plex">
-      <label>Direct playback entity (optional — jumps straight to the item instead of just opening the app)</label><input type="text" id="optPlexPlayEntity" placeholder="e.g., media_player.plex_living_room_tv">
-      <label>Direct playback entity type</label>
+      <label>${I18N.t('web_card_plex_host')}</label><input type="text" id="optPlexHost" placeholder="${I18N.t('web_card_ph_plex_host')}">
+      <label>${I18N.t('web_card_plex_token')}</label><input type="text" id="optPlexToken" placeholder="${I18N.t('web_card_ph_plex_token')}">
+      <label>${I18N.t('web_card_plex_media_entity')}</label><input type="text" id="optPlexMediaEntity" placeholder="${I18N.t('web_card_ph_media_tv')}">
+      <label>${I18N.t('web_card_plex_source')}</label><input type="text" id="optPlexSource" value="Plex" placeholder="Plex">
+      <label>${I18N.t('web_card_plex_play_entity')}</label><input type="text" id="optPlexPlayEntity" placeholder="${I18N.t('web_card_ph_plex_play_entity')}">
+      <label>${I18N.t('web_card_plex_play_type')}</label>
       <select id="optPlexPlayContentType">
-        <option value="video">HA Plex integration client (video)</option>
-        <option value="url">HA's native Apple TV integration (url / deep link)</option>
+        <option value="video">${I18N.t('web_card_plex_type_video')}</option>
+        <option value="url">${I18N.t('web_card_plex_type_url')}</option>
       </select>
-      <div class="hint">The HA Plex integration expects "video", but requires the Plex client on the TV to already be open and actively connected — HA's own Plex integration has a known, long-standing bug where it otherwise refuses with "Client is not currently accepting playback controls" (this is on Plex/Apple TV's side, not fixable here). HA's native Apple TV integration instead deep-links via "url" and doesn't have that restriction, but needs the Plex app on the Apple TV to support plex:// as a system deep link.</div>
-      <label>Rows to show</label>
+      <div class="hint">${I18N.t('web_card_plex_client_hint')}</div>
+      <label>${I18N.t('web_card_plex_rows')}</label>
       <div class="hint-row">
-        <label class="inline-check"><input type="checkbox" id="optPlexShowOnDeck" checked> On Deck / Continue Watching</label>
-        <label class="inline-check"><input type="checkbox" id="optPlexShowMovies" checked> Recently Added Movies</label>
-        <label class="inline-check"><input type="checkbox" id="optPlexShowShows" checked> Recently Added TV</label>
+        <label class="inline-check"><input type="checkbox" id="optPlexShowOnDeck" checked> ${I18N.t('web_card_plex_row_on_deck')}</label>
+        <label class="inline-check"><input type="checkbox" id="optPlexShowMovies" checked> ${I18N.t('plex_recently_added_movies')}</label>
+        <label class="inline-check"><input type="checkbox" id="optPlexShowShows" checked> ${I18N.t('plex_recently_added_tv')}</label>
       </div>
-      <label>Items per row</label><input type="number" id="optPlexItemsPerRow" value="12" min="1" max="30">
-      <div class="hint">Movies/TV are detected automatically from your Plex libraries' own type (no need to type a library name) — if several libraries share a type (e.g. "Movies" + "Movies 4K") their items are merged into one row. Tap a poster for a detail view — synopsis, genres, episode browser for a show — with its own Play button, which is what actually attempts a direct deep-link (requires a direct playback entity below, and for the HA Plex integration, that the TV's Plex app is already open and connected). Long-press a poster to open Plex on the playback entity directly (quick action) — bound to long-press rather than tap since these rows scroll under a finger and an accidental tap mid-scroll shouldn't trigger a real Home Assistant call.</div>
+      <label>${I18N.t('web_card_plex_items_per_row')}</label><input type="number" id="optPlexItemsPerRow" value="12" min="1" max="30">
+      <div class="hint">${I18N.t('web_card_plex_rows_hint')}</div>
     `;
   } else {
     // Advanced / custom: raw options JSON, and free type name if "custom"
     container.innerHTML = `
-      ${type === 'custom' ? `<label>Card type string</label><input type="text" id="optCustomType" placeholder="e.g., my_new_card">` : ''}
-      <label>Options (raw JSON — see the card's Kotlin file for its exact fields)</label>
+      ${type === 'custom' ? `<label>${I18N.t('web_card_type_string')}</label><input type="text" id="optCustomType" placeholder="${I18N.t('web_card_ph_custom_type')}">` : ''}
+      <label>${I18N.t('web_card_options_json')}</label>
       <textarea id="optRawJson" rows="4" placeholder='{"entity_id": "..."}'>{}</textarea>
-      <div class="hint">This card type isn't fully modeled in the builder yet — paste the options object directly.</div>
+      <div class="hint">${I18N.t('web_card_custom_hint')}</div>
     `;
   }
 
@@ -403,7 +402,7 @@ function renderAppleTvHarmonyFields() {
   if (harmonyAvailable) {
     renderHarmonyHubSelect(container, 'device', 'atv');
   } else {
-    container.innerHTML = `<label>Device ID (Harmony)</label><input type="text" id="optDeviceId" placeholder="e.g., 62846050">`;
+    container.innerHTML = `<label>${I18N.t('web_card_atv_device_id')}</label><input type="text" id="optDeviceId" placeholder="${I18N.t('web_card_ph_harmony_device_id')}">`;
   }
 }
 
@@ -427,11 +426,11 @@ function onGiHarmonyModeChange() {
   if (harmonyAvailable) {
     renderHarmonyHubSelect(container, mode, 'gi');
   } else if (mode === 'activity') {
-    container.innerHTML = `<label>Harmony activity ID</label><input type="text" id="giActivityId" placeholder="e.g., 39568252 (or -1 for Off)">`;
+    container.innerHTML = `<label>${I18N.t('web_card_harmony_activity_id')}</label><input type="text" id="giActivityId" placeholder="${I18N.t('web_card_ph_harmony_activity')}">`;
   } else {
     container.innerHTML = `
-      <label>Harmony device ID</label><input type="text" id="giHarmonyDevice" placeholder="e.g., 62845789">
-      <label>Harmony command</label><input type="text" id="giHarmonyCommand" placeholder="e.g., VolumeUp">
+      <label>${I18N.t('web_card_harmony_device_id')}</label><input type="text" id="giHarmonyDevice" placeholder="${I18N.t('web_card_ph_harmony_device_id')}">
+      <label>${I18N.t('web_card_harmony_command')}</label><input type="text" id="giHarmonyCommand" placeholder="${I18N.t('web_card_ph_harmony_command')}">
     `;
   }
 }
@@ -443,7 +442,7 @@ function renderGridItemsList(type) {
   (window._pendingGridItems || []).forEach((item, i) => {
     const el = document.createElement('div');
     el.className = 'list-item';
-    el.innerHTML = `<span>${item.name || '(unnamed)'}</span><span><span class="remove" style="color:#00E5FF" onclick="editGridItem('${type}', ${i})">✎</span> <span class="remove" onclick="removeGridItem('${type}', ${i})">✕</span></span>`;
+    el.innerHTML = `<span>${item.name || I18N.t('web_unnamed')}</span><span><span class="remove" style="color:#00E5FF" onclick="editGridItem('${type}', ${i})">✎</span> <span class="remove" onclick="removeGridItem('${type}', ${i})">✕</span></span>`;
     list.appendChild(el);
   });
 }
@@ -514,7 +513,7 @@ async function editGridItem(type, i) {
   const item = window._pendingGridItems[i];
   fillGridItemForm(type, item);
   if (type !== 'button_grid') await fillGiHarmonySection(item);
-  document.getElementById('giSubmitBtn').textContent = `Save ${type === 'button_grid' ? 'button' : 'scene'}`;
+  document.getElementById('giSubmitBtn').textContent = I18N.t(type === 'button_grid' ? 'web_card_grid_save_button' : 'web_card_grid_save_scene');
   document.getElementById('giCancelBtn').style.display = '';
 }
 
@@ -533,7 +532,7 @@ function cancelGridItemEdit() {
   const harmonyModeSel = document.getElementById('giHarmonyMode');
   if (harmonyModeSel) { harmonyModeSel.value = ''; onGiHarmonyModeChange(); }
   const btn = document.getElementById('giSubmitBtn');
-  if (btn) btn.textContent = btn.textContent.replace(/^Save/, '+ Add');
+  if (btn && btn.dataset.addKey) btn.textContent = I18N.t(btn.dataset.addKey);
   document.getElementById('giCancelBtn').style.display = 'none';
 }
 
@@ -548,7 +547,7 @@ function addGridItem(type) {
     if (entityId) item.entity_id = entityId;
     const rawData = document.getElementById('giData').value.trim();
     if (rawData) {
-      try { item.data = JSON.parse(rawData); } catch (e) { alert('Extra data must be valid JSON'); return; }
+      try { item.data = JSON.parse(rawData); } catch (e) { alert(I18N.t('web_card_alert_data_json')); return; }
     }
   } else {
     const entityId = document.getElementById('giEntityId').value.trim();
@@ -560,7 +559,7 @@ function addGridItem(type) {
     if (entityId) item.entity_id = entityId;
     if (page) item.page = page;
     if (irDevice && irCommand) { item.irDevice = irDevice; item.irCommand = irCommand; }
-    else if (irDevice && !irCommand) { alert('Pick an IR command, or clear the IR device field.'); return; }
+    else if (irDevice && !irCommand) { alert(I18N.t('web_card_alert_pick_ir_command')); return; }
     if (activityRef) item.activity = activityRef;
     if (color) item.color = color;
 
@@ -569,7 +568,7 @@ function addGridItem(type) {
       if (harmonyAvailable) {
         const hub = document.getElementById('giHub').value.trim();
         const activityId = document.getElementById('giActivitySelect').value.trim();
-        if (!hub || !activityId) { alert('Pick a hub and an activity.'); return; }
+        if (!hub || !activityId) { alert(I18N.t('web_card_alert_pick_hub_activity')); return; }
         item.hub = hub;
         item.activityId = activityId;
       } else {
@@ -581,7 +580,7 @@ function addGridItem(type) {
         const hub = document.getElementById('giHub').value.trim();
         const device = document.getElementById('giDeviceSelect').value.trim();
         const command = document.getElementById('giCommandSelect').value.trim();
-        if (!hub || !device || !command) { alert('Pick a hub, a device, and a command.'); return; }
+        if (!hub || !device || !command) { alert(I18N.t('web_card_alert_pick_hub_device_command')); return; }
         item.hub = hub;
         item.harmonyDevice = device;
         item.harmonyCommand = command;
@@ -594,7 +593,7 @@ function addGridItem(type) {
     const track = document.getElementById('giTrack')?.checked || false;
     if (track) {
       const room = document.getElementById('giRoom').value.trim();
-      if (!room) { alert('A tracked Activity needs a Room — that\'s what makes it exclusive at runtime.'); return; }
+      if (!room) { alert(I18N.t('web_card_alert_track_needs_room')); return; }
       item.track = true;
       item.room = room;
       const devices = document.getElementById('giDevices').value.split(',').map(s => s.trim()).filter(Boolean);
@@ -628,7 +627,7 @@ function renderVacuumRoomsList() {
   (window._pendingVacuumRooms || []).forEach((room, i) => {
     const el = document.createElement('div');
     el.className = 'list-item';
-    el.innerHTML = `<span>${room.name || '(unnamed)'} — id ${room.id}</span><span class="remove" onclick="removeVacuumRoom(${i})">✕</span>`;
+    el.innerHTML = `<span>${room.name || I18N.t('web_unnamed')} — ${I18N.t('web_card_room_id_display', room.id)}</span><span class="remove" onclick="removeVacuumRoom(${i})">✕</span>`;
     list.appendChild(el);
   });
 }
@@ -637,7 +636,7 @@ function addVacuumRoom() {
   const name = document.getElementById('vrName').value.trim();
   const idRaw = document.getElementById('vrId').value.trim();
   const id = parseInt(idRaw, 10);
-  if (!name || isNaN(id)) { alert('Room needs a name and a numeric ID'); return; }
+  if (!name || isNaN(id)) { alert(I18N.t('web_card_alert_room_name_id')); return; }
   window._pendingVacuumRooms = window._pendingVacuumRooms || [];
   window._pendingVacuumRooms.push({ name, id });
   document.getElementById('vrName').value = '';
@@ -656,8 +655,8 @@ function removeVacuumRoom(i) {
 function openCardDialog(idx) {
   editingCard = idx;
   const isNew = idx === null;
-  document.getElementById('cardEditorTitle').textContent = isNew ? 'Add card' : 'Edit card';
-  document.getElementById('addCardBtn').innerText = isNew ? 'Add card to page' : 'Save changes';
+  document.getElementById('cardEditorTitle').textContent = isNew ? I18N.t('web_modal_add_card') : I18N.t('web_modal_edit_card');
+  document.getElementById('addCardBtn').innerText = isNew ? I18N.t('web_modal_add_card_to_page') : I18N.t('web_save_changes');
 
   const select = document.getElementById('cardTypeSelect');
   if (isNew) {
@@ -834,7 +833,7 @@ function cancelCardEdit() {
   editingCard = null;
   window._pendingGridItems = [];
   window._pendingVacuumRooms = [];
-  document.getElementById('addCardBtn').innerText = 'Add card to page';
+  document.getElementById('addCardBtn').innerText = I18N.t('web_modal_add_card_to_page');
   document.getElementById('cardEditorModal').classList.remove('open');
 }
 
@@ -869,7 +868,7 @@ function addCardToPage() {
   } else if (type === 'title') {
     const title = document.getElementById('optTitle').value.trim();
     const subtitle = document.getElementById('optSubtitle').value.trim();
-    if (!title && !subtitle) { alert('Set a title, a subtitle, or both.'); return; }
+    if (!title && !subtitle) { alert(I18N.t('web_card_alert_title_required')); return; }
     if (title) newCard.options.title = title;
     if (subtitle) newCard.options.subtitle = subtitle;
     const alignment = document.getElementById('optTitleAlignment').value;
@@ -949,7 +948,7 @@ function addCardToPage() {
         const topButtons = JSON.parse(document.getElementById('optMediaTopButtons').value || '[]');
         if (Array.isArray(topButtons) && topButtons.length) newCard.options.top_buttons = topButtons;
       } catch (e) {
-        alert('Top buttons JSON is invalid — fix it or leave as []. Card not added.');
+        alert(I18N.t('web_card_alert_top_buttons_json'));
         return;
       }
     }
@@ -1001,7 +1000,7 @@ function addCardToPage() {
     if (harmonyAvailable) {
       const hub = document.getElementById('atvHub').value.trim();
       const deviceId = document.getElementById('atvDeviceSelect').value.trim();
-      if (!hub || !deviceId) { alert('Pick a hub and a device.'); return; }
+      if (!hub || !deviceId) { alert(I18N.t('web_card_alert_pick_hub_device')); return; }
       newCard.options.hub = hub;
       newCard.options.deviceId = deviceId;
     } else {
@@ -1038,7 +1037,7 @@ function addCardToPage() {
     const rcaParameter = document.getElementById('optRoomCleanParameter').value.trim();
     if (rcaDomain || rcaService || rcaParameter) {
       if (!rcaDomain || !rcaService || !rcaParameter) {
-        alert('Fill in all three room-clean service fields (domain, service, and field name), or leave all three blank.');
+        alert(I18N.t('web_card_alert_room_clean_fields'));
         return;
       }
       newCard.options.room_clean_action = { domain: rcaDomain, service: rcaService, parameter: rcaParameter };
@@ -1048,7 +1047,7 @@ function addCardToPage() {
     const plexToken = document.getElementById('optPlexToken').value.trim();
     const plexMediaEntity = document.getElementById('optPlexMediaEntity').value.trim();
     if (!plexHost || !plexToken || !plexMediaEntity) {
-      alert('Fill in the Plex server URL, token, and a playback entity.');
+      alert(I18N.t('web_card_alert_plex_fields'));
       return;
     }
     newCard.options.host = plexHost;
@@ -1074,7 +1073,7 @@ function addCardToPage() {
     if (type === 'custom') newCard.type = document.getElementById('optCustomType').value.trim() || 'custom';
     try {
       newCard.options = JSON.parse(document.getElementById('optRawJson').value || '{}');
-    } catch (e) { alert('Options must be valid JSON'); return; }
+    } catch (e) { alert(I18N.t('web_card_alert_options_json')); return; }
   }
 
   if (editingCard !== null) {
@@ -1160,11 +1159,11 @@ function onButtonIconError(img) {
 
 function iconFieldHtml(id) {
   return `
-    <label>Icon (optional, PNG path)</label>
+    <label>${I18N.t('web_card_icon_label')}</label>
     <div class="icon-field-row">
       <input type="text" id="${id}" placeholder="/sdcard/astrion/icons/xxx.png" oninput="updateIconThumb('${id}')">
       <img class="icon-field-thumb" id="${id}Thumb" alt="">
-      <button type="button" class="secondary" onclick="openIconPicker('${id}')">Choose…</button>
+      <button type="button" class="secondary" onclick="openIconPicker('${id}')">${I18N.t('web_icon_choose')}</button>
     </div>
   `;
 }
@@ -1202,7 +1201,7 @@ let iconPickerTarget = null;
 async function openIconPicker(targetId) {
   iconPickerTarget = targetId;
   const grid = document.getElementById('iconPickerGrid');
-  grid.innerHTML = '<div class="icon-picker-empty">Loading…</div>';
+  grid.innerHTML = `<div class="icon-picker-empty">${I18N.t('media_loading')}</div>`;
   document.getElementById('iconPickerModal').classList.add('open');
 
   let names;
@@ -1213,16 +1212,13 @@ async function openIconPicker(targetId) {
   } catch (e) {
     grid.innerHTML = `
       <div class="icon-picker-error">
-        Can't list icons from here — this only works when the builder is opened
-        from the device itself (<code>http://&lt;remote-ip&gt;:8080/builder/</code>),
-        not the standalone copy. Type the path by hand instead, or upload icons
-        first from the device's home page (<code>/</code>).
+        ${I18N.t('web_icon_error')}
       </div>`;
     return;
   }
 
   if (!names.length) {
-    grid.innerHTML = '<div class="icon-picker-empty">No icons uploaded yet — add some from the "Icons" section on the device\'s home page (<code>/</code>) first.</div>';
+    grid.innerHTML = `<div class="icon-picker-empty">${I18N.t('web_icon_empty_hint')}</div>`;
     return;
   }
 

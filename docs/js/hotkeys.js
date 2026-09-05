@@ -73,33 +73,33 @@ function updateHotkeyActionInputs() {
   const action = document.getElementById('hkAction').value;
   const container = document.getElementById('dynamicHotkeyInputs');
   if (action === 'page') {
-    container.innerHTML = `<label>Target page name</label><input type="text" id="hkPage" placeholder="e.g., Media">`;
+    container.innerHTML = `<label>${I18N.t('web_hotkey_target_page_label')}</label><input type="text" id="hkPage" placeholder="${I18N.t('web_hotkey_target_page_ph')}">`;
   } else if (action === 'openOverlay') {
     container.innerHTML = `
-      <label>Overlay</label>
+      <label>${I18N.t('web_hotkey_overlay_label')}</label>
       <select id="hkOverlay">
-        <option value="settings">Settings (same as swipe down from the top bar)</option>
-        <option value="activities">Active Activities (same as swipe up from the page dots)</option>
+        <option value="settings">${I18N.t('web_hotkey_overlay_settings')}</option>
+        <option value="activities">${I18N.t('web_hotkey_overlay_activities')}</option>
       </select>
     `;
   } else if (action === 'openCurrentActivity') {
     container.innerHTML = `
-      <label>Room</label><input type="text" id="hkActivityRoom" placeholder="e.g., Living Room">
-      <div class="hint" style="margin-top:4px">Jumps straight to the page of whichever Activity is currently active in this room — no picker. Does nothing if that room has nothing active right now. Must match a room name used by a tracked Activity (a composed Activity, or a scene_grid tile / hotkey with "track": true) exactly.</div>
+      <label>${I18N.t('web_hotkey_room_label')}</label><input type="text" id="hkActivityRoom" placeholder="${I18N.t('web_hotkey_room_ph')}">
+      <div class="hint" style="margin-top:4px">${I18N.t('web_hotkey_room_hint')}</div>
     `;
   } else if (action === 'service') {
     container.innerHTML = `
-      <label>Service (domain.service)</label><input type="text" id="hkService" placeholder="e.g., light.toggle">
-      <label>Entity ID (optional)</label><input type="text" id="hkEntityId" placeholder="e.g., light.living_room">
-      <label>Extra data (optional, JSON)</label><input type="text" id="hkData" placeholder='{"brightness": 255}'>
+      <label>${I18N.t('web_hotkey_service_label')}</label><input type="text" id="hkService" placeholder="${I18N.t('web_hotkey_service_ph')}">
+      <label>${I18N.t('web_hotkey_entity_label')}</label><input type="text" id="hkEntityId" placeholder="${I18N.t('web_hotkey_entity_ph')}">
+      <label>${I18N.t('web_hotkey_data_label')}</label><input type="text" id="hkData" placeholder='{"brightness": 255}'>
     `;
   } else if (action === 'remoteCommand') {
     container.innerHTML = `
-      <label>Remote entity</label><input type="text" id="hkEntityId" placeholder="e.g., remote.family_room" oninput="refreshRemoteCommandDatalist()">
-      <label>Command</label>
-      <input type="text" id="hkCommand" placeholder="e.g., VOLUME_UP" list="hkCommandList">
+      <label>${I18N.t('web_hotkey_remote_entity_label')}</label><input type="text" id="hkEntityId" placeholder="${I18N.t('web_hotkey_remote_entity_ph')}" oninput="refreshRemoteCommandDatalist()">
+      <label>${I18N.t('web_hotkey_command_label')}</label>
+      <input type="text" id="hkCommand" placeholder="${I18N.t('web_hotkey_command_ph')}" list="hkCommandList">
       <datalist id="hkCommandList"></datalist>
-      <div class="hint">Pick a <code>remote.*</code> entity. Command suggestions come from the entity's <code>commands_list</code> attribute when present, otherwise from the built-in Android TV keymap.</div>
+      <div class="hint">${I18N.t('web_hotkey_remote_hint')}</div>
     `;
     attachEntityAutocomplete(document.getElementById('hkEntityId'), 'remote');
     refreshRemoteCommandDatalist();
@@ -108,30 +108,30 @@ function updateHotkeyActionInputs() {
       renderHarmonyHubSelect(container, 'command', 'hk');
     } else {
       container.innerHTML = `
-        <label>Harmony device ID</label><input type="text" id="hkDevice" placeholder="e.g., 62845789">
-        <label>Harmony command</label><input type="text" id="hkCommand" placeholder="e.g., VolumeUp">
+        <label>${I18N.t('web_hotkey_harmony_device_label')}</label><input type="text" id="hkDevice" placeholder="${I18N.t('web_hotkey_harmony_device_ph')}">
+        <label>${I18N.t('web_hotkey_harmony_command_label')}</label><input type="text" id="hkCommand" placeholder="${I18N.t('web_hotkey_harmony_command_ph')}">
       `;
     }
   } else if (action === 'harmonyActivity') {
     if (harmonyAvailable) {
       renderHarmonyHubSelect(container, 'activity', 'hk');
     } else {
-      container.innerHTML = `<label>Harmony activity ID</label><input type="text" id="hkActivityId" placeholder="e.g., 12345678 (or -1 for Power Off)">`;
+      container.innerHTML = `<label>${I18N.t('web_hotkey_harmony_activity_label')}</label><input type="text" id="hkActivityId" placeholder="${I18N.t('web_hotkey_harmony_activity_ph')}">`;
     }
   }
 }
 
 function describeHotkey(h) {
-  if (h.page) return `→ page "${h.page}"`;
-  if (h.openOverlay) return `→ open ${h.openOverlay === 'activities' ? 'Active Activities' : 'Settings'}`;
-  if (h.openCurrentActivityRoom) return `→ current Activity in "${h.openCurrentActivityRoom}"`;
+  if (h.page) return I18N.t('web_hotkey_desc_page', h.page);
+  if (h.openOverlay) return h.openOverlay === 'activities' ? I18N.t('web_hotkey_desc_overlay_activities') : I18N.t('web_hotkey_desc_overlay_settings');
+  if (h.openCurrentActivityRoom) return I18N.t('web_hotkey_desc_current_activity', h.openCurrentActivityRoom);
   if (h.service === 'remote.send_command') {
     const cmd = h.data && h.data.command ? h.data.command : '?';
-    return `→ remote ${h.entityId || '?'} / ${cmd}`;
+    return I18N.t('web_hotkey_desc_remote', h.entityId || '?', cmd);
   }
-  if (h.service) return `→ ${h.service}${h.entityId ? ' (' + h.entityId + ')' : ''}`;
-  if (h.harmonyCommand) return `→ Harmony ${h.harmonyDevice || '?'} / ${h.harmonyCommand}`;
-  if (h.harmonyActivity) return `→ Harmony activity ${h.harmonyActivity}`;
+  if (h.service) return h.entityId ? I18N.t('web_hotkey_desc_service', h.service, h.entityId) : I18N.t('web_hotkey_desc_service_plain', h.service);
+  if (h.harmonyCommand) return I18N.t('web_hotkey_desc_harmony', h.harmonyDevice || '?', h.harmonyCommand);
+  if (h.harmonyActivity) return I18N.t('web_hotkey_desc_harmony_activity', h.harmonyActivity);
   return '';
 }
 
@@ -156,12 +156,12 @@ function renderHotkeysList() {
     });
   };
 
-  addRows(dashboardData.hotkeys, 'global', 'hotkeys', 'Global');
-  addRows(dashboardData.longHotkeys, 'global', 'longHotkeys', 'Global, long');
-  addRows(page.hotkeys, 'page', 'hotkeys', 'Page');
-  addRows(page.longHotkeys, 'page', 'longHotkeys', 'Page, long');
+  addRows(dashboardData.hotkeys, 'global', 'hotkeys', I18N.t('web_hotkey_scope_global'));
+  addRows(dashboardData.longHotkeys, 'global', 'longHotkeys', I18N.t('web_hotkey_scope_global_long'));
+  addRows(page.hotkeys, 'page', 'hotkeys', I18N.t('web_hotkey_scope_page'));
+  addRows(page.longHotkeys, 'page', 'longHotkeys', I18N.t('web_hotkey_scope_page_long'));
 
-  if (!container.innerHTML.trim()) container.innerHTML = '<div class="hint">No hotkeys yet.</div>';
+  if (!container.innerHTML.trim()) container.innerHTML = `<div class="hint">${I18N.t('web_hotkey_none')}</div>`;
 
   updateHardwareKeyHighlights();
 }
@@ -253,7 +253,7 @@ async function editHotkey(scope, listType, i) {
     }
   }
 
-  document.getElementById('addHotkeyBtn').innerText = 'Save changes';
+  document.getElementById('addHotkeyBtn').innerText = I18N.t('web_save_changes');
   document.getElementById('cancelHotkeyEditBtn').style.display = 'inline-block';
 }
 
@@ -268,7 +268,7 @@ function removeHotkey(scope, listType, i) {
 
 function cancelHotkeyEdit() {
   editingHotkey = null;
-  document.getElementById('addHotkeyBtn').innerText = 'Add hotkey';
+  document.getElementById('addHotkeyBtn').innerText = I18N.t('web_hotkey_add');
   document.getElementById('cancelHotkeyEditBtn').style.display = 'none';
 }
 
@@ -285,7 +285,7 @@ function addHotkey() {
     hkObj.openOverlay = document.getElementById('hkOverlay').value;
   } else if (action === 'openCurrentActivity') {
     const room = document.getElementById('hkActivityRoom').value.trim();
-    if (!room) { alert('Enter a room name.'); return; }
+    if (!room) { alert(I18N.t('web_hotkey_err_room')); return; }
     hkObj.openCurrentActivityRoom = room;
   } else if (action === 'service') {
     hkObj.service = document.getElementById('hkService').value.trim();
@@ -293,12 +293,12 @@ function addHotkey() {
     if (entityId) hkObj.entityId = entityId;
     const rawData = document.getElementById('hkData').value.trim();
     if (rawData) {
-      try { hkObj.data = JSON.parse(rawData); } catch (e) { alert('Extra data must be valid JSON'); return; }
+      try { hkObj.data = JSON.parse(rawData); } catch (e) { alert(I18N.t('web_hotkey_err_json')); return; }
     }
   } else if (action === 'remoteCommand') {
     const entityId = document.getElementById('hkEntityId').value.trim();
     const command = document.getElementById('hkCommand').value.trim();
-    if (!entityId || !command) { alert('Pick a remote entity and a command.'); return; }
+    if (!entityId || !command) { alert(I18N.t('web_hotkey_err_remote')); return; }
     hkObj.service = 'remote.send_command';
     hkObj.entityId = entityId;
     hkObj.data = { command };
@@ -307,7 +307,7 @@ function addHotkey() {
       const hub = document.getElementById('hkHub').value.trim();
       const device = document.getElementById('hkDeviceSelect').value.trim();
       const command = document.getElementById('hkCommandSelect').value.trim();
-      if (!hub || !device || !command) { alert('Pick a hub, a device, and a command.'); return; }
+      if (!hub || !device || !command) { alert(I18N.t('web_hotkey_err_harmony_command')); return; }
       hkObj.hub = hub;
       hkObj.harmonyDevice = device;
       hkObj.harmonyCommand = command;
@@ -319,7 +319,7 @@ function addHotkey() {
     if (harmonyAvailable) {
       const hub = document.getElementById('hkHub').value.trim();
       const activityId = document.getElementById('hkActivitySelect').value.trim();
-      if (!hub || !activityId) { alert('Pick a hub and an activity.'); return; }
+      if (!hub || !activityId) { alert(I18N.t('web_hotkey_err_harmony_activity')); return; }
       hkObj.hub = hub;
       hkObj.harmonyActivity = activityId;
     } else {
@@ -344,19 +344,8 @@ function addHotkey() {
 //
 // All release-badge and hardware-key strings live in the shared i18n JSON
 // (keys web_release_* / web_hwkey_* — see js/i18n.js); they're looked up
-// through I18N.t() after I18N.ready resolves.
-
-function applyUiI18n() {
-  // On a failed i18n load, keep the HTML's static English defaults rather
-  // than splattering raw keys over every button.
-  if (!Object.keys(I18N.strings).length) return;
-  const betaLabel = document.getElementById('betaToggleLabel');
-  if (betaLabel) betaLabel.textContent = I18N.t('web_release_also_beta');
-  document.querySelectorAll('button[data-hwkey]').forEach(btn => {
-    const key = 'web_hwkey_' + btn.dataset.hwkey.toLowerCase();
-    if (I18N.strings[key] !== undefined) btn.title = I18N.t(key);
-  });
-}
+// through I18N.t() after I18N.ready resolves. applyUiI18n() also lives in
+// js/i18n.js now.
 
 async function fetchReleaseBadge(url, icon) {
   try {

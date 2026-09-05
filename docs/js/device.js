@@ -95,21 +95,21 @@ async function saveDashboardToDevice() {
   try {
     JSON.parse(jsonText); // fail fast with a clear message rather than let the app reject a bad upload silently
   } catch (e) {
-    showToast('Invalid JSON: ' + e.message, 'error');
+    showToast(I18N.t('web_page_invalid_json', e.message), 'error');
     return;
   }
   const btn = document.getElementById('saveToDeviceBtn');
   const originalText = btn.textContent;
-  btn.textContent = 'Saving…';
+  btn.textContent = I18N.t('web_device_saving');
   btn.disabled = true;
   try {
     const form = new FormData();
     form.append('file', new Blob([jsonText], { type: 'application/json' }), 'dashboard.json');
     const res = await fetch('/dashboard.json', { method: 'POST', body: form });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    showToast('Saved — the dashboard reloads automatically.');
+    showToast(I18N.t('web_device_saved'));
   } catch (e) {
-    showToast('Save failed: ' + e, 'error');
+    showToast(I18N.t('web_device_save_failed', e), 'error');
   } finally {
     btn.textContent = originalText;
     btn.disabled = false;
@@ -122,8 +122,8 @@ function updateDeviceModeUi() {
   if (banner) {
     banner.style.display = 'block';
     banner.textContent = deviceModeAvailable
-      ? '✓ Connected to this device — dashboard.json was loaded automatically, and "Save to device" applies changes live.'
-      : 'Not connected to a device — use "Load" (paste) and "Download" below, or open this page from your device\'s own /builder/ URL.';
+      ? I18N.t('web_device_connected_banner')
+      : I18N.t('web_device_offline_banner');
   }
   if (saveBtn) saveBtn.style.display = deviceModeAvailable ? 'inline-block' : 'none';
 }

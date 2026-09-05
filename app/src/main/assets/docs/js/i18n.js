@@ -58,3 +58,40 @@ window.I18N = (() => {
 
   return i18n;
 })();
+
+// Applies the loaded strings to the static markup. Runs after I18N.ready
+// (gated in index.html's boot script); on a failed load the HTML's static
+// English defaults stay untouched instead of being splattered with raw keys.
+//
+// Two markup conventions:
+//   data-i18n="key"            → element's textContent is replaced
+//   data-i18n-attr="attr:key"  → any attribute is replaced (placeholder,
+//                                title, optgroup label…); several pairs can
+//                                be chained: "placeholder:k1;title:k2"
+// NOTE: data-i18n replaces the ENTIRE textContent — for elements that wrap
+// child elements (a label around its input, an icon span…), put the
+// attribute on a <span> around the text portion instead.
+function applyUiI18n() {
+  if (!Object.keys(I18N.strings).length) return;
+  document.documentElement.lang = I18N.lang;
+
+  // Beta toggle + physical-key tooltips predate the generic mechanism.
+  const betaLabel = document.getElementById('betaToggleLabel');
+  if (betaLabel) betaLabel.textContent = I18N.t('web_release_also_beta');
+  document.querySelectorAll('button[data-hwkey]').forEach(btn => {
+    const key = 'web_hwkey_' + btn.dataset.hwkey.toLowerCase();
+    if (I18N.strings[key] !== undefined) btn.title = I18N.t(key);
+  });
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const value = I18N.strings[el.dataset.i18n];
+    if (typeof value === 'string') el.textContent = value;
+  });
+  document.querySelectorAll('[data-i18n-attr]').forEach(el => {
+    el.dataset.i18nAttr.split(';').forEach(pair => {
+      const [attr, key] = pair.split(':').map(s => s.trim());
+      const value = I18N.strings[key];
+      if (typeof value === 'string') el.setAttribute(attr, value);
+    });
+  });
+}
