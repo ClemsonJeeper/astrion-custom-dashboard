@@ -237,10 +237,10 @@
                         </button>
                     </div>
                     <div class="hw-dpad">
-                        <button class="dpad-btn dpad-top" title="Haut" data-hwkey="UP"></button>
-                        <button class="dpad-btn dpad-right" title="Droite" data-hwkey="RIGHT"></button>
-                        <button class="dpad-btn dpad-left" title="Gauche" data-hwkey="LEFT"></button>
-                        <button class="dpad-btn dpad-bottom" title="Bas" data-hwkey="DOWN"></button>
+                        <button class="dpad-btn dpad-top" title="Up" data-hwkey="UP"></button>
+                        <button class="dpad-btn dpad-right" title="Right" data-hwkey="RIGHT"></button>
+                        <button class="dpad-btn dpad-left" title="Left" data-hwkey="LEFT"></button>
+                        <button class="dpad-btn dpad-bottom" title="Down" data-hwkey="DOWN"></button>
                         <button class="dpad-ok" data-hwkey="CENTER">OK</button>
                     </div>
                 </div>
@@ -416,6 +416,7 @@
 
 <div id="toast" class="toast"></div>
 
+<script src="js/i18n.js"></script>
 <script src="js/mocks.js"></script>
 <script src="js/pages.js"></script>
 <script src="js/cards.js"></script>
@@ -427,6 +428,6 @@
 <script src="js/export.js"></script>
 <script src="js/preview.js"></script>
 <script src="js/device.js"></script>
-<script>applyUiI18n(); initEditor(); loadStableBadge();</script>
+<script>initEditor(); loadStableBadge(); I18N.ready.then(applyUiI18n);</script>
 </body>
 </html>

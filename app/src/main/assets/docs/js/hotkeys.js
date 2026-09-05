@@ -340,57 +340,21 @@ function addHotkey() {
   renderHotkeysList(); renderPreview(); updateJsonOutput();
 }
 
-// ---- Release badges (official + beta) --------------------------------------
-
-const RELEASE_STRINGS = {
-  en: {
-    loading: 'Loading…',
-    stableUnavailable: 'Official release unavailable',
-    betaUnavailable: 'Beta unavailable',
-    downloadApk: 'download the APK',
-    installToDevice: 'Install on this device',
-    installing: 'Installing…',
-    installStarted: 'Install launched on the remote.',
-    installFailed: 'Install failed: ',
-    alsoBeta: 'Also the beta (dev)'
-  },
-  fr: {
-    loading: 'Chargement…',
-    stableUnavailable: 'Version officielle indisponible',
-    betaUnavailable: 'Bêta indisponible',
-    downloadApk: "télécharger l'APK",
-    installToDevice: 'Installer sur cet appareil',
-    installing: 'Installation…',
-    installStarted: 'Installation lancée sur la télécommande.',
-    installFailed: "Échec de l'installation : ",
-    alsoBeta: 'Aussi la bêta (dev)'
-  }
-};
-
-const HW_KEY_TITLES = {
-  en: {
-    BACK: 'Back', HOME: 'Home', POWER: 'Power', VOLUME_UP: 'Volume +',
-    PAGE_UP: 'Previous page', VOLUME_DOWN: 'Volume -', PAGE_DOWN: 'Next page',
-    MUTE: 'Mute', VOICE: 'Microphone', MAIN: 'Menu', REWIND: 'Rewind',
-    PLAY: 'Play / Pause', STOP: 'Stop', FASTFORWARD: 'Fast-forward'
-  },
-  fr: {
-    BACK: 'Retour', HOME: 'Accueil', POWER: 'Alimentation', VOLUME_UP: 'Volume +',
-    PAGE_UP: 'Page précédente', VOLUME_DOWN: 'Volume -', PAGE_DOWN: 'Page suivante',
-    MUTE: 'Muet', VOICE: 'Microphone', MAIN: 'Menu', REWIND: 'Retour rapide',
-    PLAY: 'Lecture / Pause', STOP: 'Arrêt', FASTFORWARD: 'Avance rapide'
-  }
-};
-
-const uiLang = ((navigator.language || 'en').split('-')[0]).startsWith('fr') ? 'fr' : 'en';
-const t = (key) => RELEASE_STRINGS[uiLang][key];
+// ---- Release badges (official + beta) ---------------------------------------
+//
+// All release-badge and hardware-key strings live in the shared i18n JSON
+// (keys web_release_* / web_hwkey_* — see js/i18n.js); they're looked up
+// through I18N.t() after I18N.ready resolves.
 
 function applyUiI18n() {
+  // On a failed i18n load, keep the HTML's static English defaults rather
+  // than splattering raw keys over every button.
+  if (!Object.keys(I18N.strings).length) return;
   const betaLabel = document.getElementById('betaToggleLabel');
-  if (betaLabel) betaLabel.textContent = t('alsoBeta');
+  if (betaLabel) betaLabel.textContent = I18N.t('web_release_also_beta');
   document.querySelectorAll('button[data-hwkey]').forEach(btn => {
-    const title = HW_KEY_TITLES[uiLang][btn.dataset.hwkey];
-    if (title) btn.title = title;
+    const key = 'web_hwkey_' + btn.dataset.hwkey.toLowerCase();
+    if (I18N.strings[key] !== undefined) btn.title = I18N.t(key);
   });
 }
 
@@ -401,7 +365,7 @@ async function fetchReleaseBadge(url, icon) {
     const data = await res.json();
     const asset = (data.assets || []).find(a => a.name.endsWith('.apk'));
     return `${icon} ${data.name || data.tag_name}` +
-      (asset ? ` — <a href="${asset.browser_download_url}">${t('downloadApk')}</a>` : '');
+      (asset ? ` — <a href="${asset.browser_download_url}">${I18N.t('web_release_download_apk')}</a>` : '');
   } catch (e) {
     console.log('Release fetch failed', e);
     return null;
@@ -409,26 +373,28 @@ async function fetchReleaseBadge(url, icon) {
 }
 
 async function loadStableBadge() {
+  await I18N.ready;
   const badge = document.getElementById('stableBadge');
   if (!badge) return;
-  badge.textContent = t('loading');
+  badge.textContent = I18N.t('web_release_loading');
   const html = await fetchReleaseBadge(
     'https://api.github.com/repos/dckiller51/astrion-custom-dashboard/releases/latest', '✅'
   );
-  badge.innerHTML = html || t('stableUnavailable');
+  badge.innerHTML = html || I18N.t('web_release_stable_unavailable');
 }
 
 async function toggleBetaBadge() {
+  await I18N.ready;
   const on = document.getElementById('betaToggle').checked;
   const badge = document.getElementById('betaBadge');
   if (!on) { badge.style.display = 'none'; return; }
-  badge.textContent = t('loading');
+  badge.textContent = I18N.t('web_release_loading');
   badge.style.display = 'inline-block';
   const html = await fetchReleaseBadge(
     'https://api.github.com/repos/dckiller51/astrion-custom-dashboard/releases/tags/dev-latest', '🧪'
   );
   if (!html) {
-    badge.innerHTML = t('betaUnavailable');
+    badge.innerHTML = I18N.t('web_release_beta_unavailable');
     return;
   }
   // In device mode (opened from the remote's own :8080), a real one-click
@@ -439,23 +405,24 @@ async function toggleBetaBadge() {
   // plain download link from fetchReleaseBadge stays as the fallback.
   if (typeof deviceModeAvailable !== 'undefined' && deviceModeAvailable) {
     const label = html.replace(/ — <a[^>]*>.*?<\/a>/, '');
-    badge.innerHTML = `${label} — <button type="button" onclick="installBetaUpdate(this)" style="padding:4px 10px;font-size:0.8rem">${t('installToDevice')}</button>`;
+    badge.innerHTML = `${label} — <button type="button" onclick="installBetaUpdate(this)" style="padding:4px 10px;font-size:0.8rem">${I18N.t('web_release_install_to_device')}</button>`;
   } else {
     badge.innerHTML = html;
   }
 }
 
 async function installBetaUpdate(btn) {
+  await I18N.ready;
   const original = btn.textContent;
-  btn.textContent = t('installing');
+  btn.textContent = I18N.t('web_release_installing');
   btn.disabled = true;
   try {
     const res = await fetch('/install-beta-update', { method: 'POST' });
     const text = await res.text();
     if (!res.ok) throw new Error(text || ('HTTP ' + res.status));
-    showToast(t('installStarted'));
+    showToast(I18N.t('web_release_install_started'));
   } catch (e) {
-    showToast(t('installFailed') + e.message, 'error');
+    showToast(I18N.t('web_release_install_failed') + e.message, 'error');
     btn.textContent = original;
     btn.disabled = false;
   }
