@@ -1,4 +1,6 @@
+import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
+import org.gradle.api.GradleException
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
@@ -120,8 +122,13 @@ dependencies {
 // resources are generated from those files at build time, so
 // res/values*/strings.xml never needs to be hand-edited (and is not committed).
 //
-// Keys must be valid Android resource names ([a-z0-9_]+); "en" maps to the
-// default res/values folder, every other filename to res/values-<lang>/.
+// Each file is a flat map of Android-style keys ([a-z0-9_]+) to strings, plus
+// one reserved nested object: "ha" holds the Home Assistant state-label
+// categories (hvac_mode, fan_mode, weather_condition, ...) that HaLabels.kt
+// loads from assets/ha_labels/<lang>.json at runtime — those are generated too
+// (by generateHaLabels below), keeping everything in the one shared file.
+// "en" maps to the default res/values folder, every other filename to
+// res/values-<lang>/.
 
 abstract class GenerateI18nStringsTask : DefaultTask() {
 
@@ -155,13 +162,14 @@ abstract class GenerateI18nStringsTask : DefaultTask() {
                 append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
                 append("<resources>\n")
                 for ((key, value) in strings) {
+                    if (value !is String) continue // nested objects (e.g. "ha") are not string resources
                     require(key.matches(keyPattern)) {
                         "Invalid i18n key \"$key\" in ${jsonFile.name}: must be [a-z0-9_]+"
                     }
                     append("    <string name=\"")
                     append(key)
                     append("\">")
-                    append(escapeForAndroidXml(value.toString()))
+                    append(escapeForAndroidXml(value))
                     append("</string>\n")
                 }
                 append("</resources>\n")
@@ -203,11 +211,57 @@ val generateI18nStrings = tasks.register<GenerateI18nStringsTask>("generateI18nS
     i18nDir.set(rootProject.layout.projectDirectory.dir("i18n"))
 }
 
+/** Extracts the nested "ha" object from each i18n/<lang>.json and writes it
+ *  as assets/ha_labels/<lang>.json — the exact shape HaLabels.kt loads at
+ *  runtime (categories -> raw HA value -> translated label). */
+abstract class GenerateHaLabelsTask : DefaultTask() {
+
+    @get:InputFiles
+    abstract val i18nDir: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        val outDir = outputDir.get().asFile.apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val jsonFiles = i18nDir.get().asFile
+            .listFiles { file -> file.isFile && file.extension == "json" }
+            ?.sortedBy { it.name }
+            .orEmpty()
+        for (jsonFile in jsonFiles) {
+            @Suppress("UNCHECKED_CAST")
+            val strings = JsonSlurper().parse(jsonFile) as Map<String, Any>
+            val haLabels = strings["ha"] as? Map<String, Any>
+            if (haLabels == null) {
+                throw GradleException("${jsonFile.name} is missing the reserved \"ha\" object")
+            }
+            val labelsDir = outDir.resolve("ha_labels").apply { mkdirs() }
+            labelsDir.resolve(jsonFile.name).writeText(
+                JsonOutput.prettyPrint(JsonOutput.toJson(haLabels)) + "\n"
+            )
+        }
+    }
+}
+
+val generateHaLabels = tasks.register<GenerateHaLabelsTask>("generateHaLabels") {
+    group = "i18n"
+    description = "Generates assets/ha_labels/<lang>.json from the \"ha\" section of the shared i18n/*.json files."
+    i18nDir.set(rootProject.layout.projectDirectory.dir("i18n"))
+}
+
 androidComponents {
     onVariants { variant ->
         variant.sources.res?.addGeneratedSourceDirectory(
             generateI18nStrings,
             GenerateI18nStringsTask::outputDir
+        )
+        variant.sources.assets?.addGeneratedSourceDirectory(
+            generateHaLabels,
+            GenerateHaLabelsTask::outputDir
         )
     }
 }

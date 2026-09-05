@@ -417,9 +417,13 @@ function renderPreview() {
       const forecastHtml = shown.map(f => {
         const lowPct = Math.min(Math.max((f.low - weekMin) / span, 0), 1) * 100;
         const highPct = Math.min(Math.max((f.high - weekMin) / span, 0), 1) * 100;
+        // f.date is an ISO date (WEATHER_MOCK) — render the weekday in the
+        // viewer's own locale, like ClockWeatherCard's SimpleDateFormat does.
+        const dayName = new Date(f.date + 'T12:00:00')
+          .toLocaleDateString(undefined, { weekday: 'short' });
         return `
           <div class="cw-forecast-row">
-            <span class="cw-fday">${f.day}</span>
+            <span class="cw-fday">${dayName}</span>
             <span class="cw-femoji">${weatherEmoji(f.condition)}</span>
             <span class="cw-flow">${weatherTrim(f.low)}°</span>
             <div class="cw-fbar"><div class="cw-fbar-fill" style="left:${lowPct}%; right:${100 - highPct}%"></div></div>

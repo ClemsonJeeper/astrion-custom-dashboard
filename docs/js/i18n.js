@@ -19,6 +19,7 @@ window.I18N = (() => {
   const i18n = {
     lang: lang,
     strings: {},
+    ha: {},
 
     // Resolves once the string table is loaded. Never rejects — a failed
     // load (e.g. opening index.html straight from disk) leaves t()
@@ -26,7 +27,13 @@ window.I18N = (() => {
     // defaults, instead of breaking the editor.
     ready: fetch('i18n/' + lang + '.json')
       .then(res => (res.ok ? res.json() : Promise.reject(new Error('HTTP ' + res.status))))
-      .then(strings => { i18n.strings = strings; })
+      .then(strings => {
+        i18n.strings = strings;
+        // Nested "ha" object: raw Home Assistant state values -> translated
+        // labels, by category (hvac_mode, fan_mode, weather_condition, …).
+        // Mirrors what the app loads from its generated ha_labels/<lang>.json.
+        i18n.ha = strings.ha || {};
+      })
       .catch(e => { console.log('i18n load failed', e); }),
 
     // t('key') → the translated string; t('key', a1, a2, …) substitutes
@@ -35,7 +42,7 @@ window.I18N = (() => {
     // Missing keys log once and fall back to the key itself.
     t: (key, ...args) => {
       const value = i18n.strings[key];
-      if (value === undefined) {
+      if (typeof value !== 'string') {
         console.warn('Missing i18n key: ' + key);
         return key;
       }

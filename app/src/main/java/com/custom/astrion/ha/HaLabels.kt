@@ -17,7 +17,10 @@ import kotlinx.serialization.json.jsonPrimitive
  * the key is only known at runtime (it comes from whatever integration
  * reports it) — a plain string lookup needs no such restriction.
  *
- * Community translations live in assets/ha_labels/<lang>.json — adding a
+ * Community translations live in the shared i18n/<lang>.json files at the
+ * repo root (same source as every other string, app and web editor alike);
+ * the build's generateHaLabels task writes their "ha" section into
+ * assets/ha_labels/<lang>.json, which is what this loader reads. Adding a
  * language is just dropping a file, no code change required. en.json is
  * the mandatory fallback if the requested language file is missing.
  */

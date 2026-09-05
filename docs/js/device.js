@@ -23,6 +23,7 @@ function showToast(msg, type) {
 }
 
 async function loadDashboardFromDevice() {
+  await I18N.ready; // the preview's mock/state labels render during init, so strings must be in first
   try {
     const res = await fetch('/dashboard.json');
     deviceModeAvailable = true; // reaching this line at all means the app answered — even a 404 (no dashboard.json saved yet) still confirms device mode
